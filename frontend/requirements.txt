@@ -1,0 +1,12 @@
+# Streamlit
+streamlit==1.30.0
+
+# HTTP Client
+requests==2.31.0
+httpx==0.26.0
+
+# WebSocket Client
+websocket-client==1.7.0
+
+# Utilities
+python-dotenv==1.0.0

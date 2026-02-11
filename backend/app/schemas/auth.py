@@ -1,0 +1,46 @@
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+from uuid import UUID
+
+from app.models.enums import UserRole
+
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    role: UserRole
+    display_name: Optional[str] = None  # For instructors
+    business_name: Optional[str] = None  # For studios
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    id: UUID
+    email: str
+    role: UserRole
+    is_active: bool
+    is_verified: bool
+    no_show_count: int = 0
+    is_suspended: bool = False
+
+    # Verification status
+    phone_verified: bool = False
+    identity_verified: bool = False
+    business_verified: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class MeResponse(BaseModel):
+    user: UserResponse
+    profile_id: Optional[UUID] = None
