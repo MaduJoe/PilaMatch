@@ -48,5 +48,24 @@ services:
     volumes:
       - ./frontend:/app
 
+  admin:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8502:8502"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=pilamatch
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - ADMIN_PASSWORD=admin1234!
+    depends_on:
+      - db
+    volumes:
+      - ./frontend:/app
+    command: streamlit run admin.py --server.port=8502 --server.address=0.0.0.0
+
 volumes:
   postgres_data:
