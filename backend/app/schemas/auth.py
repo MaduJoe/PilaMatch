@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from uuid import UUID
+from datetime import datetime
 
 from app.models.enums import UserRole
 
@@ -36,6 +37,11 @@ class UserResponse(BaseModel):
     phone_verified: bool = False
     identity_verified: bool = False
     business_verified: bool = False
+
+    # v2.0 fields
+    trust_score: int = 0
+    last_active_at: Optional[datetime] = None
+    onboarding_completed: bool = False
 
     class Config:
         from_attributes = True

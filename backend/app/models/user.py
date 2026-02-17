@@ -1,8 +1,8 @@
-from sqlalchemy import Column, String, Boolean, Integer, Numeric
+from sqlalchemy import Column, String, Boolean, Integer, Numeric, DateTime, func, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
-from app.models.base import UUIDMixin, TimestampMixin
+from app.models.base import UUIDMixin, TimestampMixin, GUID
 
 
 class User(Base, UUIDMixin, TimestampMixin):
@@ -25,8 +25,21 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     # Deposit system (보증금)
     deposit_balance = Column(Numeric(10, 2), default=0, nullable=False)  # Current deposit amount
-    deposit_required = Column(Numeric(10, 2), default=50000, nullable=False)  # Required deposit (5만원 default)
+    deposit_required = Column(Numeric(10, 2), default=30000, nullable=False)  # Early bird: 30,000원 (v2.0)
+    deposit_first_paid_at = Column(DateTime)  # When first deposit was paid (v2.0)
+    is_early_bird = Column(Boolean, default=False, nullable=False)  # Early bird user (v2.0)
+
+    # Activity tracking (v2.0)
+    last_active_at = Column(DateTime, default=func.now(), nullable=False)
+    onboarding_completed = Column(Boolean, default=False, nullable=False)
+
+    # Trust score (v2.0)
+    trust_score = Column(Integer, default=0, nullable=False)
+
+    # Premium membership (v2.1)
+    membership_tier = Column(String(20), default="free", nullable=False)  # free, premium
 
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
     studio_profile = relationship("StudioProfile", back_populates="user", uselist=False)
+    subscription = relationship("Subscription", back_populates="user", uselist=False)
