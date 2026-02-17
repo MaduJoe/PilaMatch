@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
-from app.models import Application, JobPost, InstructorProfile, StudioProfile, Offer, ApplicationStatus, JobPostStatus
+from app.models import Application, JobPost, InstructorProfile, StudioProfile, Offer, ApplicationStatus, JobPostStatus, User
 from app.schemas.application import ApplicationCreate
+from app.services.deposit import check_deposit_sufficient
 
 
 class ApplicationService:
@@ -49,6 +50,27 @@ class ApplicationService:
         )
         if existing.scalar_one_or_none():
             raise ValueError("DUPLICATE_APPLICATION")
+
+        # v2.0: Check deposit on first application attempt
+        # Get instructor's user_id
+        instructor = await self.db.execute(
+            select(InstructorProfile).where(InstructorProfile.id == instructor_id)
+        )
+        instructor = instructor.scalar_one_or_none()
+        if instructor:
+            # Check if user has any previous applications
+            prev_apps = await self.db.execute(
+                select(func.count(Application.id)).where(
+                    Application.instructor_id == instructor_id
+                )
+            )
+            app_count = prev_apps.scalar()
+
+            # If this is the first application, check deposit
+            if app_count == 0:
+                has_sufficient_deposit = await check_deposit_sufficient(self.db, str(instructor.user_id))
+                if not has_sufficient_deposit:
+                    raise ValueError("INSUFFICIENT_DEPOSIT")
 
         # Create application
         application = Application(

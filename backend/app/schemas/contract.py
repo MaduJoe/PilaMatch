@@ -19,6 +19,13 @@ class ContractResponse(BaseModel):
     date: date
     start_time: time
     end_time: time
+
+    # v2.0 fields
+    studio_confirmed_at: Optional[datetime] = None
+    instructor_confirmed_at: Optional[datetime] = None
+    platform_fee: Optional[float] = None
+    settlement_amount: Optional[float] = None
+
     cancellation_reason: Optional[str] = None
     cancelled_by_user_id: Optional[UUID] = None
     created_at: datetime

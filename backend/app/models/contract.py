@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Date, Time, ForeignKey, Numeric, Integer
+from sqlalchemy import Column, String, Text, Date, Time, ForeignKey, Numeric, Integer, DateTime
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -15,10 +15,21 @@ class Contract(Base, UUIDMixin, TimestampMixin):
     status = Column(String(20), default=ContractStatus.CONFIRMED.value, nullable=False, index=True)
     hourly_rate = Column(Numeric(10, 2), nullable=False)
     total_amount = Column(Numeric(10, 2), nullable=False)
+    platform_fee = Column(Numeric(10, 2), default=0, nullable=False)  # 5% platform fee (v2.0)
+    settlement_amount = Column(Numeric(10, 2), default=0, nullable=False)  # Amount after fee (v2.0)
     total_sessions = Column(Integer, default=1)
     date = Column(Date, nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
+
+    # Bidirectional completion confirmation (v2.0)
+    studio_confirmed_at = Column(DateTime)
+    instructor_confirmed_at = Column(DateTime)
+
+    # Cancellation/Refund policy agreement (v2.0)
+    policy_agreed_at = Column(DateTime)
+    policy_version = Column(String(10))
+
     cancellation_reason = Column(Text)
     cancelled_by_user_id = Column(GUID(), ForeignKey("users.id"))
 

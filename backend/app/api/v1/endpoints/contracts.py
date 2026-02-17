@@ -9,18 +9,8 @@ from app.core.deps import get_current_user, require_role
 from app.models import User, UserRole
 from app.schemas.contract import ContractResponse, ContractListResponse, ContractCancelRequest
 from app.services.contract import ContractService
-from app.services.penalty import report_no_show, get_user_penalty_status
-
-
 class NoShowReportRequest(BaseModel):
     reported_user_id: str
-
-
-class NoShowReportResponse(BaseModel):
-    no_show_count: int
-    is_suspended: bool
-    remaining_chances: int
-    message: str
 
 router = APIRouter()
 
@@ -103,13 +93,13 @@ async def set_contract_in_progress(
         )
 
 
-@router.post("/{contract_id}/complete", response_model=ContractResponse)
-async def complete_contract(
+@router.post("/{contract_id}/confirm-completion", response_model=ContractResponse)
+async def confirm_contract_completion(
     contract_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Mark contract as completed."""
+    """Confirm contract completion (v2.0 - bidirectional confirmation required)."""
     service = ContractService(db)
 
     if current_user.role == UserRole.STUDIO.value:
@@ -124,30 +114,78 @@ async def complete_contract(
         )
 
     try:
-        contract = await service.complete(
+        contract = await service.confirm_completion(
             contract_id, current_user.id, profile_id, current_user.role
         )
         return ContractResponse.model_validate(contract)
     except PermissionError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to complete this contract"},
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to confirm this contract"},
         )
     except ValueError as e:
         error_msg = str(e)
         if error_msg == "CONTRACT_NOT_IN_PROGRESS":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"code": "CONTRACT_NOT_IN_PROGRESS", "message": "Contract must be in progress to complete"},
+                detail={"code": "CONTRACT_NOT_IN_PROGRESS", "message": "Contract must be in progress to confirm completion"},
             )
-        if error_msg == "INVALID_STATE_TRANSITION":
+        if error_msg.startswith("Already confirmed"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"code": "INVALID_STATE_TRANSITION", "message": "Invalid state transition"},
+                detail={"code": "ALREADY_CONFIRMED", "message": error_msg},
             )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "COMPLETE_FAILED", "message": error_msg},
+            detail={"code": "CONFIRM_FAILED", "message": error_msg},
+        )
+
+
+class RejectCompletionRequest(BaseModel):
+    reason: str
+
+
+@router.post("/{contract_id}/reject-completion", response_model=ContractResponse)
+async def reject_contract_completion(
+    contract_id: UUID,
+    data: RejectCompletionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reject contract completion and create a dispute (v2.0)."""
+    service = ContractService(db)
+
+    if current_user.role == UserRole.STUDIO.value:
+        profile_id = await service.get_studio_profile_id(current_user.id)
+    else:
+        profile_id = await service.get_instructor_profile_id(current_user.id)
+
+    if not profile_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROFILE_NOT_FOUND", "message": "Profile not found"},
+        )
+
+    try:
+        contract = await service.reject_completion(
+            contract_id, current_user.id, profile_id, current_user.role, data.reason
+        )
+        return ContractResponse.model_validate(contract)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to reject this contract"},
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if error_msg == "CONTRACT_NOT_PENDING_COMPLETION":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "CONTRACT_NOT_PENDING", "message": "Contract must be pending completion to reject"},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "REJECT_FAILED", "message": error_msg},
         )
 
 
@@ -200,14 +238,20 @@ async def cancel_contract(
         )
 
 
-@router.post("/{contract_id}/report-no-show", response_model=NoShowReportResponse)
+class NoShowDisputeResponse(BaseModel):
+    dispute_id: str
+    objection_deadline: str
+    message: str
+
+
+@router.post("/{contract_id}/report-no-show", response_model=NoShowDisputeResponse)
 async def report_contract_no_show(
     contract_id: UUID,
     data: NoShowReportRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Report a no-show for a contract. After 3 no-shows, user is suspended."""
+    """Report a no-show for a contract (v2.0 - creates a dispute with 24h objection period)."""
     service = ContractService(db)
 
     # Verify contract exists and user is part of it
@@ -228,14 +272,45 @@ async def report_contract_no_show(
         )
 
     try:
-        result = await report_no_show(
-            db=db,
-            contract_id=str(contract_id),
-            reported_user_id=data.reported_user_id,
-            reporter_user_id=str(current_user.id),
+        # Create a no-show dispute instead of immediate penalty (v2.0)
+        from app.services.dispute import DisputeService
+        from uuid import UUID as UUID_Type
+
+        # Convert profile ID to user ID
+        # The frontend sends profile IDs (instructor_id or studio_id from contract)
+        # But we need user IDs for the dispute
+        reported_profile_id = UUID_Type(data.reported_user_id)
+
+        # Get the user ID from the profile ID
+        if current_user.role == UserRole.STUDIO.value:
+            # Studio is reporting instructor - get instructor's user ID
+            from sqlalchemy import select
+            from app.models import InstructorProfile
+            result = await db.execute(
+                select(InstructorProfile.user_id).where(InstructorProfile.id == reported_profile_id)
+            )
+            reported_user_id = result.scalar_one_or_none()
+            if not reported_user_id:
+                raise ValueError("Instructor profile not found")
+        else:
+            # Instructor is reporting studio - get studio's user ID
+            from sqlalchemy import select
+            from app.models import StudioProfile
+            result = await db.execute(
+                select(StudioProfile.user_id).where(StudioProfile.id == reported_profile_id)
+            )
+            reported_user_id = result.scalar_one_or_none()
+            if not reported_user_id:
+                raise ValueError("Studio profile not found")
+
+        dispute_service = DisputeService(db)
+        dispute = await dispute_service.create_no_show_dispute(
+            contract_id=contract_id,
+            reporter_id=current_user.id,
+            reported_user_id=reported_user_id,
         )
 
-        # Also cancel the contract due to no-show
+        # Cancel the contract due to no-show report
         if current_user.role == UserRole.STUDIO.value:
             profile_id = await service.get_studio_profile_id(current_user.id)
         else:
@@ -246,14 +321,14 @@ async def report_contract_no_show(
             reason=f"No-show reported by {current_user.role}"
         )
 
-        message = "No-show reported successfully."
-        if result["is_suspended"]:
-            message = "No-show reported. User has been suspended due to repeated no-shows."
+        message = (
+            "No-show reported. The other party has 24 hours to object. "
+            "If no objection is received, the penalty will be automatically applied."
+        )
 
-        return NoShowReportResponse(
-            no_show_count=result["no_show_count"],
-            is_suspended=result["is_suspended"],
-            remaining_chances=result["remaining_chances"],
+        return NoShowDisputeResponse(
+            dispute_id=str(dispute.id),
+            objection_deadline=dispute.objection_deadline.isoformat() if dispute.objection_deadline else "",
             message=message,
         )
     except ValueError as e:

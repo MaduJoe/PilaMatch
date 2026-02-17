@@ -50,6 +50,11 @@ async def create_application(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"code": "DUPLICATE_APPLICATION", "message": "Already applied to this job post"},
             )
+        elif error_msg == "INSUFFICIENT_DEPOSIT":
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={"code": "INSUFFICIENT_DEPOSIT", "message": "Deposit required to apply for jobs"},
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "APPLICATION_FAILED", "message": error_msg},

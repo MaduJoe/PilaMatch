@@ -12,11 +12,13 @@ from app.models import (
 )
 
 
-# Valid state transitions
+# Valid state transitions (v2.0 updated)
 VALID_TRANSITIONS: Dict[ContractStatus, Set[ContractStatus]] = {
     ContractStatus.CONFIRMED: {ContractStatus.IN_PROGRESS, ContractStatus.CANCELLED},
-    ContractStatus.IN_PROGRESS: {ContractStatus.COMPLETED, ContractStatus.CANCELLED},
+    ContractStatus.IN_PROGRESS: {ContractStatus.PENDING_COMPLETION, ContractStatus.CANCELLED},
+    ContractStatus.PENDING_COMPLETION: {ContractStatus.COMPLETED, ContractStatus.DISPUTED},
     ContractStatus.COMPLETED: set(),  # Terminal state
+    ContractStatus.DISPUTED: {ContractStatus.COMPLETED, ContractStatus.CANCELLED},  # Can be resolved
     ContractStatus.CANCELLED: set(),  # Terminal state
 }
 
@@ -212,9 +214,10 @@ class ContractService:
         await self.db.refresh(contract)
         return contract
 
-    async def complete(
+    async def confirm_completion(
         self, contract_id: UUID, actor_user_id: UUID, profile_id: UUID, role: str
     ) -> Contract:
+        """Confirm completion from one party (v2.0 bidirectional confirmation)."""
         contract = await self.get_by_id(contract_id)
 
         if not contract:
@@ -222,37 +225,210 @@ class ContractService:
 
         # Check authorization
         if role == "studio" and contract.studio_id != profile_id:
-            raise PermissionError("Not authorized to complete this contract")
+            raise PermissionError("Not authorized to confirm this contract")
         if role == "instructor" and contract.instructor_id != profile_id:
-            raise PermissionError("Not authorized to complete this contract")
+            raise PermissionError("Not authorized to confirm this contract")
 
-        if contract.status != ContractStatus.IN_PROGRESS:
+        # Contract must be IN_PROGRESS or PENDING_COMPLETION
+        if contract.status not in [ContractStatus.IN_PROGRESS, ContractStatus.PENDING_COMPLETION]:
             raise ValueError("CONTRACT_NOT_IN_PROGRESS")
 
-        if not self._validate_transition(contract.status, ContractStatus.COMPLETED):
-            raise ValueError("INVALID_STATE_TRANSITION")
+        # Mark confirmation from the appropriate party
+        if role == "studio":
+            if contract.studio_confirmed_at:
+                raise ValueError("Already confirmed by studio")
+            contract.studio_confirmed_at = datetime.utcnow()
+        else:  # instructor
+            if contract.instructor_confirmed_at:
+                raise ValueError("Already confirmed by instructor")
+            contract.instructor_confirmed_at = datetime.utcnow()
 
-        from_status = contract.status
-        contract.status = ContractStatus.COMPLETED
+        # Check if both parties have confirmed
+        if contract.studio_confirmed_at and contract.instructor_confirmed_at:
+            # Both confirmed - complete the contract
+            from_status = contract.status
+            contract.status = ContractStatus.COMPLETED
 
-        await self._log_event(
-            contract_id=contract_id,
-            actor_user_id=actor_user_id,
-            from_status=from_status,
-            to_status=ContractStatus.COMPLETED,
-            note="Contract completed",
-        )
+            await self._log_event(
+                contract_id=contract_id,
+                actor_user_id=actor_user_id,
+                from_status=from_status,
+                to_status=ContractStatus.COMPLETED,
+                note="Contract completed - both parties confirmed",
+            )
 
-        # Release escrow to instructor
-        from app.services.escrow import release_escrow_to_instructor
-        try:
-            await release_escrow_to_instructor(self.db, str(contract_id))
-        except ValueError:
-            pass  # Payment may not exist yet
+            # Calculate platform fee (5%) and settlement amount
+            from decimal import Decimal
+            contract.platform_fee = float(contract.total_amount) * 0.05
+            contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
+
+            # Release escrow to instructor
+            from app.services.escrow import release_escrow_to_instructor
+            try:
+                await release_escrow_to_instructor(self.db, str(contract_id))
+            except ValueError:
+                pass  # Payment may not exist yet
+        else:
+            # First confirmation - move to PENDING_COMPLETION
+            if contract.status == ContractStatus.IN_PROGRESS:
+                from_status = contract.status
+                contract.status = ContractStatus.PENDING_COMPLETION
+
+                await self._log_event(
+                    contract_id=contract_id,
+                    actor_user_id=actor_user_id,
+                    from_status=from_status,
+                    to_status=ContractStatus.PENDING_COMPLETION,
+                    note=f"Completion confirmed by {role}, waiting for other party",
+                )
 
         await self.db.commit()
         await self.db.refresh(contract)
         return contract
+
+    async def reject_completion(
+        self, contract_id: UUID, actor_user_id: UUID, profile_id: UUID, role: str, reason: str
+    ) -> Contract:
+        """Reject completion and create a dispute (v2.0)."""
+        contract = await self.get_by_id(contract_id)
+
+        if not contract:
+            raise ValueError("Contract not found")
+
+        # Check authorization
+        if role == "studio" and contract.studio_id != profile_id:
+            raise PermissionError("Not authorized to reject this contract")
+        if role == "instructor" and contract.instructor_id != profile_id:
+            raise PermissionError("Not authorized to reject this contract")
+
+        # Contract must be PENDING_COMPLETION
+        if contract.status != ContractStatus.PENDING_COMPLETION:
+            raise ValueError("CONTRACT_NOT_PENDING_COMPLETION")
+
+        # Create a dispute
+        from app.services.dispute import DisputeService
+        dispute_service = DisputeService(self.db)
+
+        # Determine who to report
+        if role == "studio":
+            reported_against = contract.instructor_id
+        else:
+            reported_against = contract.studio_id
+
+        dispute = await dispute_service.create_completion_dispute(
+            contract_id=contract_id,
+            reporter_id=actor_user_id,
+            reported_user_id=reported_against,
+            reason=reason,
+        )
+
+        # Contract status is updated to DISPUTED by the dispute service
+
+        await self._log_event(
+            contract_id=contract_id,
+            actor_user_id=actor_user_id,
+            from_status=ContractStatus.PENDING_COMPLETION,
+            to_status=ContractStatus.DISPUTED,
+            note=f"Completion rejected by {role}: {reason}",
+        )
+
+        await self.db.commit()
+        await self.db.refresh(contract)
+        return contract
+
+    async def auto_complete_pending_contracts(self) -> List[Contract]:
+        """Auto-complete contracts where confirmation timeout has passed (v2.0).
+
+        Rules:
+        - One party confirmed, 24h passed: auto-complete
+        - No party confirmed, 48h passed: auto-complete
+        """
+        from datetime import timedelta
+
+        now = datetime.utcnow()
+        auto_completed = []
+
+        # Find PENDING_COMPLETION contracts
+        result = await self.db.execute(
+            select(Contract).where(
+                Contract.status == ContractStatus.PENDING_COMPLETION
+            )
+        )
+        pending_contracts = result.scalars().all()
+
+        for contract in pending_contracts:
+            should_complete = False
+            note = ""
+
+            # Check if one party confirmed and 24h passed
+            if contract.studio_confirmed_at:
+                if now - contract.studio_confirmed_at > timedelta(hours=24):
+                    should_complete = True
+                    note = "Auto-completed: Studio confirmed, 24h passed without instructor confirmation"
+            elif contract.instructor_confirmed_at:
+                if now - contract.instructor_confirmed_at > timedelta(hours=24):
+                    should_complete = True
+                    note = "Auto-completed: Instructor confirmed, 24h passed without studio confirmation"
+
+            if should_complete:
+                contract.status = ContractStatus.COMPLETED
+                contract.platform_fee = float(contract.total_amount) * 0.05
+                contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
+
+                await self._log_event(
+                    contract_id=contract.id,
+                    actor_user_id=UUID("00000000-0000-0000-0000-000000000000"),  # System user
+                    from_status=ContractStatus.PENDING_COMPLETION,
+                    to_status=ContractStatus.COMPLETED,
+                    note=note,
+                )
+
+                # Release escrow to instructor
+                from app.services.escrow import release_escrow_to_instructor
+                try:
+                    await release_escrow_to_instructor(self.db, str(contract.id))
+                except ValueError:
+                    pass
+
+                auto_completed.append(contract)
+
+        # Find IN_PROGRESS contracts where class ended 48h ago
+        result = await self.db.execute(
+            select(Contract).where(
+                Contract.status == ContractStatus.IN_PROGRESS
+            )
+        )
+        in_progress_contracts = result.scalars().all()
+
+        for contract in in_progress_contracts:
+            # Calculate when the class ended
+            class_end = datetime.combine(contract.date, contract.end_time)
+            if now - class_end > timedelta(hours=48):
+                contract.status = ContractStatus.COMPLETED
+                contract.platform_fee = float(contract.total_amount) * 0.05
+                contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
+
+                await self._log_event(
+                    contract_id=contract.id,
+                    actor_user_id=UUID("00000000-0000-0000-0000-000000000000"),  # System user
+                    from_status=ContractStatus.IN_PROGRESS,
+                    to_status=ContractStatus.COMPLETED,
+                    note="Auto-completed: 48h passed since class end without confirmation",
+                )
+
+                # Release escrow to instructor
+                from app.services.escrow import release_escrow_to_instructor
+                try:
+                    await release_escrow_to_instructor(self.db, str(contract.id))
+                except ValueError:
+                    pass
+
+                auto_completed.append(contract)
+
+        if auto_completed:
+            await self.db.commit()
+
+        return auto_completed
 
     async def cancel(
         self,
