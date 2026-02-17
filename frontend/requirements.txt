@@ -8,5 +8,9 @@ httpx==0.26.0
 # WebSocket Client
 websocket-client==1.7.0
 
+# Database
+psycopg2-binary==2.9.9
+pandas==2.1.4
+
 # Utilities
 python-dotenv==1.0.0

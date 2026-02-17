@@ -163,7 +163,8 @@ class APIClient:
         return self._request_sync("POST", f"/contracts/{contract_id}/set-in-progress")
 
     def complete_contract(self, contract_id: str):
-        return self._request_sync("POST", f"/contracts/{contract_id}/complete")
+        """Confirm contract completion (v2.0 - bidirectional confirmation)."""
+        return self._request_sync("POST", f"/contracts/{contract_id}/confirm-completion")
 
     def cancel_contract(self, contract_id: str, reason: str):
         return self._request_sync("POST", f"/contracts/{contract_id}/cancel", {"reason": reason})
@@ -205,6 +206,23 @@ class APIClient:
             data["comment"] = comment
         return self._request_sync("POST", f"/contracts/{contract_id}/reviews", data)
 
+    def get_my_review_for_contract(self, contract_id: str):
+        """Get current user's review for a specific contract."""
+        return self._request_sync("GET", f"/contracts/{contract_id}/reviews/my")
+
+    def update_review(self, review_id: str, rating: int = None, comment: str = None):
+        """Update an existing review."""
+        data = {}
+        if rating is not None:
+            data["rating"] = rating
+        if comment is not None:
+            data["comment"] = comment
+        return self._request_sync("PUT", f"/reviews/{review_id}", data)
+
+    def delete_review(self, review_id: str):
+        """Delete a review."""
+        return self._request_sync("DELETE", f"/reviews/{review_id}")
+
     # Support
     def create_support_ticket(self, subject: str, description: str):
         return self._request_sync("POST", "/support/tickets", {
@@ -234,6 +252,33 @@ class APIClient:
 
     def add_deposit(self, amount: float):
         return self._request_sync("POST", "/deposit/add", {"amount": amount})
+
+    # Subscription (Premium Membership)
+    def get_subscription_status(self):
+        """Get current user's subscription status."""
+        return self._request_sync("GET", "/subscriptions/me")
+
+    def initialize_premium_upgrade(self):
+        """Initialize premium subscription upgrade."""
+        return self._request_sync("POST", "/subscriptions/upgrade", {})
+
+    def confirm_subscription_payment(self, payment_key: str, order_id: str):
+        """Confirm subscription payment after TossPayments."""
+        return self._request_sync("POST", "/subscriptions/confirm", {
+            "payment_key": payment_key,
+            "order_id": order_id,
+        })
+
+    def cancel_subscription(self, reason: str = None):
+        """Cancel active premium subscription."""
+        data = {}
+        if reason:
+            data["reason"] = reason
+        return self._request_sync("POST", "/subscriptions/cancel", data)
+
+    def get_subscription_history(self):
+        """Get subscription change history."""
+        return self._request_sync("GET", "/subscriptions/history")
 
 
 class APIError(Exception):

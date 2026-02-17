@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import os
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -165,6 +166,7 @@ def get_user_progress(client):
         # Check profile completeness
         if user["role"] == "instructor":
             profile = client.get_my_instructor_profile()
+            # Ensure all required fields are properly filled
             data["profile_complete"] = bool(
                 profile.get("display_name") and
                 profile.get("available_regions") and
@@ -172,17 +174,26 @@ def get_user_progress(client):
             )
         else:
             profile = client.get_my_studio_profile()
+            # Check that region is not just an empty string or "None"
+            region = profile.get("region", "")
+            # Handle "None" string from API (when DB value is NULL)
+            if region == "None" or region is None:
+                region = ""
             data["profile_complete"] = bool(
                 profile.get("business_name") and
-                profile.get("region")
+                region and
+                region.strip()  # Ensure region is not empty or whitespace
             )
 
         # Check verification & deposit
         identity_ok = user.get("identity_verified", False)
         if not identity_ok:
             data["profile_complete"] = False
-    except:
-        pass
+    except Exception as e:
+        # If API call fails, explicitly set profile as incomplete
+        data["profile_complete"] = False
+        # Optional: Log the error for debugging
+        # st.error(f"Profile check failed: {str(e)}")
 
     try:
         if user["role"] == "instructor":
@@ -195,16 +206,22 @@ def get_user_progress(client):
             jobs = client.list_job_posts({"studio_id": str(st.session_state.profile_id)}).get("items", [])
             data["job_posts"] = jobs
             data["has_jobs"] = len(jobs) > 0
-    except:
-        pass
+    except Exception:
+        # If API call fails, keep default False values
+        data["has_offers"] = False
+        data["has_jobs"] = False
 
     try:
         contracts = client.get_my_contracts().get("items", [])
-        data["active_contracts"] = len([c for c in contracts if c["status"] in ["confirmed", "in_progress"]])
+        data["active_contracts"] = len([c for c in contracts if c["status"] in ["confirmed", "in_progress", "pending_completion"]])
         data["has_contracts"] = len(contracts) > 0
-        data["has_completed"] = any(c["status"] == "completed" for c in contracts)
-    except:
-        pass
+        # Consider both pending_completion (waiting for other party) and completed
+        data["has_completed"] = any(c["status"] in ["completed", "pending_completion"] for c in contracts)
+    except Exception:
+        # If API call fails, keep default False values
+        data["has_contracts"] = False
+        data["has_completed"] = False
+        data["active_contracts"] = 0
 
     # Determine current step
     if not data["profile_complete"]:
@@ -219,12 +236,16 @@ def get_user_progress(client):
             return 3, data
         return 2, data
     else:  # studio
+        # Prioritize completed contracts (step 5)
         if data["has_completed"]:
             return 5, data
+        # Then active contracts (step 4)
         if data["active_contracts"] > 0:
             return 4, data
+        # Then applicants/jobs (step 3)
         if data["has_jobs"]:
             return 3, data
+        # Otherwise profile/create job (step 2)
         return 2, data
 
 
@@ -266,13 +287,28 @@ def render_step_navigation(current_step, steps):
     st.markdown("---")
     cols = st.columns(len(steps))
 
+    # Get current page
+    current_page = st.session_state.get("page", steps[current_step - 1][2])
+
     for i, (num, label, page) in enumerate(steps):
         step_num = int(num)
         with cols[i]:
-            disabled = step_num > current_step + 1  # Can only go to current or next step
-            if st.button(f"{label}", key=f"nav_{page}", disabled=disabled, use_container_width=True):
-                st.session_state.page = page
-                st.rerun()
+            # Can only access completed steps and the current step
+            # Cannot skip ahead if current step is not complete
+            disabled = step_num > current_step
+            is_active = (page == current_page)  # Check if this is the current page
+
+            # Use different button type for active page
+            if is_active:
+                # Show active state with primary button
+                if st.button(f"📍 {label}", key=f"nav_{page}", disabled=disabled, use_container_width=True, type="primary"):
+                    st.session_state.page = page
+                    st.rerun()
+            else:
+                # Show normal button
+                if st.button(f"{label}", key=f"nav_{page}", disabled=disabled, use_container_width=True):
+                    st.session_state.page = page
+                    st.rerun()
 
 
 # ============================================================
@@ -312,18 +348,27 @@ def render_auth_page():
                         st.error(f"로그인 실패: {e.message}")
 
     with tab2:
+        # Radio button outside the form for dynamic UI update
+        role = st.radio(
+            "회원 유형을 선택하세요",
+            ["instructor", "studio"],
+            format_func=lambda x: "🧘 강사" if x == "instructor" else "🏢 스튜디오",
+            horizontal=True,
+            key="signup_role_select"
+        )
+
         with st.form("signup_form"):
             email = st.text_input("이메일", key="signup_email")
             password = st.text_input("비밀번호 (8자 이상)", type="password", key="signup_password")
-            role = st.selectbox("나는", ["instructor", "studio"], format_func=lambda x: "강사" if x == "instructor" else "스튜디오")
 
+            # Show only the relevant input field based on role selection
             display_name = None
             business_name = None
 
             if role == "instructor":
-                display_name = st.text_input("활동명")
+                display_name = st.text_input("활동명", placeholder="강사님의 활동명을 입력하세요", key="signup_display_name")
             else:
-                business_name = st.text_input("스튜디오명")
+                business_name = st.text_input("스튜디오명", placeholder="스튜디오 이름을 입력하세요", key="signup_business_name")
 
             submitted = st.form_submit_button("가입하기", use_container_width=True)
 
@@ -410,6 +455,8 @@ def render_profile_step():
                                 "hourly_rate_max": rate_max if rate_max > 0 else None,
                             })
                             st.success("저장되었습니다!")
+                            # Auto-navigate to next step (find jobs)
+                            st.session_state.page = "find_jobs"
                             st.rerun()
                         except APIError as e:
                             st.error(f"오류: {e.message}")
@@ -431,6 +478,8 @@ def render_profile_step():
                                 "address": address,
                             })
                             st.success("저장되었습니다!")
+                            # Auto-navigate to next step (create job)
+                            st.session_state.page = "create_job"
                             st.rerun()
                         except APIError as e:
                             st.error(f"오류: {e.message}")
@@ -489,30 +538,178 @@ def render_profile_step():
                         except APIError as e:
                             st.error(f"오류: {e.message}")
 
-        # Deposit
+        # Premium Membership Status
         st.markdown("---")
-        st.subheader("보증금")
+        st.subheader("⭐ 멤버십 상태")
 
         try:
-            deposit = client.get_deposit_status()
-            st.metric("현재 잔액", f"₩{deposit['balance']:,.0f}")
-            st.caption(f"필요 금액: ₩{deposit['required']:,.0f}")
+            subscription_status = client.get_subscription_status()
+            membership_tier = subscription_status.get("membership_tier", "free")
 
-            if deposit["is_sufficient"]:
-                st.success("✓ 보증금 충분")
+            if membership_tier == "premium":
+                # Premium user
+                col_mem1, col_mem2 = st.columns(2)
+                with col_mem1:
+                    st.success("⭐ 프리미엄 회원")
+                    st.caption("보증금 없이 모든 기능을 이용하실 수 있습니다")
+                with col_mem2:
+                    if subscription_status.get("subscription"):
+                        sub = subscription_status["subscription"]
+                        if sub.get("next_billing_date"):
+                            next_date = sub["next_billing_date"][:10]
+                            st.info(f"다음 결제일: {next_date}")
+                        if st.button("구독 취소", type="secondary"):
+                            try:
+                                result = client.cancel_subscription("User requested")
+                                st.success(f"구독이 취소되었습니다. 보증금 {result['deposit_refunded']:,.0f}원이 환불됩니다.")
+                                st.rerun()
+                            except APIError as e:
+                                st.error(f"구독 취소 실패: {e.message}")
             else:
-                st.error(f"부족: ₩{deposit['shortfall']:,.0f}")
-                with st.form("deposit_form"):
-                    amount = st.number_input("충전 금액", value=int(float(deposit["shortfall"])), min_value=10000, step=10000)
-                    if st.form_submit_button("충전"):
-                        try:
-                            result = client.add_deposit(amount)
-                            st.success(f"충전 완료! 잔액: ₩{result['new_balance']:,.0f}")
-                            st.rerun()
-                        except APIError as e:
-                            st.error(f"오류: {e.message}")
-        except APIError:
-            st.caption("보증금 정보를 불러올 수 없습니다")
+                # Free user - show upgrade option
+                st.info("📌 무료 회원")
+                col_up1, col_up2 = st.columns([2, 1])
+                with col_up1:
+                    st.markdown(
+                        "**🎯 프리미엄 멤버십 혜택** (월 9,900원)\n"
+                        "- ✅ **보증금 완전 면제** - 3-5만원 보증금 불필요\n"
+                        "- ⭐ **우선 매칭** - 더 많은 기회\n"
+                        "- 💎 **프리미엄 뱃지** - 신뢰도 상승\n"
+                        "- 🚀 **24/7 우선 지원** - 빠른 문제 해결"
+                    )
+                with col_up2:
+                    if st.button("⭐ 프리미엄 업그레이드", type="primary", use_container_width=True):
+                        st.session_state.show_upgrade_modal = True
+
+                # Upgrade modal
+                if st.session_state.get("show_upgrade_modal"):
+                    with st.container():
+                        st.markdown("### 프리미엄 멤버십 결제")
+                        st.info("월 9,900원으로 보증금 없이 모든 기능을 이용하세요!")
+
+                        col_pay1, col_pay2 = st.columns(2)
+                        with col_pay1:
+                            if st.button("결제 진행", type="primary", use_container_width=True):
+                                try:
+                                    # Initialize payment
+                                    result = client.initialize_premium_upgrade()
+                                    st.session_state.premium_order_id = result["order_id"]
+                                    st.session_state.premium_amount = result["amount"]
+                                    st.success(f"주문번호: {result['order_id']}")
+                                    st.info("토스페이먼츠 결제 페이지로 이동합니다...")
+                                    # In production, redirect to TossPayments
+                                    # For now, simulate payment completion
+                                    time.sleep(1)
+                                    # Simulate payment confirmation
+                                    confirm_result = client.confirm_subscription_payment(
+                                        "test_payment_key",
+                                        result["order_id"]
+                                    )
+                                    st.success("🎉 프리미엄 회원이 되신 것을 축하합니다!")
+                                    del st.session_state.show_upgrade_modal
+                                    st.rerun()
+                                except APIError as e:
+                                    st.error(f"업그레이드 실패: {e.message}")
+                        with col_pay2:
+                            if st.button("취소", type="secondary", use_container_width=True):
+                                del st.session_state.show_upgrade_modal
+                                st.rerun()
+        except APIError as e:
+            st.warning("멤버십 정보를 불러올 수 없습니다")
+
+        # Deposit (only for free users)
+        st.markdown("---")
+        st.subheader("💰 보증금")
+
+        # Show message if navigated from job application
+        if st.session_state.get("deposit_message"):
+            st.warning(f"⚠️ {st.session_state.deposit_message}")
+            # Clear the message after showing
+            del st.session_state.deposit_message
+
+        # Check if we should auto-expand the deposit section
+        expand_deposit = st.session_state.get("show_deposit_section", False)
+
+        with st.expander("보증금 관리", expanded=expand_deposit):
+            try:
+                deposit = client.get_deposit_status()
+                membership_tier = deposit.get("membership_tier", "free")
+
+                # Premium users don't need deposit
+                if membership_tier == "premium":
+                    st.success("⭐ 프리미엄 회원은 보증금이 면제됩니다!")
+                    st.info("프리미엄 멤버십이 활성화되어 있어 보증금 없이 모든 기능을 이용하실 수 있습니다.")
+                    if deposit.get("balance", 0) > 0:
+                        st.warning(f"기존 보증금 잔액 ₩{deposit['balance']:,.0f}이 있습니다. 구독 취소 시 환불됩니다.")
+                else:
+                    # Free users need deposit
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("현재 잔액", f"₩{deposit['balance']:,.0f}")
+                    with col2:
+                        st.metric("필요 금액", f"₩{deposit['required']:,.0f}")
+
+                    if deposit["is_sufficient"]:
+                        st.success("✅ 보증금이 충분합니다. 지원하실 수 있어요!")
+                    else:
+                        st.warning(f"💸 보증금이 ₩{deposit['shortfall']:,.0f} 부족합니다")
+
+                        # Check user role to show relevant benefits
+                        user = st.session_state.user
+                        if user.get("role") == "instructor":
+                            st.info(
+                                "**🛡️ 강사님을 위한 보증금 혜택**\n\n"
+                                "**현재 제공:**\n"
+                                "- ✅ **100% 수업료 보장** - 에스크로로 안전하게 보호\n"
+                                "- ✅ **부당 신고 보호** - 24시간 이의신청 권리\n"
+                                "- 💎 **프로필 인증 마크** - 신뢰도 상승\n"
+                                "- ⭐ **우선 매칭** - 더 많은 기회\n\n"
+                                "**곧 추가될 혜택:**\n"
+                                "- 🔜 스튜디오 노쇼 시 보상\n"
+                                "- 🔜 당일 취소 수수료 지급\n"
+                                "- 🔜 우수 강사 즉시 정산\n\n"
+                                "💡 보증금은 언제든 환불 가능합니다.\n\n"
+                                "💰 **또는 프리미엄 멤버십으로 보증금 면제받기!**"
+                            )
+                        else:  # studio
+                            st.info(
+                                "**🏢 스튜디오를 위한 보증금 혜택**\n\n"
+                                "- ✅ **강사 노쇼 보호** - 노쇼 시 전액 보상\n"
+                                "- ✅ **신뢰있는 강사 매칭** - 검증된 강사만\n"
+                                "- 💎 **프로필 인증 마크** - 강사들의 신뢰 획득\n"
+                                "- ⭐ **우선 노출** - 더 많은 강사 지원\n\n"
+                                "💡 보증금은 언제든 환불 가능합니다.\n\n"
+                                "💰 **또는 프리미엄 멤버십으로 보증금 면제받기!**"
+                            )
+
+                        with st.form("deposit_form"):
+                            st.write("**보증금 충전하기**")
+                            amount = st.number_input(
+                                "충전 금액",
+                                value=int(float(deposit["shortfall"])),
+                                min_value=10000,
+                                step=10000,
+                                help="최소 10,000원부터 충전 가능합니다"
+                            )
+                            if st.form_submit_button("💳 충전하기", type="primary", use_container_width=True):
+                                try:
+                                    result = client.add_deposit(amount)
+                                    st.balloons()
+                                    st.success(f"✨ 충전 완료! 잔액: ₩{result['new_balance']:,.0f}")
+                                    st.info("이제 구인 공고에 지원하실 수 있어요! 🎉")
+                                    # Clear the expand flag after successful charge
+                                    if "show_deposit_section" in st.session_state:
+                                        del st.session_state.show_deposit_section
+                                    time.sleep(2)
+                                    st.rerun()
+                                except APIError as e:
+                                    st.error(f"오류: {e.message}")
+            except APIError:
+                st.error("보증금 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.")
+
+        # Reset the flag after the expander is rendered
+        if expand_deposit and "show_deposit_section" in st.session_state:
+            del st.session_state.show_deposit_section
 
 
 # ============================================================
@@ -523,6 +720,14 @@ def render_find_jobs_step():
     st.header("2단계: 일 찾기")
 
     client = get_client()
+
+    # Get list of already applied jobs
+    applied_job_ids = set()
+    try:
+        my_applications = client.get_my_applications()
+        applied_job_ids = {app.get("job_post_id") for app in my_applications.get("items", [])}
+    except:
+        pass  # If error, assume no applications
 
     # 간단한 필터 (탭 형태)
     filter_col1, filter_col2 = st.columns([1, 1])
@@ -553,6 +758,7 @@ def render_find_jobs_step():
                 job = item.get("job", item)
                 matching = item.get("matching", {})
                 score = matching.get("total", 0)
+                is_applied = job['id'] in applied_job_ids
 
                 # 카드 형태
                 with st.container():
@@ -560,7 +766,11 @@ def render_find_jobs_step():
                     header_col1, header_col2 = st.columns([4, 1])
                     with header_col1:
                         type_emoji = {"substitute": "⚡", "regular": "📅", "contract": "📝"}.get(job["job_type"], "📋")
-                        st.markdown(f"### {type_emoji} {job['title']}")
+                        # Add checkmark if already applied
+                        title_text = f"### {type_emoji} {job['title']}"
+                        if is_applied:
+                            title_text += " ✅"
+                        st.markdown(title_text)
                     with header_col2:
                         if score >= 80:
                             st.success(f"**{score}%**")
@@ -578,17 +788,36 @@ def render_find_jobs_step():
                     with info_cols[2]:
                         st.markdown(f"💰 **₩{int(float(job['hourly_rate'])):,}**/시간")
                     with info_cols[3]:
-                        # 지원 버튼
-                        if st.button("지원", key=f"apply_{job['id']}", type="primary", use_container_width=True):
-                            try:
-                                client.apply_to_job(job["id"])
-                                st.success("✅ 지원 완료!")
-                                st.rerun()
-                            except APIError as e:
-                                if "ALREADY_APPLIED" in str(e.code):
-                                    st.warning("이미 지원함")
-                                else:
-                                    st.error(f"오류: {e.message}")
+                        # Check application status (already checked above)
+                        if is_applied:
+                            # Show applied status with option to view offers
+                            col_a, col_b = st.columns(2)
+                            with col_a:
+                                st.button("✅ 지원완료", key=f"applied_{job['id']}", disabled=True, use_container_width=True)
+                            with col_b:
+                                if st.button("지원내역 보기", key=f"view_{job['id']}", help="지원내역 보기", use_container_width=True):
+                                    st.session_state.page = "offers"
+                                    st.rerun()
+                        else:
+                            # Show apply button
+                            if st.button("지원하기", key=f"apply_{job['id']}", type="primary", use_container_width=True):
+                                try:
+                                    client.apply_to_job(job["id"])
+                                    st.success("✅ 지원이 완료되었습니다! 스튜디오의 응답을 기다려주세요.")
+                                    time.sleep(1)  # Brief pause to show success message
+                                    st.rerun()
+                                except APIError as e:
+                                    if "ALREADY_APPLIED" in str(e.code):
+                                        st.warning("이미 지원한 공고입니다.")
+                                        st.rerun()
+                                    elif "INSUFFICIENT_DEPOSIT" in str(e.code) or "Deposit required" in str(e.message):
+                                        # Auto-navigate to profile page with deposit section expanded
+                                        st.session_state.page = "profile"
+                                        st.session_state.show_deposit_section = True
+                                        st.session_state.deposit_message = "보증금이 부족하여 지원할 수 없습니다. 보증금을 충전해주세요."
+                                        st.rerun()
+                                    else:
+                                        st.error(f"오류: {e.message}")
 
                     # 메모가 있으면 표시
                     if job.get("description"):
@@ -632,7 +861,7 @@ def render_create_job_step():
     st.subheader("2️⃣ 유형")
     col1, col2, col3 = st.columns(3)
     with col1:
-        sub_selected = st.button("⚡ 대강 (1회)", use_container_width=True,
+        sub_selected = st.button("⚡ 대타 (1회)", use_container_width=True,
                                   type="primary" if st.session_state.get("job_type") == "substitute" else "secondary")
         if sub_selected:
             st.session_state.job_type = "substitute"
@@ -690,7 +919,7 @@ def render_create_job_step():
     st.markdown("---")
 
     # 자동 생성 제목 미리보기
-    type_labels = {"substitute": "대강", "regular": "정규", "contract": "계약"}
+    type_labels = {"substitute": "대타", "regular": "정규", "contract": "계약"}
     auto_title = f"[{type_labels[job_type]}] {region} {'필라테스' if category == 'pilates' else '요가'} 강사"
     if memo:
         auto_title += f" - {memo}"
@@ -735,6 +964,13 @@ def render_offers_step():
     try:
         result = client.get_my_offers()
         offers = result.get("items", [])
+
+        # Get existing contracts to filter out offers that already have contracts
+        contracts_result = client.get_my_contracts()
+        existing_contract_offer_ids = {c.get("offer_id") for c in contracts_result.get("items", []) if c.get("offer_id")}
+
+        # Filter out offers that already have contracts
+        offers = [o for o in offers if o["id"] not in existing_contract_offer_ids]
 
         pending = [o for o in offers if o["status"] == "pending"]
         others = [o for o in offers if o["status"] != "pending"]
@@ -796,11 +1032,28 @@ def render_offers_step():
                 st.session_state.page = "find_jobs"
                 st.rerun()
 
-        # History
-        if others and not accepted:
-            with st.expander(f"지난 오퍼 ({len(others)})"):
+        # History - show all non-pending offers with more details
+        if others:
+            with st.expander(f"처리된 오퍼 ({len(others)})"):
                 for offer in others:
-                    st.caption(f"{offer['status'].upper()} - ₩{int(float(offer['proposed_rate'])):,}")
+                    status_text = {
+                        "accepted": "✅ 수락됨",
+                        "rejected": "❌ 거절됨",
+                        "expired": "⏰ 만료됨",
+                        "cancelled": "🚫 취소됨"
+                    }.get(offer['status'], offer['status'].upper())
+
+                    st.write(f"{status_text} - ₩{int(float(offer['proposed_rate'])):,}/시간")
+
+                    # Check if this offer has a contract
+                    if offer['id'] in existing_contract_offer_ids:
+                        st.caption("📋 계약 생성됨 (계약 내역에서 확인)")
+                    elif offer['status'] == 'accepted':
+                        st.warning("⚠️ 계약 생성 대기 중")
+
+                    if offer.get("message"):
+                        st.caption(f"💬 {offer['message']}")
+                    st.markdown("---")
 
     except APIError as e:
         st.error(f"오퍼 로드 실패: {e.message}")
@@ -939,9 +1192,11 @@ CONTRACT_TERMS = """
 
 def render_contracts_step():
     st.header("4단계: 계약 진행")
+    st.info("💡 진행 중인 계약을 관리하고 수업 완료를 확인하세요. 완료 확인 후 5단계에서 리뷰를 작성할 수 있습니다.")
 
     client = get_client()
     user = st.session_state.user
+    role = user.get("role")  # Get user role for v2.0 bidirectional confirmation
 
     try:
         result = client.get_my_contracts()
@@ -999,10 +1254,12 @@ def render_contracts_step():
                         col_a, col_b, col_c = st.columns(3)
 
                         with col_a:
-                            if st.button("🎉 수업 완료", key=f"complete_{contract['id']}", type="primary", use_container_width=True):
+                            if st.button("🎉 수업 완료 확인", key=f"complete_{contract['id']}", type="primary", use_container_width=True):
                                 try:
                                     client.complete_contract(contract["id"])
-                                    st.success("수고하셨습니다! 리뷰를 남겨주세요.")
+                                    st.success("완료 확인되었습니다! 상대방도 확인하면 정산이 진행됩니다.")
+                                    # Auto-navigate to step 5 (complete/review)
+                                    st.session_state.page = "complete"
                                     st.rerun()
                                 except APIError as e:
                                     st.error(f"오류: {e.message}")
@@ -1032,32 +1289,68 @@ def render_contracts_step():
                                 with col2:
                                     if st.form_submit_button("돌아가기"):
                                         st.session_state[f"show_cancel_{contract['id']}"] = False
-                                        st.rerun()
 
-                        # No-show form
+                        # No-show report form
                         if st.session_state.get(f"show_noshow_{contract['id']}"):
-                            st.warning("⚠️ 상대방이 연락 없이 나타나지 않았나요?")
-                            st.caption("허위 신고 시 본인에게 페널티가 적용됩니다.")
+                            with st.form(key=f"noshow_form_{contract['id']}"):
+                                # Get the other party's ID
+                                if user.get("role") == "studio":
+                                    reported_id = contract.get("instructor_id", "")
+                                    report_msg = "강사가 수업에 불참했나요?"
+                                else:
+                                    reported_id = contract.get("studio_id", "")
+                                    report_msg = "스튜디오에서 수업을 진행하지 않았나요?"
 
-                            if user["role"] == "studio":
-                                reported_id = contract.get("instructor_id")
-                            else:
-                                reported_id = contract.get("studio_id")
+                                st.warning(report_msg)
+                                st.caption("노쇼 신고 시 24시간 내 이의제기가 없으면 패널티가 적용됩니다.")
 
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("불참 신고 확정", key=f"noshow_confirm_{contract['id']}"):
-                                    try:
-                                        result = client.report_no_show(contract["id"], reported_id)
-                                        st.error("신고가 접수되었습니다. 확인 후 조치됩니다.")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.form_submit_button("노쇼 신고", type="primary"):
+                                        try:
+                                            result = client.report_no_show(contract["id"], reported_id)
+                                            st.warning(f"신고가 접수되었습니다. 상대방에게 24시간 이의제기 기간이 부여됩니다.")
+                                            st.session_state[f"show_noshow_{contract['id']}"] = False
+                                            st.rerun()
+                                        except APIError as e:
+                                            st.error(f"오류: {e.message}")
+                                with col2:
+                                    if st.form_submit_button("돌아가기"):
                                         st.session_state[f"show_noshow_{contract['id']}"] = False
+
+                    # Pending completion (v2.0 - waiting for both parties to confirm)
+                    elif contract["status"] == "pending_completion":
+                        # Check who has confirmed
+                        studio_confirmed = contract.get("studio_confirmed_at") is not None
+                        instructor_confirmed = contract.get("instructor_confirmed_at") is not None
+
+                        if role == "studio":
+                            if studio_confirmed:
+                                st.info("✅ 완료 확인 완료. 강사님의 확인을 기다리고 있습니다...")
+                            else:
+                                if st.button("🎉 수업 완료 확인", key=f"complete_pending_{contract['id']}", type="primary"):
+                                    try:
+                                        client.complete_contract(contract["id"])
+                                        st.success("완료 확인되었습니다! 강사님도 확인하면 정산이 진행됩니다.")
+                                        # Auto-navigate to step 5 (complete/review)
+                                        st.session_state.page = "complete"
                                         st.rerun()
                                     except APIError as e:
                                         st.error(f"오류: {e.message}")
-                            with col2:
-                                if st.button("돌아가기", key=f"noshow_back_{contract['id']}"):
-                                    st.session_state[f"show_noshow_{contract['id']}"] = False
-                                    st.rerun()
+                        else:  # instructor
+                            if instructor_confirmed:
+                                st.info("✅ 완료 확인 완료. 스튜디오의 확인을 기다리고 있습니다...")
+                            else:
+                                if st.button("🎉 수업 완료 확인", key=f"complete_pending_{contract['id']}", type="primary"):
+                                    try:
+                                        client.complete_contract(contract["id"])
+                                        st.success("완료 확인되었습니다! 스튜디오도 확인하면 정산이 진행됩니다.")
+                                        # Auto-navigate to step 5 (complete/review)
+                                        st.session_state.page = "complete"
+                                        st.rerun()
+                                    except APIError as e:
+                                        st.error(f"오류: {e.message}")
+
 
                     st.markdown("---")
 
@@ -1066,34 +1359,6 @@ def render_contracts_step():
                 for contract in completed:
                     status_emoji = {"completed": "✅", "cancelled": "❌"}
                     st.write(f"{status_emoji.get(contract['status'], '')} {contract['date']} - ₩{int(float(contract['total_amount'])):,}")
-
-                    # Review option for completed
-                    if contract["status"] == "completed":
-                        if st.button("리뷰 작성", key=f"review_{contract['id']}"):
-                            st.session_state.review_contract = contract["id"]
-                            st.rerun()
-
-        # Review form
-        if st.session_state.get("review_contract"):
-            st.subheader("리뷰 작성")
-            with st.form("review_form"):
-                rating = st.slider("평점", 1, 5, 5)
-                comment = st.text_area("한 줄 후기 (선택)")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.form_submit_button("제출", type="primary"):
-                        try:
-                            client.create_review(st.session_state.review_contract, rating, comment)
-                            st.success("리뷰가 등록되었습니다!")
-                            del st.session_state.review_contract
-                            st.rerun()
-                        except APIError as e:
-                            st.error(f"오류: {e.message}")
-                with col2:
-                    if st.form_submit_button("취소"):
-                        del st.session_state.review_contract
-                        st.rerun()
 
     except APIError as e:
         st.error(f"계약 로드 실패: {e.message}")
@@ -1104,25 +1369,296 @@ def render_contracts_step():
 # ============================================================
 
 def render_complete_step():
-    st.header("5단계: 완료")
-    st.success("축하합니다! 계약이 성공적으로 완료되었습니다.")
+    st.header("5단계: 완료 & 리뷰")
+    st.info("✨ 완료된 계약을 확인하고 상대방에 대한 리뷰를 작성하세요. 리뷰는 신뢰할 수 있는 플랫폼 구축에 도움이 됩니다.")
 
     client = get_client()
+    user = st.session_state.user
 
     try:
         result = client.get_my_contracts()
-        completed = [c for c in result.get("items", []) if c["status"] == "completed"]
+        all_contracts = result.get("items", [])
 
+        # Separate contracts by status
+        pending_completion = [c for c in all_contracts if c["status"] == "pending_completion"]
+        completed = [c for c in all_contracts if c["status"] == "completed"]
+
+        # Show pending completion contracts first (need action)
+        if pending_completion:
+            st.warning("🔔 **완료 확인이 필요한 계약이 있습니다!**")
+            st.info("양쪽 모두 완료를 확인해야 정산이 진행됩니다.")
+
+            for contract in pending_completion:
+                with st.container():
+                    # Create a highlighted box for pending contracts
+                    with st.expander(f"📋 계약 {contract['id'][:8]}... - **완료 확인 필요**", expanded=True):
+                        col1, col2 = st.columns([2, 1])
+
+                        with col1:
+                            st.write(f"**날짜**: {contract.get('date', 'N/A')}")
+                            st.write(f"**시간**: {contract.get('start_time', 'N/A')} - {contract.get('end_time', 'N/A')}")
+                            st.write(f"**금액**: ₩{int(float(contract.get('total_amount', 0))):,}")
+
+                        with col2:
+                            # Show confirmation status
+                            st.write("**확인 상태**")
+                            instructor_confirmed = contract.get("instructor_confirmed_at") is not None
+                            studio_confirmed = contract.get("studio_confirmed_at") is not None
+
+                            if studio_confirmed:
+                                st.success("✅ 스튜디오")
+                            else:
+                                st.warning("⏳ 스튜디오")
+
+                            if instructor_confirmed:
+                                st.success("✅ 강사")
+                            else:
+                                st.warning("⏳ 강사")
+
+                        st.markdown("---")
+
+                        # Check who has confirmed
+                        role = user.get("role")
+                        if role == "studio":
+                            if studio_confirmed:
+                                st.info("✅ 이미 완료 확인하셨습니다. 강사님의 확인을 기다리는 중입니다...")
+                            else:
+                                col_a, _ = st.columns([2, 1])
+                                with col_a:
+                                    if st.button("🎉 수업 완료 확인", key=f"confirm_{contract['id']}", type="primary", use_container_width=True):
+                                        try:
+                                            client.complete_contract(contract["id"])
+                                            st.success("확인되었습니다! 강사님도 확인하면 정산이 진행됩니다.")
+                                            st.rerun()
+                                        except APIError as e:
+                                            st.error(f"오류: {e.message}")
+                        else:  # instructor
+                            if instructor_confirmed:
+                                st.info("✅ 이미 완료 확인하셨습니다. 스튜디오의 확인을 기다리는 중입니다...")
+                            else:
+                                col_a, _ = st.columns([2, 1])
+                                with col_a:
+                                    if st.button("🎉 수업 완료 확인", key=f"confirm_{contract['id']}", type="primary", use_container_width=True):
+                                        try:
+                                            client.complete_contract(contract["id"])
+                                            st.success("확인되었습니다! 스튜디오도 확인하면 정산이 진행됩니다.")
+                                            st.rerun()
+                                        except APIError as e:
+                                            st.error(f"오류: {e.message}")
+
+            st.markdown("---")
+
+        # If no pending but also no completed
+        if not pending_completion and not completed:
+            st.info("아직 완료된 계약이 없습니다. 계약을 진행하고 수업을 완료하면 여기에서 확인할 수 있습니다.")
+
+        # Show completed contracts
         if completed:
-            st.metric("완료한 계약", len(completed))
+            st.success(f"✨ 완료된 계약 ({len(completed)}건)")
 
             total = sum(float(c["total_amount"]) for c in completed)
-            if st.session_state.user["role"] == "instructor":
-                st.metric("총 수익", f"₩{int(total):,}")
-            else:
-                st.metric("총 지출", f"₩{int(total):,}")
-    except:
-        pass
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("완료한 계약", len(completed))
+            with col2:
+                if user["role"] == "instructor":
+                    st.metric("총 수익", f"₩{int(total):,}")
+                else:
+                    st.metric("총 지출", f"₩{int(total):,}")
+
+            st.markdown("---")
+
+            # Show completed contracts with review option
+            st.subheader("⭐ 리뷰 관리")
+
+            # Show list of contracts that can be reviewed
+            for contract in completed:
+                # Check if review exists for this contract
+                existing_review = None
+
+                try:
+                    response = client.get_my_review_for_contract(contract['id'])
+                    # If we get a response with an ID, review exists
+                    if response and isinstance(response, dict) and response.get('id'):
+                        existing_review = response
+                except APIError as e:
+                    # 404 means no review exists, which is expected and normal
+                    if e.status_code == 404:
+                        existing_review = None
+                    else:
+                        # Log unexpected errors but continue
+                        existing_review = None
+                except Exception as e:
+                    # Any other exception, assume no review
+                    existing_review = None
+
+                with st.expander(f"📋 계약 {contract['id'][:8]}... - {contract.get('date', 'N/A')}", expanded=False):
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        st.write(f"**날짜**: {contract.get('date', 'N/A')}")
+                        st.write(f"**시간**: {contract.get('start_time', 'N/A')} - {contract.get('end_time', 'N/A')}")
+                        st.write(f"**금액**: ₩{int(float(contract.get('total_amount', 0))):,}")
+
+                    with col2:
+                        if existing_review:
+                            # Show existing review status
+                            st.success("✅ 리뷰 작성됨")
+
+                    # Show existing review or form to create new one
+                    if existing_review:
+                        # Display existing review
+                        st.markdown("---")
+                        st.write("**내가 작성한 리뷰**")
+
+                        # Show rating as stars
+                        rating_stars = "⭐" * existing_review.get('rating', 0)
+                        st.write(f"평점: {rating_stars}")
+
+                        if existing_review.get('comment'):
+                            st.write(f"후기: {existing_review['comment']}")
+
+                        # Edit/Delete options
+                        edit_mode_key = f"edit_mode_{contract['id']}"
+                        if st.session_state.get(edit_mode_key, False):
+                            # Edit form
+                            with st.form(f"edit_review_form_{contract['id']}"):
+                                st.write("**리뷰 수정**")
+
+                                # Star rating
+                                rating_options = {
+                                    "⭐": 1,
+                                    "⭐⭐": 2,
+                                    "⭐⭐⭐": 3,
+                                    "⭐⭐⭐⭐": 4,
+                                    "⭐⭐⭐⭐⭐": 5
+                                }
+                                current_rating_index = existing_review.get('rating', 3) - 1
+                                rating_display = st.radio(
+                                    "평점 선택",
+                                    options=list(rating_options.keys()),
+                                    index=current_rating_index,
+                                    horizontal=True,
+                                    label_visibility="collapsed",
+                                    key=f"edit_rating_{contract['id']}"
+                                )
+                                new_rating = rating_options[rating_display]
+
+                                # Comment
+                                if user["role"] == "instructor":
+                                    new_comment = st.text_area("스튜디오에 대한 후기",
+                                                          value=existing_review.get('comment', ''),
+                                                          height=100,
+                                                          key=f"edit_comment_{contract['id']}")
+                                else:
+                                    new_comment = st.text_area("강사님에 대한 후기",
+                                                          value=existing_review.get('comment', ''),
+                                                          height=100,
+                                                          key=f"edit_comment_{contract['id']}")
+
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    if st.form_submit_button("💾 저장", type="primary", use_container_width=True):
+                                        try:
+                                            client.update_review(existing_review['id'], new_rating, new_comment)
+                                            st.success("리뷰가 수정되었습니다!")
+                                            del st.session_state[edit_mode_key]
+                                            st.rerun()
+                                        except APIError as e:
+                                            st.error(f"오류: {e.message}")
+                                with col2:
+                                    if st.form_submit_button("🗑️ 삭제", use_container_width=True):
+                                        try:
+                                            client.delete_review(existing_review['id'])
+                                            st.success("리뷰가 삭제되었습니다.")
+                                            del st.session_state[edit_mode_key]
+                                            st.rerun()
+                                        except APIError as e:
+                                            st.error(f"오류: {e.message}")
+                                with col3:
+                                    if st.form_submit_button("취소", use_container_width=True):
+                                        del st.session_state[edit_mode_key]
+                                        st.rerun()
+                        else:
+                            # Show edit button
+                            if st.button("✏️ 수정/삭제", key=f"edit_btn_{contract['id']}", use_container_width=True):
+                                st.session_state[edit_mode_key] = True
+                                st.rerun()
+                    else:
+                        # Show review creation form
+                        # Use session state to persist form visibility across reruns
+                        form_key = f"show_review_form_{contract['id']}"
+                        if form_key not in st.session_state:
+                            st.session_state[form_key] = False
+
+                        if st.button("⭐ 리뷰 작성", key=f"review_btn_{contract['id']}", type="primary", use_container_width=True):
+                            st.session_state[form_key] = True
+
+                        if st.session_state[form_key]:
+                            st.info("상대방에 대한 리뷰를 작성해주세요. 리뷰는 다른 사용자들에게 도움이 됩니다.")
+
+                            with st.form(f"review_form_{contract['id']}"):
+                                # Star rating using radio buttons styled as stars
+                                st.write("**평점**")
+                                rating_options = {
+                                    "⭐": 1,
+                                    "⭐⭐": 2,
+                                    "⭐⭐⭐": 3,
+                                    "⭐⭐⭐⭐": 4,
+                                    "⭐⭐⭐⭐⭐": 5
+                                }
+                                rating_display = st.radio(
+                                    "평점 선택",
+                                    options=list(rating_options.keys()),
+                                    index=2,  # Default to 3 stars
+                                    horizontal=True,
+                                    label_visibility="collapsed",
+                                    key=f"rating_{contract['id']}"
+                                )
+                                rating = rating_options[rating_display]
+
+                                # Show different prompts based on role
+                                if user["role"] == "instructor":
+                                    comment = st.text_area("스튜디오에 대한 후기 (선택)",
+                                                          placeholder="예: 시설이 깨끗하고 운영이 체계적입니다.",
+                                                          height=100,
+                                                          key=f"comment_{contract['id']}")
+                                else:
+                                    comment = st.text_area("강사님에 대한 후기 (선택)",
+                                                          placeholder="예: 전문적이고 친절한 강사님입니다.",
+                                                          height=100,
+                                                          key=f"comment_{contract['id']}")
+
+                                col1, col2 = st.columns(2)
+                                submitted = col1.form_submit_button("✅ 제출", type="primary", use_container_width=True)
+                                cancelled = col2.form_submit_button("취소", use_container_width=True)
+
+                                if submitted:
+                                    try:
+                                        # Debug logging
+                                        st.write(f"DEBUG: Creating review - Contract: {contract['id'][:8]}..., Rating: {rating}, Comment: {comment[:50] if comment else 'None'}")
+
+                                        client.create_review(contract["id"], rating, comment)
+                                        st.success("리뷰가 등록되었습니다! 감사합니다.")
+                                        # Clear the form state
+                                        st.session_state[form_key] = False
+                                        st.rerun()
+                                    except APIError as e:
+                                        if "already exists" in str(e.message).lower():
+                                            st.error("이미 리뷰를 작성하셨습니다.")
+                                        else:
+                                            st.error(f"오류: {e.message}")
+                                        st.exception(e)
+                                    except Exception as e:
+                                        st.error(f"예상치 못한 오류: {str(e)}")
+                                        st.exception(e)
+
+                                if cancelled:
+                                    st.session_state[form_key] = False
+                                    st.rerun()
+    except Exception as e:
+        st.error(f"완료/리뷰 섹션 오류: {str(e)}")
+        st.exception(e)
 
     st.markdown("---")
 
@@ -1184,20 +1720,66 @@ def main():
 
     st.markdown("---")
 
-    # Determine which page to show
-    page = st.session_state.get("page", steps[current_step - 1][2])
+    # Show current task helper message
+    if current_step == 1 and not data.get("profile_complete", False):
+        st.info(f"👋 환영합니다! 먼저 프로필을 완성해주세요. {'강사' if user['role'] == 'instructor' else '스튜디오'} 정보를 입력하면 매칭을 시작할 수 있습니다.")
+    elif current_step == 2:
+        if user["role"] == "instructor":
+            st.info("🔍 이제 일자리를 찾아볼 수 있습니다! 매칭 점수가 높은 공고부터 확인해보세요.")
+        else:
+            st.info("📝 첫 공고를 등록해보세요! 3클릭만으로 강사 모집이 가능합니다.")
+    elif current_step == 3:
+        if user["role"] == "instructor":
+            st.info("💌 받은 오퍼를 확인하고 수락/거절을 선택해주세요.")
+        else:
+            st.info("👥 지원한 강사들을 검토하고 오퍼를 보내주세요.")
+    elif current_step == 4:
+        st.info("📋 진행 중인 계약을 확인하고 관리해주세요.")
+    elif current_step == 5:
+        st.success("🎉 완료된 계약입니다! 리뷰를 남겨주세요.")
 
-    # Render appropriate page
+    st.markdown("---")
+
+    # Determine which page to show
+    # If profile is not complete (step 1), always show profile page
+    if current_step == 1 and not data.get("profile_complete", False):
+        page = "profile"
+        # Clear any stored page in session to avoid conflicts
+        if "page" in st.session_state:
+            del st.session_state.page
+    else:
+        # Use stored page or default to current step's page
+        page = st.session_state.get("page", steps[current_step - 1][2])
+
+    # Render appropriate page based on role
     if page == "profile":
         render_profile_step()
     elif page == "find_jobs":
-        render_find_jobs_step()
+        # Only instructors can access find_jobs
+        if user["role"] == "instructor":
+            render_find_jobs_step()
+        else:
+            # Redirect studios to their appropriate page
+            st.session_state.page = "create_job"
+            st.rerun()
     elif page == "create_job":
-        render_create_job_step()
+        # Only studios can create jobs
+        if user["role"] == "studio":
+            render_create_job_step()
+        else:
+            # Redirect instructors to find jobs
+            st.session_state.page = "find_jobs"
+            st.rerun()
     elif page == "offers":
         render_offers_step()
     elif page == "applicants":
-        render_applicants_step()
+        # Only studios can view applicants
+        if user["role"] == "studio":
+            render_applicants_step()
+        else:
+            # Redirect instructors to offers
+            st.session_state.page = "offers"
+            st.rerun()
     elif page == "contracts":
         render_contracts_step()
     elif page == "complete":
