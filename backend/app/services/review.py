@@ -3,13 +3,13 @@ from uuid import UUID
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update, delete
 
 from app.models import (
     Review, Contract, InstructorProfile, StudioProfile,
     ContractStatus, UserRole
 )
-from app.schemas.review import ReviewCreate
+from app.schemas.review import ReviewCreate, ReviewUpdate
 
 
 class ReviewService:
@@ -161,3 +161,77 @@ class ReviewService:
         avg_rating = avg_result.scalar()
 
         return reviews, float(avg_rating) if avg_rating else None
+
+    async def get_user_review_for_contract(
+        self, contract_id: UUID, user_id: UUID
+    ) -> Optional[Review]:
+        """Get a specific user's review for a contract."""
+        result = await self.db.execute(
+            select(Review).where(
+                Review.contract_id == contract_id,
+                Review.reviewer_user_id == user_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def update_review(
+        self, review_id: UUID, user_id: UUID, data: ReviewUpdate
+    ) -> Review:
+        """Update an existing review."""
+        # Get the review
+        result = await self.db.execute(
+            select(Review).where(Review.id == review_id)
+        )
+        review = result.scalar_one_or_none()
+
+        if not review:
+            raise ValueError("Review not found")
+
+        if review.reviewer_user_id != user_id:
+            raise PermissionError("Not authorized to update this review")
+
+        # Update fields
+        if data.rating is not None:
+            review.rating = data.rating
+        if data.comment is not None:
+            review.comment = data.comment
+
+        # Update average ratings
+        if review.reviewee_instructor_id:
+            await self._update_instructor_rating(review.reviewee_instructor_id)
+        if review.reviewee_studio_id:
+            await self._update_studio_rating(review.reviewee_studio_id)
+
+        await self.db.commit()
+        await self.db.refresh(review)
+        return review
+
+    async def delete_review(self, review_id: UUID, user_id: UUID) -> None:
+        """Delete a review."""
+        # Get the review
+        result = await self.db.execute(
+            select(Review).where(Review.id == review_id)
+        )
+        review = result.scalar_one_or_none()
+
+        if not review:
+            raise ValueError("Review not found")
+
+        if review.reviewer_user_id != user_id:
+            raise PermissionError("Not authorized to delete this review")
+
+        # Store IDs before deletion for rating update
+        instructor_id = review.reviewee_instructor_id
+        studio_id = review.reviewee_studio_id
+
+        # Delete the review
+        await self.db.delete(review)
+        await self.db.commit()
+
+        # Update average ratings
+        if instructor_id:
+            await self._update_instructor_rating(instructor_id)
+            await self.db.commit()
+        if studio_id:
+            await self._update_studio_rating(studio_id)
+            await self.db.commit()

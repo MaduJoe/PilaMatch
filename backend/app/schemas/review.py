@@ -9,6 +9,11 @@ class ReviewCreate(BaseModel):
     comment: Optional[str] = None
 
 
+class ReviewUpdate(BaseModel):
+    rating: Optional[int] = Field(None, ge=1, le=5)
+    comment: Optional[str] = None
+
+
 class ReviewResponse(BaseModel):
     id: UUID
     contract_id: UUID
@@ -18,6 +23,7 @@ class ReviewResponse(BaseModel):
     rating: int
     comment: Optional[str] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
