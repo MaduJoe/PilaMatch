@@ -36,6 +36,7 @@ class ApplicationWithInstructorResponse(ApplicationResponse):
     instructor_categories: Optional[list] = None
     instructor_rating: Optional[float] = None
     has_offer: bool = False  # True if an offer has been sent for this application
+    is_premium: bool = False  # True if instructor has premium membership
 
 
 class ApplicationListResponse(BaseModel):

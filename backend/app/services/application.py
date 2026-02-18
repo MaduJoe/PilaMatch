@@ -7,7 +7,8 @@ from sqlalchemy.orm import selectinload
 
 from app.models import Application, JobPost, InstructorProfile, StudioProfile, Offer, ApplicationStatus, JobPostStatus, User
 from app.schemas.application import ApplicationCreate
-from app.services.deposit import check_deposit_sufficient
+from app.services.profile_completeness import check_profile_completeness_for_action
+from app.services.subscription import SubscriptionService
 
 
 class ApplicationService:
@@ -51,26 +52,35 @@ class ApplicationService:
         if existing.scalar_one_or_none():
             raise ValueError("DUPLICATE_APPLICATION")
 
-        # v2.0: Check deposit on first application attempt
-        # Get instructor's user_id
+        # v3.0: Check profile completeness instead of deposit
         instructor = await self.db.execute(
             select(InstructorProfile).where(InstructorProfile.id == instructor_id)
         )
         instructor = instructor.scalar_one_or_none()
         if instructor:
-            # Check if user has any previous applications
-            prev_apps = await self.db.execute(
-                select(func.count(Application.id)).where(
-                    Application.instructor_id == instructor_id
-                )
+            completeness = await check_profile_completeness_for_action(
+                self.db, str(instructor.user_id), "apply"
             )
-            app_count = prev_apps.scalar()
+            if not completeness["allowed"]:
+                raise ValueError(f"INCOMPLETE_PROFILE:{completeness['reason']}")
 
-            # If this is the first application, check deposit
-            if app_count == 0:
-                has_sufficient_deposit = await check_deposit_sufficient(self.db, str(instructor.user_id))
-                if not has_sufficient_deposit:
-                    raise ValueError("INSUFFICIENT_DEPOSIT")
+            # v3.0 Phase 2: Check concurrent application limit for Free tier
+            subscription_service = SubscriptionService(self.db)
+            membership_tier = await subscription_service.get_membership_tier(instructor.user_id)
+
+            if membership_tier == "free":
+                # Count active applications (PENDING status)
+                active_count = await self.db.execute(
+                    select(func.count(Application.id)).where(
+                        Application.instructor_id == instructor_id,
+                        Application.status == ApplicationStatus.PENDING
+                    )
+                )
+                active_count = active_count.scalar_one() or 0
+
+                MAX_FREE_APPLICATIONS = 5
+                if active_count >= MAX_FREE_APPLICATIONS:
+                    raise ValueError(f"APPLICATION_LIMIT:무료 회원은 최대 {MAX_FREE_APPLICATIONS}개까지 동시 지원 가능합니다. 프리미엄으로 업그레이드하면 무제한 지원이 가능합니다.")
 
         # Create application
         application = Application(
@@ -170,3 +180,16 @@ class ApplicationService:
         await self.db.commit()
         await self.db.refresh(application)
         return application
+
+    async def get_active_application_count(self, instructor_id: UUID) -> int:
+        """Get count of active (PENDING) applications for an instructor.
+
+        v3.0 Phase 2: Used to display application limit status for Free tier users.
+        """
+        result = await self.db.execute(
+            select(func.count(Application.id)).where(
+                Application.instructor_id == instructor_id,
+                Application.status == ApplicationStatus.PENDING
+            )
+        )
+        return result.scalar_one() or 0

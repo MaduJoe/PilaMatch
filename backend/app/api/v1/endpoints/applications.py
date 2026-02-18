@@ -15,6 +15,7 @@ from app.schemas.application import (
     ApplicationWithInstructorListResponse,
 )
 from app.services.application import ApplicationService
+from app.services.subscription import SubscriptionService
 
 router = APIRouter()
 
@@ -50,10 +51,12 @@ async def create_application(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={"code": "DUPLICATE_APPLICATION", "message": "Already applied to this job post"},
             )
-        elif error_msg == "INSUFFICIENT_DEPOSIT":
+        # v3.0: Profile completeness check replaces deposit check
+        elif error_msg.startswith("INCOMPLETE_PROFILE:"):
+            reason = error_msg.split(":", 1)[1] if ":" in error_msg else "프로필을 완성해주세요"
             raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail={"code": "INSUFFICIENT_DEPOSIT", "message": "Deposit required to apply for jobs"},
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "INCOMPLETE_PROFILE", "message": reason},
             )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -88,8 +91,13 @@ async def get_job_post_applications(
             detail={"code": "PERMISSION_DENIED", "message": "Not authorized to view applications for this job post"},
         )
 
+    subscription_service = SubscriptionService(db)
     items = []
+
     for application, instructor, has_offer in results:
+        # Check if instructor has premium membership
+        is_premium = await subscription_service.is_premium_user(instructor.user_id)
+
         item = ApplicationWithInstructorResponse(
             id=application.id,
             job_post_id=application.job_post_id,
@@ -104,8 +112,12 @@ async def get_job_post_applications(
             instructor_categories=instructor.categories,
             instructor_rating=float(instructor.rating_average) if instructor.rating_average else None,
             has_offer=has_offer,
+            is_premium=is_premium,
         )
         items.append(item)
+
+    # Sort items: Premium instructors first, then by creation date
+    items.sort(key=lambda x: (x.is_premium, x.created_at), reverse=True)
 
     return ApplicationWithInstructorListResponse(items=items, total=len(items))
 
