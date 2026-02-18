@@ -247,11 +247,33 @@ class APIClient:
         return self._request_sync("GET", "/verification/status")
 
     # Deposit
-    def get_deposit_status(self):
-        return self._request_sync("GET", "/deposit/status")
+    # v3.0: Deposit methods removed - no longer required
+    # def get_deposit_status(self):
+    #     return self._request_sync("GET", "/deposit/status")
+    # def add_deposit(self, amount: float):
+    #     return self._request_sync("POST", "/deposit/add", {"amount": amount})
 
-    def add_deposit(self, amount: float):
-        return self._request_sync("POST", "/deposit/add", {"amount": amount})
+    # Profile Completeness (v3.0)
+    def get_profile_completeness(self):
+        """Get current profile completeness percentage and missing fields."""
+        return self._request_sync("GET", "/profile/completeness")
+
+    def check_profile_action(self, action: str):
+        """Check if profile is complete enough for an action."""
+        return self._request_sync("GET", f"/profile/completeness/check/{action}")
+
+    # Trust Score (v3.0)
+    def get_my_trust_score(self):
+        """Get detailed Trust Score with breakdown."""
+        return self._request_sync("GET", "/trust-score")
+
+    def get_trust_display(self):
+        """Get simplified Trust Score for display."""
+        return self._request_sync("GET", "/trust-score/display")
+
+    def refresh_trust_score(self):
+        """Refresh Trust Score calculation."""
+        return self._request_sync("POST", "/trust-score/refresh")
 
     # Subscription (Premium Membership)
     def get_subscription_status(self):
@@ -279,6 +301,45 @@ class APIClient:
     def get_subscription_history(self):
         """Get subscription change history."""
         return self._request_sync("GET", "/subscriptions/history")
+
+    # Application Templates (v3.0 Phase 2 - Premium feature)
+    def get_application_templates(self):
+        """Get all application templates for current user."""
+        return self._request_sync("GET", "/application-templates")
+
+    def create_application_template(self, name: str, content: str, is_default: bool = False):
+        """Create a new application template (Premium only)."""
+        return self._request_sync("POST", "/application-templates", {
+            "name": name,
+            "content": content,
+            "is_default": is_default
+        })
+
+    def update_application_template(self, template_id: str, name: str = None, content: str = None, is_default: bool = None):
+        """Update an existing template."""
+        data = {}
+        if name is not None:
+            data["name"] = name
+        if content is not None:
+            data["content"] = content
+        if is_default is not None:
+            data["is_default"] = is_default
+        return self._request_sync("PUT", f"/application-templates/{template_id}", data)
+
+    def delete_application_template(self, template_id: str):
+        """Delete a template."""
+        return self._request_sync("DELETE", f"/application-templates/{template_id}")
+
+    def use_application_template(self, template_id: str):
+        """Use a template (returns content and increments usage count)."""
+        return self._request_sync("POST", f"/application-templates/{template_id}/use")
+
+    def get_template_suggestions(self, job_type: str = None):
+        """Get template suggestions based on job type (Premium feature)."""
+        params = {}
+        if job_type:
+            params["job_type"] = job_type
+        return self._request_sync("GET", "/application-templates/suggestions", params=params)
 
 
 class APIError(Exception):
