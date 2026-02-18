@@ -33,8 +33,9 @@ class User(Base, UUIDMixin, TimestampMixin):
     last_active_at = Column(DateTime, default=func.now(), nullable=False)
     onboarding_completed = Column(Boolean, default=False, nullable=False)
 
-    # Trust score (v2.0)
-    trust_score = Column(Integer, default=0, nullable=False)
+    # Trust score (v3.0 - enhanced)
+    trust_score = Column(Integer, default=40, nullable=False)  # 0-100, default 40 for new users
+    trust_level = Column(String(20), default="신진", nullable=False)  # 신진/인증/전문/마스터
 
     # Premium membership (v2.1)
     membership_tier = Column(String(20), default="free", nullable=False)  # free, premium
