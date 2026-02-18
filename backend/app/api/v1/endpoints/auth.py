@@ -60,11 +60,29 @@ async def get_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current authenticated user info."""
+    """Get current authenticated user info with profile names."""
     service = AuthService(db)
     profile_id = await service.get_user_profile_id(current_user)
 
+    # Get profile names based on user role
+    display_name = None
+    business_name = None
+
+    if current_user.role == "instructor":
+        instructor_profile = await service.get_instructor_profile(current_user.id)
+        if instructor_profile:
+            display_name = instructor_profile.display_name
+    elif current_user.role == "studio":
+        studio_profile = await service.get_studio_profile(current_user.id)
+        if studio_profile:
+            business_name = studio_profile.business_name
+
+    # Create UserResponse with profile names
+    user_response = UserResponse.model_validate(current_user)
+    user_response.display_name = display_name
+    user_response.business_name = business_name
+
     return MeResponse(
-        user=UserResponse.model_validate(current_user),
+        user=user_response,
         profile_id=profile_id,
     )

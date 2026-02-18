@@ -88,3 +88,17 @@ class AuthService:
             profile = result.scalar_one_or_none()
             return profile
         return None
+
+    async def get_instructor_profile(self, user_id: UUID) -> Optional[InstructorProfile]:
+        """Get instructor profile by user ID."""
+        result = await self.db.execute(
+            select(InstructorProfile).where(InstructorProfile.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_studio_profile(self, user_id: UUID) -> Optional[StudioProfile]:
+        """Get studio profile by user ID."""
+        result = await self.db.execute(
+            select(StudioProfile).where(StudioProfile.user_id == user_id)
+        )
+        return result.scalar_one_or_none()

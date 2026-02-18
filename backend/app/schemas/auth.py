@@ -33,6 +33,10 @@ class UserResponse(BaseModel):
     no_show_count: int = 0
     is_suspended: bool = False
 
+    # Profile names - populated from related profiles
+    display_name: Optional[str] = None  # For instructors (from InstructorProfile)
+    business_name: Optional[str] = None  # For studios (from StudioProfile)
+
     # Verification status
     phone_verified: bool = False
     identity_verified: bool = False
