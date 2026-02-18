@@ -20,6 +20,10 @@ class ContractResponse(BaseModel):
     start_time: time
     end_time: time
 
+    # Signature tracking
+    instructor_signed_at: Optional[datetime] = None
+    studio_signed_at: Optional[datetime] = None
+
     # v2.0 fields
     studio_confirmed_at: Optional[datetime] = None
     instructor_confirmed_at: Optional[datetime] = None

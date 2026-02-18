@@ -22,6 +22,10 @@ class Contract(Base, UUIDMixin, TimestampMixin):
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
 
+    # Signature tracking - both parties must sign before IN_PROGRESS
+    instructor_signed_at = Column(DateTime)
+    studio_signed_at = Column(DateTime)
+
     # Bidirectional completion confirmation (v2.0)
     studio_confirmed_at = Column(DateTime)
     instructor_confirmed_at = Column(DateTime)

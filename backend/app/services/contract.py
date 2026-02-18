@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.models import (
     Contract, ContractEventLog, Offer, JobPost, Application,
-    Payment, InstructorProfile, StudioProfile,
+    Payment, InstructorProfile, StudioProfile, User, MembershipTier,
     ContractStatus, OfferStatus, PaymentStatus
 )
 
@@ -21,6 +21,10 @@ VALID_TRANSITIONS: Dict[ContractStatus, Set[ContractStatus]] = {
     ContractStatus.DISPUTED: {ContractStatus.COMPLETED, ContractStatus.CANCELLED},  # Can be resolved
     ContractStatus.CANCELLED: set(),  # Terminal state
 }
+
+# v3.0: Fee rates based on membership
+PREMIUM_FEE_RATE = 0.03  # 3% for Premium members
+FREE_FEE_RATE = 0.05  # 5% for Free members
 
 
 class ContractService:
@@ -48,6 +52,31 @@ class ContractService:
     def _validate_transition(self, from_status: ContractStatus, to_status: ContractStatus) -> bool:
         valid_next = VALID_TRANSITIONS.get(from_status, set())
         return to_status in valid_next
+
+    async def _get_fee_rate(self, instructor_id: UUID) -> float:
+        """Get fee rate based on instructor's membership tier (v3.0).
+
+        Premium members get 3% fee rate, Free members get 5%.
+        """
+        # Get instructor's user account
+        instructor = await self.db.execute(
+            select(InstructorProfile.user_id).where(InstructorProfile.id == instructor_id)
+        )
+        user_id = instructor.scalar_one_or_none()
+
+        if not user_id:
+            return FREE_FEE_RATE  # Default to free tier rate
+
+        # Get user's membership tier
+        user = await self.db.execute(
+            select(User.membership_tier).where(User.id == user_id)
+        )
+        membership_tier = user.scalar_one_or_none()
+
+        if membership_tier == MembershipTier.PREMIUM.value:
+            return PREMIUM_FEE_RATE
+        else:
+            return FREE_FEE_RATE
 
     async def _log_event(
         self,
@@ -183,6 +212,7 @@ class ContractService:
     async def set_in_progress(
         self, contract_id: UUID, actor_user_id: UUID, profile_id: UUID, role: str
     ) -> Contract:
+        """Sign contract - requires both parties to sign before progressing"""
         contract = await self.get_by_id(contract_id)
 
         if not contract:
@@ -194,21 +224,46 @@ class ContractService:
         if role == "instructor" and contract.instructor_id != profile_id:
             raise PermissionError("Not authorized to update this contract")
 
-        if not self._validate_transition(contract.status, ContractStatus.IN_PROGRESS):
-            raise ValueError("INVALID_STATE_TRANSITION")
+        # Contract must be in CONFIRMED status to be signed
+        if contract.status != ContractStatus.CONFIRMED:
+            raise ValueError("Contract must be in CONFIRMED status to sign")
 
-        # MVP: No payment required - signature-based agreement only
+        # Mark signature from the appropriate party
+        from datetime import datetime
 
-        from_status = contract.status
-        contract.status = ContractStatus.IN_PROGRESS
+        if role == "studio":
+            if contract.studio_signed_at:
+                raise ValueError("Already signed by studio")
+            contract.studio_signed_at = datetime.utcnow()
+            signature_note = "Contract signed by studio"
+        else:  # instructor
+            if contract.instructor_signed_at:
+                raise ValueError("Already signed by instructor")
+            contract.instructor_signed_at = datetime.utcnow()
+            signature_note = "Contract signed by instructor"
 
-        await self._log_event(
-            contract_id=contract_id,
-            actor_user_id=actor_user_id,
-            from_status=from_status,
-            to_status=ContractStatus.IN_PROGRESS,
-            note=f"Contract signed by {role}",
-        )
+        # Check if both parties have signed
+        if contract.studio_signed_at and contract.instructor_signed_at:
+            # Both signed - move to IN_PROGRESS
+            from_status = contract.status
+            contract.status = ContractStatus.IN_PROGRESS
+
+            await self._log_event(
+                contract_id=contract_id,
+                actor_user_id=actor_user_id,
+                from_status=from_status,
+                to_status=ContractStatus.IN_PROGRESS,
+                note="Contract signed by both parties - now in progress",
+            )
+        else:
+            # First signature - remain in CONFIRMED status
+            await self._log_event(
+                contract_id=contract_id,
+                actor_user_id=actor_user_id,
+                from_status=ContractStatus.CONFIRMED,
+                to_status=ContractStatus.CONFIRMED,
+                note=f"{signature_note} - waiting for other party",
+            )
 
         await self.db.commit()
         await self.db.refresh(contract)
@@ -257,9 +312,10 @@ class ContractService:
                 note="Contract completed - both parties confirmed",
             )
 
-            # Calculate platform fee (5%) and settlement amount
+            # Calculate platform fee based on membership (v3.0)
             from decimal import Decimal
-            contract.platform_fee = float(contract.total_amount) * 0.05
+            fee_rate = await self._get_fee_rate(contract.instructor_id)
+            contract.platform_fee = float(contract.total_amount) * fee_rate
             contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
 
             # Release escrow to instructor
@@ -372,7 +428,9 @@ class ContractService:
 
             if should_complete:
                 contract.status = ContractStatus.COMPLETED
-                contract.platform_fee = float(contract.total_amount) * 0.05
+                # v3.0: Calculate fee based on membership
+                fee_rate = await self._get_fee_rate(contract.instructor_id)
+                contract.platform_fee = float(contract.total_amount) * fee_rate
                 contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
 
                 await self._log_event(
@@ -405,7 +463,9 @@ class ContractService:
             class_end = datetime.combine(contract.date, contract.end_time)
             if now - class_end > timedelta(hours=48):
                 contract.status = ContractStatus.COMPLETED
-                contract.platform_fee = float(contract.total_amount) * 0.05
+                # v3.0: Calculate fee based on membership
+                fee_rate = await self._get_fee_rate(contract.instructor_id)
+                contract.platform_fee = float(contract.total_amount) * fee_rate
                 contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
 
                 await self._log_event(
