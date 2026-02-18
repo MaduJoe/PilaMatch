@@ -12,8 +12,10 @@ from app.models import (
     Contract, ContractStatus, User,
     ChatMessage, ChatThread
 )
-from app.services.deposit import deduct_deposit, NO_SHOW_PENALTY_AMOUNT
 from app.services.escrow import refund_escrow_to_studio
+
+# v3.0: No deposit system - penalties handled via Trust Score
+NO_SHOW_PENALTY_AMOUNT = Decimal("0")
 
 
 class DisputeService:
@@ -314,18 +316,11 @@ class DisputeService:
         return evidence
 
     async def _apply_no_show_penalty(self, dispute: Dispute, amount: Decimal = None) -> None:
-        """Apply no-show penalty to the reported user."""
-        if amount is None:
-            amount = NO_SHOW_PENALTY_AMOUNT
+        """Apply no-show penalty to the reported user.
 
-        # Deduct deposit
-        await deduct_deposit(
-            db=self.db,
-            user_id=str(dispute.reported_against),
-            amount=amount,
-            reason=f"No-show penalty for dispute #{dispute.id}",
-        )
-
+        v3.0: No financial penalty - only increment count and suspend if needed.
+        Trust Score reduction handled separately.
+        """
         # Increment no-show count
         user = await self.db.execute(
             select(User).where(User.id == dispute.reported_against)

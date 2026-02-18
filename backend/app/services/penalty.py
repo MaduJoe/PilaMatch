@@ -71,9 +71,8 @@ async def report_no_show(
         reported_user.is_suspended = True
         is_now_suspended = True
 
-    # Deduct from deposit (보증금 차감)
-    from app.services.deposit import apply_no_show_penalty
-    deposit_result = await apply_no_show_penalty(db, reported_user_id)
+    # v3.0: No deposit deduction - penalties handled via suspension and Trust Score
+    # Trust Score reduction will be handled separately in the trust service
 
     await db.commit()
 
@@ -81,8 +80,8 @@ async def report_no_show(
         "no_show_count": reported_user.no_show_count,
         "is_suspended": is_now_suspended,
         "remaining_chances": max(0, NO_SHOW_LIMIT - reported_user.no_show_count),
-        "deposit_deducted": deposit_result.get("deducted", 0),
-        "deposit_remaining": deposit_result.get("new_balance", 0),
+        "deposit_deducted": 0,  # v3.0: No deposit system
+        "deposit_remaining": 0,  # v3.0: No deposit system
     }
 
 
