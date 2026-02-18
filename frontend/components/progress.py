@@ -42,8 +42,8 @@ def render_step_navigation(current_step, steps):
     st.markdown("---")
     cols = st.columns(len(steps))
 
-    # Get current page
-    current_page = st.session_state.get("page", steps[current_step - 1][2])
+    # Get current page (default to profile page)
+    current_page = st.session_state.get("page", "profile")
 
     for i, (num, label, page) in enumerate(steps):
         step_num = int(num)

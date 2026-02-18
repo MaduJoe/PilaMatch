@@ -87,10 +87,10 @@ def get_user_progress(client):
                     if c["status"] == "completed"
                 ]
 
-                if active_contracts:
-                    current_step = 4  # Has active contracts
-                elif completed_contracts:
-                    current_step = 5  # All contracts completed
+                if completed_contracts:
+                    current_step = 5  # Has completed contracts (can write reviews)
+                elif active_contracts:
+                    current_step = 4  # Has active contracts but none completed yet
         except:
             pass
 
