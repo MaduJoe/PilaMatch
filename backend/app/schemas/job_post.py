@@ -58,6 +58,7 @@ class JobPostResponse(BaseModel):
     region: Optional[str] = None
     address: Optional[str] = None
     application_count: int = 0
+    # Note: is_premium is added at the endpoint level for security reasons
 
     class Config:
         from_attributes = True

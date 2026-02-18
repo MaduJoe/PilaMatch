@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 from decimal import Decimal
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.db.session import get_db
 from app.core.deps import require_role, get_optional_user, get_current_user
-from app.models import User, UserRole, InstructorProfile
+from app.models import User, UserRole, InstructorProfile, StudioProfile
 from app.models.enums import Category, JobType, JobPostStatus
 from app.schemas.job_post import (
     JobPostCreate,
@@ -21,6 +21,7 @@ from app.schemas.job_post import (
 )
 from app.services.job_post import JobPostService
 from app.services.matching import calculate_matching_score, get_match_label
+from app.services.subscription import SubscriptionService
 
 
 class MatchingBreakdown(BaseModel):
@@ -32,11 +33,16 @@ class MatchingScore(BaseModel):
     total: int
     label: str
     breakdown: dict
+    is_boosted: bool = False
+    original_score: Optional[int] = None
+    boost_factor: float = 1.0
 
 
 class JobPostWithMatchingResponse(BaseModel):
     job: JobPostResponse
     matching: MatchingScore
+    is_premium: bool = False
+    is_urgent: bool = False  # v3.0 Phase 2: Emergency matching
 
 
 class JobPostWithMatchingListResponse(BaseModel):
@@ -219,6 +225,10 @@ async def list_job_posts_with_matching(
             detail={"code": "PROFILE_NOT_FOUND", "message": "Instructor profile not found"},
         )
 
+    # Check if current instructor has premium membership
+    subscription_service = SubscriptionService(db)
+    instructor_is_premium = await subscription_service.is_premium_user(current_user.id)
+
     service = JobPostService(db)
 
     filters = JobPostFilter(
@@ -234,19 +244,47 @@ async def list_job_posts_with_matching(
 
     items, total = await service.list(filters, 1, 1000, "created_at", "desc")  # Get all for scoring
 
-    # Calculate matching scores
+    # Calculate matching scores and check studio premium status
     jobs_with_scores = []
     for job in items:
-        score_data = calculate_matching_score(instructor, job)
+        # v3.0 Phase 2: Calculate if job is urgent (posted <24h before class)
+        is_urgent = False
+        if job.date and job.start_time and job.created_at:
+            # Combine date and time
+            class_datetime = datetime.combine(job.date, job.start_time)
+            # Check if posted less than 24 hours before class
+            time_diff = class_datetime - job.created_at
+            is_urgent = time_diff < timedelta(hours=24) and time_diff >= timedelta(0)
+
+        # v3.0 Phase 2: Skip urgent jobs for Free tier users
+        if is_urgent and not instructor_is_premium:
+            continue  # Don't show urgent jobs to non-premium instructors
+
+        # Get studio's premium status
+        studio_result = await db.execute(
+            select(StudioProfile).where(StudioProfile.id == job.studio_id)
+        )
+        studio = studio_result.scalar_one_or_none()
+        studio_is_premium = False
+        if studio:
+            studio_is_premium = await subscription_service.is_premium_user(studio.user_id)
+
+        # Calculate score with premium boost if studio is premium
+        score_data = calculate_matching_score(instructor, job, is_premium=studio_is_premium)
         if score_data["total"] >= min_match_score:
             jobs_with_scores.append({
                 "job": job,
                 "score": score_data["total"],
+                "original_score": score_data.get("original_score"),
+                "is_boosted": score_data.get("is_boosted", False),
+                "boost_factor": score_data.get("boost_factor", 1.0),
                 "breakdown": score_data["breakdown"],
+                "is_premium": studio_is_premium,
+                "is_urgent": is_urgent,  # v3.0 Phase 2: Add urgent flag
             })
 
-    # Sort by matching score (descending)
-    jobs_with_scores.sort(key=lambda x: x["score"], reverse=True)
+    # Sort by: 1) Premium studios first, 2) Matching score (descending)
+    jobs_with_scores.sort(key=lambda x: (x["is_premium"], x["score"]), reverse=True)
 
     # Paginate
     start = (page - 1) * page_size
@@ -261,7 +299,12 @@ async def list_job_posts_with_matching(
                     total=item["score"],
                     label=get_match_label(item["score"]),
                     breakdown=item["breakdown"],
+                    is_boosted=item.get("is_boosted", False),
+                    original_score=item.get("original_score"),
+                    boost_factor=item.get("boost_factor", 1.0),
                 ),
+                is_premium=item.get("is_premium", False),
+                is_urgent=item.get("is_urgent", False),  # v3.0 Phase 2
             )
             for item in paginated
         ],
