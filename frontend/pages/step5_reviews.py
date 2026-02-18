@@ -1,100 +1,38 @@
 """
-Step 5: Contract completion confirmation and reviews
+Step 5: Review management with table-based display
 """
 
 import streamlit as st
-from api_client import APIError
-from utils.helpers import get_client
 import pandas as pd
 from datetime import datetime
+from api_client import APIError
+from utils.helpers import get_client
 
 
-def render_complete_step():
-    """Render the completion confirmation and review management UI."""
-    st.header("5단계: 완료 & 리뷰")
+def render_reviews_step():
+    """Render the review management step with dual tabs."""
+    st.header("5단계: 리뷰 관리")
 
-    # Create tabs for completion and reviews
-    tab1, tab2, tab3 = st.tabs(["✅ 완료 확인", "✍️ 내가 쓴 리뷰", "⭐ 받은 리뷰"])
+    client = get_client()
+
+    # Create tabs for written and received reviews
+    tab1, tab2 = st.tabs(["✍️ 내가 쓴 리뷰", "⭐ 받은 리뷰"])
 
     with tab1:
-        _render_completion_tab()
+        _render_written_reviews_tab(client)
 
     with tab2:
-        _render_written_reviews_tab()
-
-    with tab3:
-        _render_received_reviews_tab()
+        _render_received_reviews_tab(client)
 
 
-def _render_completion_tab():
-    """Render the completion confirmation tab."""
-    st.caption("계약이 완료되었는지 확인하고 정산을 진행하세요.")
-
-    client = get_client()
-    user = st.session_state.user
-    role = user.get("role")
-
-    try:
-        result = client.get_my_contracts()
-        all_contracts = result.get("items", [])
-
-        pending_completion = [
-            c for c in all_contracts if c["status"] == "pending_completion"
-        ]
-        completed = [c for c in all_contracts if c["status"] == "completed"]
-
-        # Pending completion: action required, 2-column cards
-        if pending_completion:
-            st.warning(
-                f"완료 확인이 필요한 계약 {len(pending_completion)}건이 있습니다."
-            )
-            st.caption("양쪽 모두 완료를 확인해야 정산이 진행됩니다.")
-
-            COLS = 2
-            for row_start in range(0, len(pending_completion), COLS):
-                row_items = pending_completion[row_start : row_start + COLS]
-                cols = st.columns(COLS)
-                for col_idx, contract in enumerate(row_items):
-                    with cols[col_idx]:
-                        _render_pending_completion_card(contract, role, client)
-
-        # Empty state
-        if not pending_completion and not completed:
-            st.info(
-                "아직 완료 확인이 필요한 계약이 없습니다. "
-                "계약을 진행하고 수업을 완료하면 여기에서 확인할 수 있습니다."
-            )
-        elif not pending_completion and completed:
-            st.success(
-                f"모든 계약이 완료되었습니다! (총 {len(completed)}건)"
-            )
-
-            # Show completion statistics
-            total = sum(float(c["total_amount"]) for c in completed)
-            metric_col1, metric_col2, metric_col3 = st.columns(3)
-            with metric_col1:
-                st.metric("완료한 계약", f"{len(completed)}건")
-            with metric_col2:
-                label = "총 수익" if role == "instructor" else "총 지출"
-                st.metric(label, f"₩{int(total):,}")
-            with metric_col3:
-                avg_amount = total / len(completed) if completed else 0
-                st.metric("평균 금액", f"₩{int(avg_amount):,}")
-
-    except Exception as e:
-        st.error(f"계약 정보를 불러올 수 없습니다: {str(e)}")
-
-
-def _render_written_reviews_tab():
+def _render_written_reviews_tab(client):
     """Render the tab for reviews written by the current user."""
-    client = get_client()
-
     st.subheader("내가 작성한 리뷰")
 
     try:
         # Get all contracts to check which ones are reviewed
         contracts_response = client.get_my_contracts()
-        contracts = contracts_response.get("items", [])
+        contracts = contracts_response.get("contracts", [])
 
         # Filter for completed contracts
         completed_contracts = [c for c in contracts if c["status"] == "completed"]
@@ -206,10 +144,8 @@ def _render_written_reviews_tab():
         st.error(f"오류가 발생했습니다: {str(e)}")
 
 
-def _render_received_reviews_tab():
+def _render_received_reviews_tab(client):
     """Render the tab for reviews received by the current user."""
-    client = get_client()
-
     st.subheader("내가 받은 리뷰")
 
     try:
@@ -431,49 +367,3 @@ def _format_star_rating(rating):
     full_stars = "⭐" * int(rating)
     empty_stars = "☆" * (5 - int(rating))
     return full_stars + empty_stars
-
-
-def _render_pending_completion_card(
-    contract: dict, role: str, client
-) -> None:
-    """Render a contract pending completion confirmation."""
-    st.markdown(
-        f"**{contract.get('date', 'N/A')}** | "
-        f"₩{int(float(contract.get('total_amount', 0))):,}"
-    )
-    st.caption(
-        f"{contract.get('start_time', '-')} ~ {contract.get('end_time', '-')}"
-    )
-
-    # Confirmation status badges (2-column)
-    studio_confirmed = contract.get("studio_confirmed_at") is not None
-    instructor_confirmed = contract.get("instructor_confirmed_at") is not None
-    badge_col1, badge_col2 = st.columns(2)
-    with badge_col1:
-        if studio_confirmed:
-            st.success("스튜디오: 완료")
-        else:
-            st.warning("스튜디오: 대기")
-    with badge_col2:
-        if instructor_confirmed:
-            st.success("강사: 완료")
-        else:
-            st.warning("강사: 대기")
-
-    my_confirmed = studio_confirmed if role == "studio" else instructor_confirmed
-    if my_confirmed:
-        st.info("이미 확인하셨습니다. 상대방을 기다리는 중입니다.")
-    else:
-        if st.button(
-            "수업 완료 확인",
-            key=f"confirm_{contract['id']}",
-            type="primary",
-            use_container_width=True,
-        ):
-            try:
-                client.complete_contract(contract["id"])
-                st.success("확인되었습니다! 상대방도 확인하면 정산이 진행됩니다.")
-                st.rerun()
-            except APIError as e:
-                st.error(f"오류: {e.message}")
-    st.markdown("---")

@@ -200,28 +200,33 @@ class APIClient:
         return self._request_sync("POST", f"/threads/{thread_id}/messages", {"content": content})
 
     # Reviews
-    def create_review(self, contract_id: str, rating: int, comment: str = None):
-        data = {"rating": rating}
-        if comment:
-            data["comment"] = comment
+    def create_review(self, contract_id: str, data: dict):
+        """Create a review for a contract.
+        data should contain 'rating' (required) and optionally 'comment'
+        """
         return self._request_sync("POST", f"/contracts/{contract_id}/reviews", data)
 
     def get_my_review_for_contract(self, contract_id: str):
         """Get current user's review for a specific contract."""
         return self._request_sync("GET", f"/contracts/{contract_id}/reviews/my")
 
-    def update_review(self, review_id: str, rating: int = None, comment: str = None):
-        """Update an existing review."""
-        data = {}
-        if rating is not None:
-            data["rating"] = rating
-        if comment is not None:
-            data["comment"] = comment
+    def update_review(self, review_id: str, data: dict):
+        """Update an existing review.
+        data can contain 'rating' and/or 'comment'
+        """
         return self._request_sync("PUT", f"/reviews/{review_id}", data)
 
     def delete_review(self, review_id: str):
         """Delete a review."""
         return self._request_sync("DELETE", f"/reviews/{review_id}")
+
+    def get_received_reviews(self):
+        """Get all reviews received by the current user."""
+        return self._request_sync("GET", "/reviews/received")
+
+    def get_written_reviews(self):
+        """Get all reviews written by the current user."""
+        return self._request_sync("GET", "/reviews/written")
 
     # Support
     def create_support_ticket(self, subject: str, description: str):
