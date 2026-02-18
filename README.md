@@ -1,6 +1,6 @@
-# PilaMatch
+# StudioBridge
 
-**필라테스 & 요가 강사 매칭 플랫폼**
+**필라테스/요가 강사와 스튜디오(센터) 매칭 플랫폼**
 
 > "작지만 믿을 수 있는 플랫폼" - 신뢰 기반의 강사-스튜디오 매칭 서비스
 
@@ -29,7 +29,7 @@
 - 복잡한 UI (불필요한 기능 과다)
 
 ### 솔루션
-**PilaMatch**는 **"신뢰"**를 핵심 가치로, 검증된 사용자 간의 안전한 거래를 보장합니다.
+**StudioBridge**는 **"신뢰"**를 핵심 가치로, 검증된 사용자 간의 안전한 거래를 보장합니다.
 
 ### 핵심 가치: 신뢰 시스템
 
@@ -744,8 +744,8 @@ async def create_job_post(
 
 ```bash
 # 1. 저장소 클론
-git clone https://github.com/your-repo/PilaMatch.git
-cd PilaMatch
+git clone https://github.com/your-repo/StudioBridge.git
+cd StudioBridge
 
 # 2. 환경변수 설정
 cp .env.example .env
@@ -785,8 +785,8 @@ streamlit run app.py
 
 ```bash
 # Database
-DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/pilamatch
-DATABASE_URL_SYNC=postgresql://postgres:password@localhost:5432/pilamatch
+DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/StudioBridge
+DATABASE_URL_SYNC=postgresql://postgres:password@localhost:5432/StudioBridge
 
 # Security
 SECRET_KEY=your-super-secret-key-change-in-production
@@ -952,7 +952,7 @@ stateDiagram-v2
 ```mermaid
 sequenceDiagram
     participant S as 스튜디오
-    participant P as PilaMatch
+    participant P as StudioBridge
     participant T as TossPayments
     participant I as 강사
 

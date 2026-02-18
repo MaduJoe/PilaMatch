@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**PilaMatch** - Trust-based Pilates/Yoga instructor-studio matching platform MVP built with FastAPI + Streamlit.
+**StudioBridge** - Trust-based Pilates/Yoga instructor-studio matching platform MVP built with FastAPI + Streamlit.
 
 ### Core Values
 - **신뢰 (Trust)**: Safety first - verified users, escrow payments, penalty system
