@@ -5,7 +5,8 @@ from app.models import InstructorProfile, JobPost
 
 def calculate_matching_score(
     instructor: InstructorProfile,
-    job: JobPost
+    job: JobPost,
+    is_premium: bool = False
 ) -> dict:
     """
     Calculate matching score between instructor and job post.
@@ -97,8 +98,18 @@ def calculate_matching_score(
     for key, score in scores.items():
         total += score * (weights[key] / 100)
 
+    # Apply premium boost (30% increase, capped at 100)
+    original_total = round(total)
+    boosted_total = original_total
+
+    if is_premium:
+        boosted_total = min(100, round(total * 1.3))
+
     return {
-        "total": round(total),
+        "total": boosted_total,
+        "original_score": original_total if is_premium else None,
+        "is_boosted": is_premium,
+        "boost_factor": 1.3 if is_premium else 1.0,
         "breakdown": {
             "region": {"score": scores["region"], "weight": weights["region"]},
             "experience": {"score": scores["experience"], "weight": weights["experience"]},

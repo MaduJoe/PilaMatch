@@ -346,3 +346,16 @@ class SubscriptionService:
         )
         tier = result.scalar_one_or_none()
         return tier == MembershipTier.PREMIUM.value
+
+    async def get_membership_tier(self, user_id: str) -> str:
+        """Get user's current membership tier."""
+        result = await self.db.execute(
+            select(User.membership_tier).where(User.id == user_id)
+        )
+        tier = result.scalar_one_or_none()
+        return tier if tier else MembershipTier.FREE.value
+
+    async def is_premium_user(self, user_id: str) -> bool:
+        """Check if user has premium membership."""
+        tier = await self.get_membership_tier(user_id)
+        return tier == MembershipTier.PREMIUM.value
