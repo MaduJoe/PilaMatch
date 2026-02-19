@@ -35,6 +35,7 @@ from app.models.user_churn import UserChurnLog, ChurnEventType, ChurnReasonCode
 from app.models.policy_agreement import PolicyAgreement, PolicyType
 from app.models.subscription import Subscription, SubscriptionPayment, SubscriptionHistory
 from app.models.application_template import ApplicationTemplate  # v3.0 Phase 2
+from app.models.daily_usage import DailyUsageLimit  # v3.0 Daily usage tracking
 
 __all__ = [
     # Enums
@@ -86,4 +87,5 @@ __all__ = [
     "SubscriptionPayment",
     "SubscriptionHistory",
     "ApplicationTemplate",  # v3.0 Phase 2
+    "DailyUsageLimit",  # v3.0 Daily usage tracking
 ]

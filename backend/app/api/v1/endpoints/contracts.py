@@ -39,13 +39,61 @@ async def get_my_contracts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current user's contracts."""
+    """Get current user's contracts with profile names."""
+    from app.models import InstructorProfile, StudioProfile
+    from sqlalchemy import select
+
     service = ContractService(db)
     contracts = await service.get_by_user(current_user.id, current_user.role)
 
+    # Enrich contracts with profile names
+    enriched_contracts = []
+    for contract in contracts:
+        contract_dict = {
+            "id": contract.id,
+            "offer_id": contract.offer_id,
+            "studio_id": contract.studio_id,
+            "instructor_id": contract.instructor_id,
+            "status": contract.status,
+            "hourly_rate": contract.hourly_rate,
+            "total_amount": contract.total_amount,
+            "total_sessions": contract.total_sessions,
+            "date": contract.date,
+            "start_time": contract.start_time,
+            "end_time": contract.end_time,
+            "instructor_signed_at": contract.instructor_signed_at,
+            "studio_signed_at": contract.studio_signed_at,
+            "studio_confirmed_at": contract.studio_confirmed_at,
+            "instructor_confirmed_at": contract.instructor_confirmed_at,
+            "platform_fee": contract.platform_fee,
+            "settlement_amount": contract.settlement_amount,
+            "cancellation_reason": contract.cancellation_reason,
+            "cancelled_by_user_id": contract.cancelled_by_user_id,
+            "created_at": contract.created_at,
+            "updated_at": contract.updated_at,
+        }
+
+        # Get instructor name
+        instructor = await db.execute(
+            select(InstructorProfile.display_name)
+            .where(InstructorProfile.id == contract.instructor_id)
+        )
+        instructor_name = instructor.scalar_one_or_none()
+        contract_dict["instructor_name"] = instructor_name
+
+        # Get studio name
+        studio = await db.execute(
+            select(StudioProfile.business_name)
+            .where(StudioProfile.id == contract.studio_id)
+        )
+        studio_name = studio.scalar_one_or_none()
+        contract_dict["studio_name"] = studio_name
+
+        enriched_contracts.append(ContractResponse(**contract_dict))
+
     return ContractListResponse(
-        items=[ContractResponse.model_validate(c) for c in contracts],
-        total=len(contracts),
+        items=enriched_contracts,
+        total=len(enriched_contracts),
     )
 
 

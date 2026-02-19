@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth, instructors, studios, job_posts, applications,
     offers, contracts, payments, chat, reviews, reports, support,
-    verification, deposit, subscription, profiles, trust, templates
+    verification, deposit, subscription, profiles, trust, templates, usage
 )
 
 api_router = APIRouter()
@@ -26,3 +26,4 @@ api_router.include_router(reviews.router, tags=["reviews"])
 api_router.include_router(reports.router, tags=["reports"])
 api_router.include_router(support.router, tags=["support"])
 api_router.include_router(templates.router, tags=["templates"])  # v3.0 Phase 2
+api_router.include_router(usage.router, prefix="/usage", tags=["usage"])  # v3.0 Daily usage limits

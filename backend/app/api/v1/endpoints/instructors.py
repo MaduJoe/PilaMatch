@@ -56,9 +56,14 @@ async def update_my_profile(
 @router.get("/{instructor_id}", response_model=InstructorPublicResponse)
 async def get_instructor(
     instructor_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get instructor's public profile by ID."""
+    """
+    Get instructor's public profile by ID.
+
+    Studios have daily viewing limits (5 per day for free, unlimited for premium).
+    """
     service = InstructorService(db)
     profile = await service.get_profile_by_id(instructor_id)
 
@@ -73,5 +78,26 @@ async def get_instructor(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "PROFILE_PRIVATE", "message": "This profile is private"},
         )
+
+    # Check viewing limit for studio users
+    if current_user.role == UserRole.STUDIO:
+        from app.services.daily_usage import DailyUsageService
+
+        daily_usage_service = DailyUsageService(db)
+        view_result = await daily_usage_service.track_profile_view(
+            current_user.id,
+            instructor_id
+        )
+
+        if not view_result["allowed"]:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "code": "DAILY_LIMIT_REACHED",
+                    "message": view_result["message"],
+                    "count": view_result.get("count", 0),
+                    "limit": view_result.get("limit", 0)
+                },
+            )
 
     return InstructorPublicResponse.model_validate(profile)

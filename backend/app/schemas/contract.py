@@ -20,6 +20,10 @@ class ContractResponse(BaseModel):
     start_time: time
     end_time: time
 
+    # Profile names
+    instructor_name: Optional[str] = None
+    studio_name: Optional[str] = None
+
     # Signature tracking
     instructor_signed_at: Optional[datetime] = None
     studio_signed_at: Optional[datetime] = None

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Integer, Numeric, DateTime, func, ForeignKey
+from sqlalchemy import Column, String, Boolean, Integer, Numeric, DateTime, func, ForeignKey, JSON, Date
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -39,8 +39,16 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     # Premium membership (v2.1)
     membership_tier = Column(String(20), default="free", nullable=False)  # free, premium
+    has_premium_badge = Column(Boolean, default=False, nullable=False)  # Visual badge indicator
+
+    # Daily usage tracking (v3.0)
+    daily_applications_today = Column(Integer, default=0, nullable=False)
+    daily_views_today = Column(Integer, default=0, nullable=False)
+    last_usage_reset_date = Column(Date, nullable=True)
+    last_viewed_profiles = Column(JSON, nullable=True)  # List of viewed profile IDs today
 
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
     studio_profile = relationship("StudioProfile", back_populates="user", uselist=False)
     subscription = relationship("Subscription", back_populates="user", uselist=False)
+    usage_limits = relationship("DailyUsageLimit", back_populates="user")
