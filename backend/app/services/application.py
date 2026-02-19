@@ -8,7 +8,6 @@ from sqlalchemy.orm import selectinload
 from app.models import Application, JobPost, InstructorProfile, StudioProfile, Offer, ApplicationStatus, JobPostStatus, User
 from app.schemas.application import ApplicationCreate
 from app.services.profile_completeness import check_profile_completeness_for_action
-from app.services.subscription import SubscriptionService
 
 
 class ApplicationService:
@@ -64,23 +63,18 @@ class ApplicationService:
             if not completeness["allowed"]:
                 raise ValueError(f"INCOMPLETE_PROFILE:{completeness['reason']}")
 
-            # v3.0 Phase 2: Check concurrent application limit for Free tier
-            subscription_service = SubscriptionService(self.db)
-            membership_tier = await subscription_service.get_membership_tier(instructor.user_id)
+            # v3.0 Phase 2: Check daily application limit
+            from app.services.daily_usage import DailyUsageService
+            from app.models.daily_usage import DailyUsageLimit
 
-            if membership_tier == "free":
-                # Count active applications (PENDING status)
-                active_count = await self.db.execute(
-                    select(func.count(Application.id)).where(
-                        Application.instructor_id == instructor_id,
-                        Application.status == ApplicationStatus.PENDING
-                    )
-                )
-                active_count = active_count.scalar_one() or 0
+            daily_usage_service = DailyUsageService(self.db)
+            usage_result = await daily_usage_service.check_and_increment_usage(
+                instructor.user_id,
+                DailyUsageLimit.UsageType.APPLICATION
+            )
 
-                MAX_FREE_APPLICATIONS = 5
-                if active_count >= MAX_FREE_APPLICATIONS:
-                    raise ValueError(f"APPLICATION_LIMIT:무료 회원은 최대 {MAX_FREE_APPLICATIONS}개까지 동시 지원 가능합니다. 프리미엄으로 업그레이드하면 무제한 지원이 가능합니다.")
+            if not usage_result["allowed"]:
+                raise ValueError(f"APPLICATION_LIMIT:{usage_result['message']}")
 
         # Create application
         application = Application(

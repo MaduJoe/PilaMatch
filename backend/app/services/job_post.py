@@ -41,8 +41,16 @@ class JobPostService:
         page_size: int = 20,
         sort_by: str = "created_at",
         sort_order: str = "desc",
+        premium_first: bool = True,  # v3.0: Premium priority sorting
     ) -> Tuple[List[JobPost], int]:
-        query = select(JobPost)
+        from app.models import StudioProfile, User
+        from sqlalchemy.orm import selectinload
+
+        # Join with studio and user to get premium status
+        query = (
+            select(JobPost)
+            .options(selectinload(JobPost.studio))
+        )
         count_query = select(func.count(JobPost.id))
 
         # Apply filters
@@ -75,12 +83,31 @@ class JobPostService:
         total_result = await self.db.execute(count_query)
         total = total_result.scalar()
 
-        # Apply sorting
-        sort_column = getattr(JobPost, sort_by, JobPost.created_at)
-        if sort_order == "desc":
-            query = query.order_by(sort_column.desc())
+        # Apply sorting with premium priority (v3.0)
+        if premium_first:
+            # Join with user table to get premium status
+            query = query.join(StudioProfile, JobPost.studio_id == StudioProfile.id)
+            query = query.join(User, StudioProfile.user_id == User.id)
+
+            # Sort by premium status first, then by the requested column
+            sort_column = getattr(JobPost, sort_by, JobPost.created_at)
+            if sort_order == "desc":
+                query = query.order_by(
+                    User.membership_tier.desc(),  # Premium first
+                    sort_column.desc()
+                )
+            else:
+                query = query.order_by(
+                    User.membership_tier.desc(),  # Premium first
+                    sort_column.asc()
+                )
         else:
-            query = query.order_by(sort_column.asc())
+            # Standard sorting without premium priority
+            sort_column = getattr(JobPost, sort_by, JobPost.created_at)
+            if sort_order == "desc":
+                query = query.order_by(sort_column.desc())
+            else:
+                query = query.order_by(sort_column.asc())
 
         # Apply pagination
         offset = (page - 1) * page_size

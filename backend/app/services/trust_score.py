@@ -195,8 +195,8 @@ async def calculate_trust_score(
     response_score = 0
     # TODO: Implement response rate tracking
     # For now, give full points if user has been active in last 7 days
-    if user.last_login_at:
-        days_since_login = (datetime.utcnow() - user.last_login_at).days
+    if user.last_active_at:
+        days_since_login = (datetime.utcnow() - user.last_active_at).days
         if days_since_login <= 7:
             response_score = 5
         elif days_since_login <= 30:
@@ -223,12 +223,12 @@ async def calculate_trust_score(
     breakdown["certifications"] = cert_score
     total_score += cert_score
 
-    # 7. Premium Membership (5 points)
+    # 7. Premium Membership (10 points) - Enhanced benefit v3.0
     membership_score = 0
     if user.membership_tier == MembershipTier.PREMIUM.value:
-        membership_score = 5
+        membership_score = 10  # Increased from 5 to 10 for premium
     else:
-        recommendations.append("프리미엄 멤버십 가입 (+5점)")
+        recommendations.append("프리미엄 멤버십 가입 (+10점)")
 
     breakdown["premium_membership"] = membership_score
     total_score += membership_score
