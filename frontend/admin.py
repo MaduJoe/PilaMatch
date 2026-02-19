@@ -1,5 +1,5 @@
 """
-PilaMatch Admin Dashboard
+StudioBridge Admin Dashboard
 개발자 전용 데이터베이스 관리 인터페이스
 """
 import streamlit as st
@@ -16,9 +16,9 @@ import uuid
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "db"),
     "port": os.getenv("DB_PORT", "5432"),
-    "database": os.getenv("DB_NAME", "pilamatch"),
-    "user": os.getenv("DB_USER", "pilamatch"),
-    "password": os.getenv("DB_PASSWORD", "pilamatch123"),
+    "database": os.getenv("DB_NAME", "StudioBridge"),
+    "user": os.getenv("DB_USER", "StudioBridge"),
+    "password": os.getenv("DB_PASSWORD", "StudioBridge123"),
 }
 
 # Admin password (환경변수로 설정 권장)
@@ -529,12 +529,12 @@ def render_statistics():
 
 def main():
     st.set_page_config(
-        page_title="PilaMatch Admin",
+        page_title="StudioBridge Admin",
         page_icon="🛠️",
         layout="wide"
     )
 
-    st.markdown("# 🛠️ PilaMatch Admin Dashboard")
+    st.markdown("# 🛠️ StudioBridge Admin Dashboard")
     st.caption("Database Management Interface - Developer Only")
 
     init_session_state()

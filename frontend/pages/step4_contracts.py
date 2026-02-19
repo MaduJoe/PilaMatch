@@ -4,6 +4,7 @@ Step 4: Contract management - signing, progress tracking, completion
 
 from datetime import datetime, date
 import streamlit as st
+import pandas as pd
 from api_client import APIError
 from utils.helpers import get_client
 from utils.constants import CONTRACT_TERMS
@@ -50,16 +51,10 @@ def render_contracts_step():
                             _render_contract_card(contract, user, client)
                             st.markdown("---")
 
-        # Completed/cancelled contracts (expander, 2-column summary)
+        # Completed/cancelled contracts (table format)
         if completed:
-            with st.expander(f"완료/취소된 계약 ({len(completed)})"):
-                COLS = 2
-                for row_start in range(0, len(completed), COLS):
-                    row_contracts = completed[row_start : row_start + COLS]
-                    cols = st.columns(COLS)
-                    for col_idx, contract in enumerate(row_contracts):
-                        with cols[col_idx]:
-                            _render_completed_contract_summary(contract)
+            st.subheader(f"완료/취소된 계약 ({len(completed)})")
+            _render_completed_contracts_table(completed, user)
 
     except APIError as e:
         st.error(f"계약 로드 실패: {e.message}")
@@ -111,17 +106,19 @@ def _render_contract_card(contract: dict, user: dict, client) -> None:
         detail_col1, detail_col2 = st.columns(2)
         with detail_col1:
             st.caption(f"날짜: **{contract['date']}**")
-            st.caption(
-                f"시간: **{contract.get('start_time', '-')} ~ {contract.get('end_time', '-')}**"
-            )
             if contract.get("start_time") and contract.get("end_time"):
                 try:
                     start = datetime.strptime(contract["start_time"], "%H:%M:%S")
                     end = datetime.strptime(contract["end_time"], "%H:%M:%S")
                     duration = (end - start).total_seconds() / 3600
-                    st.caption(f"수업 시간: **{duration:.1f}시간**")
+                    start_formatted = start.strftime("%H:%M")
+                    end_formatted = end.strftime("%H:%M")
+                    st.caption(f"시간: **{start_formatted} ~ {end_formatted}**")
+                    st.caption(f"수업: **{start_formatted} ({duration:.1f}시간)**")
                 except Exception:
-                    pass
+                    st.caption(f"시간: **{contract.get('start_time', '-')} ~ {contract.get('end_time', '-')}**")
+            else:
+                st.caption(f"시간: **{contract.get('start_time', '-')} ~ {contract.get('end_time', '-')}**")
 
         with detail_col2:
             hourly_rate = contract.get("hourly_rate", 0)
@@ -336,6 +333,8 @@ def _render_in_progress_section(contract: dict, user: dict, client) -> None:
                         st.session_state[f"show_noshow_{contract['id']}"] = False
 
 
+
+
 def _render_pending_completion_section(
     contract: dict, role: str, client
 ) -> None:
@@ -375,34 +374,87 @@ def _render_pending_completion_section(
                 st.error(f"오류: {e.message}")
 
 
-def _render_completed_contract_summary(contract: dict) -> None:
-    """Render a compact summary card for completed or cancelled contracts."""
-    status_emoji = {"completed": "", "cancelled": ""}.get(
-        contract["status"], ""
-    )
-    status_label = {"completed": "완료", "cancelled": "취소"}.get(
-        contract["status"], contract["status"]
-    )
-    st.markdown(f"### {status_emoji} {status_label}")
+def _render_completed_contracts_table(contracts: list, user: dict) -> None:
+    """Render completed/cancelled contracts as an interactive table."""
+    if not contracts:
+        return
 
-    info_col1, info_col2 = st.columns(2)
-    with info_col1:
-        st.caption(f"📅 {contract['date']}")
-        st.caption(
-            f"⏰ {contract.get('start_time', '-')} ~ {contract.get('end_time', '-')}"
-        )
-    with info_col2:
+    # Show standard contract terms in a small expander
+    with st.expander("ℹ️ 표준 계약 약관 보기", expanded=False):
+        st.markdown(CONTRACT_TERMS)
+
+    # Prepare data for the table
+    table_data = []
+
+    for contract in contracts:
+        # Status and label
+        status = contract["status"]
+        status_label = "✅ 완료" if status == "completed" else "❌ 취소"
+
+        # Get partner name based on user role
+        if user.get("role") == "instructor":
+            # 강사가 보는 경우: 스튜디오 이름 표시
+            partner_name = contract.get("studio_name") or "스튜디오"
+        else:
+            # 스튜디오가 보는 경우: 강사 활동명 표시
+            partner_name = contract.get("instructor_name") or "강사"
+
+        # Format date and time
+        contract_date = contract.get("date", "-")
+        start_time = contract.get("start_time", "-")
+        end_time = contract.get("end_time", "-")
+
+        # Calculate duration and format class time
+        class_time = "-"
+        if start_time != "-" and end_time != "-":
+            try:
+                start_dt = datetime.strptime(start_time, "%H:%M:%S")
+                end_dt = datetime.strptime(end_time, "%H:%M:%S")
+                duration_hours = (end_dt - start_dt).total_seconds() / 3600
+                # Format as HH:MM (duration시간)
+                start_formatted = start_dt.strftime("%H:%M")
+                class_time = f"{start_formatted} ({duration_hours:.1f}시간)"
+            except:
+                # Fallback to simple format if parsing fails
+                class_time = f"{start_time[:5] if len(start_time) > 5 else start_time}"
+        else:
+            class_time = "-"
+
+        # Calculate amounts
         total_amount = float(contract.get("total_amount", 0))
-        st.caption(f"💰 ₩{int(total_amount):,}")
+        platform_fee = total_amount * 0.05
+        settlement = total_amount - platform_fee if status == "completed" else 0
 
-        if contract["status"] == "completed":
-            platform_fee = total_amount * 0.05
-            settlement = total_amount - platform_fee
-            st.caption(f"정산: ₩{int(settlement):,}")
-        elif (
-            contract["status"] == "cancelled"
-            and contract.get("cancellation_reason")
-        ):
-            st.caption(f"사유: {contract['cancellation_reason'][:20]}...")
+        # Add to table data
+        table_data.append({
+            "상태": status_label,
+            "상대방": partner_name,
+            "날짜": contract_date,
+            "클래스 시간": class_time,
+            "계약금액": f"₩{int(total_amount):,}",
+            "정산금액": f"₩{int(settlement):,}" if status == "completed" else "-",
+        })
 
+    # Sort by date (most recent first)
+    table_data.sort(key=lambda x: x["날짜"], reverse=True)
+
+    # Display the table
+    st.dataframe(
+        pd.DataFrame(table_data),
+        hide_index=True,
+        use_container_width=True,
+        height=min(400, 50 + len(table_data) * 35),  # Dynamic height based on rows
+    )
+
+    # Summary statistics
     st.markdown("---")
+    completed_count = len([c for c in table_data if "완료" in c["상태"]])
+    cancelled_count = len([c for c in table_data if "취소" in c["상태"]])
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("총 계약", len(table_data))
+    with col2:
+        st.metric("완료", completed_count)
+    with col3:
+        st.metric("취소", cancelled_count)

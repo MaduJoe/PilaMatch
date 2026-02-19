@@ -123,13 +123,13 @@ def _render_instructor_profile_form(client):
         with col_a:
             rate_min = st.number_input(
                 "최소 희망시급",
-                value=int(float(profile.get("hourly_rate_min", 0) or 0)),
+                value=int(float(profile.get("hourly_rate_min", 0) or 10000)),
                 step=5000,
             )
         with col_b:
             rate_max = st.number_input(
                 "최대 희망시급",
-                value=int(float(profile.get("hourly_rate_max", 0) or 0)),
+                value=int(float(profile.get("hourly_rate_max", 0) or 20000)),
                 step=5000,
             )
 
@@ -285,11 +285,40 @@ def _render_membership_section(client):
         subscription_status = client.get_subscription_status()
         membership_tier = subscription_status.get("membership_tier", "free")
 
+        # Get user role from session state user object
+        user_role = st.session_state.user.get("role", "") if st.session_state.user else ""
+
         if membership_tier == "premium":
             col_mem1, col_mem2 = st.columns(2)
             with col_mem1:
-                st.success("프리미엄 회원")
-                st.caption("더 빠른 성공을 위한 도구를 이용하실 수 있습니다")
+                st.success("🌟 프리미엄 회원")
+                # Show current benefits based on user role
+                if user_role == 'instructor':
+                    st.markdown(
+                        "**현재 누리는 혜택 (강사):**\n"
+                        "- 💰 플랫폼 수수료 3% (40% 할인 적용 중)\n"
+                        "- 📈 매칭 점수 30% 자동 부스트 중\n"
+                        "- 🚀 무제한 일일 지원 가능\n"
+                        "- 📝 지원서 템플릿 10개 저장 가능\n"
+                        "- 🏆 프리미엄 배지 + Trust Score +10점"
+                    )
+                elif user_role == 'studio':
+                    st.markdown(
+                        "**현재 누리는 혜택 (스튜디오):**\n"
+                        "- 💰 플랫폼 수수료 3% (40% 할인 적용 중)\n"
+                        "- 👀 무제한 강사 프로필 열람 중\n"
+                        "- ⭐ 공고 우선 노출 활성화\n"
+                        "- 🏆 프리미엄 배지 + Trust Score +10점\n"
+                        "- 📊 프리미엄 강사 우선 매칭 활성화"
+                    )
+                else:
+                    st.markdown(
+                        "**현재 누리는 혜택:**\n"
+                        "- 💰 플랫폼 수수료 3% (40% 할인)\n"
+                        "- 🚀 모든 일일 제한 해제\n"
+                        "- 🏆 프리미엄 배지 + Trust Score +10점\n"
+                        "- ⭐ 우선 노출 및 매칭"
+                    )
             with col_mem2:
                 if subscription_status.get("subscription"):
                     sub = subscription_status["subscription"]
@@ -307,14 +336,33 @@ def _render_membership_section(client):
             st.info("무료 회원")
             col_up1, col_up2 = st.columns([2, 1])
             with col_up1:
-                st.markdown(
-                    "**프리미엄 멤버십 혜택** (월 9,900원)\n"
-                    "- **수수료 40% 할인** - 5% → 3%로 절감\n"
-                    "- **우선 검색 노출** - 상위 30% 노출\n"
-                    "- **무제한 동시 지원** - 더 많은 기회\n"
-                    "- **프리미엄 골드 뱃지** - Trust Score +10점\n"
-                    "- **즉시 정산** - D+1 정산 옵션"
-                )
+                # Show benefits based on user role
+                if user_role == 'instructor':
+                    st.markdown(
+                        "**🎯 강사 프리미엄 혜택** (월 9,900원)\n"
+                        "- 💰 **수수료 40% 할인** - 계약 완료 시 5% → 3% (계약당 2% 절약)\n"
+                        "- 📈 **매칭 점수 30% 부스트** - 스튜디오에게 더 높은 점수로 노출\n"
+                        "- 🚀 **무제한 일일 지원** - 무료회원 하루 5회 → 프리미엄 무제한\n"
+                        "- 📝 **지원서 템플릿 10개** - 빠른 지원을 위한 맞춤 템플릿 저장\n"
+                        "- 🏆 **프리미엄 배지 + Trust Score +10점** - 우선 검토 대상"
+                    )
+                elif user_role == 'studio':
+                    st.markdown(
+                        "**🎯 스튜디오 프리미엄 혜택** (월 9,900원)\n"
+                        "- 💰 **수수료 40% 할인** - 계약 완료 시 5% → 3% (계약당 2% 절약)\n"
+                        "- 👀 **무제한 강사 열람** - 무료회원 하루 5명 → 프리미엄 무제한\n"
+                        "- ⭐ **공고 우선 노출** - 강사들에게 상단 우선 표시\n"
+                        "- 🏆 **프리미엄 배지 + Trust Score +10점** - 신뢰도 향상\n"
+                        "- 📊 **프리미엄 강사 우선 매칭** - 프리미엄 강사 지원 시 우선 알림"
+                    )
+                else:
+                    st.markdown(
+                        "**프리미엄 멤버십 혜택** (월 9,900원)\n"
+                        "- 💰 **수수료 40% 할인** - 계약 완료 시 5% → 3%\n"
+                        "- 🚀 **무제한 이용** - 모든 일일 제한 해제\n"
+                        "- 🏆 **프리미엄 배지 + Trust Score +10점**\n"
+                        "- ⭐ **우선 노출 및 매칭**"
+                    )
             with col_up2:
                 if st.button(
                     "프리미엄 업그레이드",
