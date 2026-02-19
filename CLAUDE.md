@@ -20,6 +20,43 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - No-show penalty system (30k KRW penalty, 3-strike suspension)
 - 4-factor matching algorithm
 - Contract state machine with event logging
+- Premium membership system (월 9,900원)
+
+---
+
+## Agent Delegation Rules
+
+`.claude/agents/` 에 정의된 전문 에이전트를 작업 도메인에 따라 반드시 위임하라.
+
+### 에이전트 → 도메인 매핑
+
+| 에이전트 | 위임 조건 (해당 시 반드시 사용) |
+|----------|-------------------------------|
+| **backend-api** | API 엔드포인트, 라우터, 서비스 레이어, 미들웨어, `app/api/`, `app/services/` 하위 작업 |
+| **database** | 스키마 변경, Alembic 마이그레이션, 쿼리 최적화, `app/models/` 수정, SQLAlchemy 관련 |
+| **devops** | Docker, docker-compose, CI/CD, 배포 스크립트, 인프라 설정 |
+| **doc-writer** | README, API 문서, `docs/` 하위 파일, 세션 요약 문서 작성 |
+| **frontend-ui** | Streamlit UI, `frontend/` 하위 코드, 화면 레이아웃, UX 개선 |
+| **payment-trust** | 결제(Toss), 에스크로, 보증금, 패널티, `services/escrow.py`, `services/penalty.py`, `services/deposit.py` |
+| **security-reviewer** | 인증/인가, JWT, CORS, 입력 검증, 보안 취약점 리뷰, `core/security.py`, `core/deps.py` |
+| **test-qa** | 테스트 작성/수정, 커버리지 분석, `tests/` 하위 작업, pytest 실행 |
+
+### 라우팅 판단 기준
+
+- **단일 도메인 작업** → 해당 에이전트 1개에 위임
+- **복합 작업** (예: 새 API + 테스트) → 순차 위임: backend-api → test-qa
+- **코드 변경 후** → security-reviewer로 보안 리뷰 위임 고려
+- **병렬 위임**: 도메인 간 파일 겹침이 없고 독립적일 때만
+
+---
+
+## Large File Handling Rules
+
+- **25,000 토큰 초과 파일은 절대 한 번에 전체를 읽지 말 것**
+- View tool 사용 시 반드시 `view_range` / `offset` / `limit` 파라미터로 범위 지정
+- 큰 파일은 **Grep으로 필요한 부분을 먼저 검색**한 뒤, 해당 라인 범위만 읽을 것
+- 생성된 파일(migration, lock 파일 등)은 전체를 읽을 필요 없음 — 변경된 부분만 확인
+- 로그/데이터 파일은 `head`, `tail`, `grep` 등 bash 명령으로 처리
 
 ---
 
@@ -248,6 +285,74 @@ BUSINESS_API_KEY=...  # 국세청
 
 ---
 
+## Premium Membership System (v3.0)
+
+### 프리미엄 멤버십 정의 (월 9,900원)
+
+#### 공통 혜택 (강사 & 스튜디오):
+1. **💰 플랫폼 수수료 40% 할인**
+   - 무료 회원: 계약 완료 시 5% 수수료
+   - 프리미엄 회원: 계약 완료 시 3% 수수료 (계약당 2% 절약)
+   - 구현: `backend/app/services/contract.py:_get_fee_rate()`
+
+2. **🏆 프리미엄 배지 + Trust Score +10점**
+   - 프로필에 프리미엄 배지 표시 (has_premium_badge 필드)
+   - Trust Score 10점 추가 (5점에서 상향)
+   - 신뢰도 레벨 상승 효과
+   - 구현: `backend/app/services/trust_score.py` (line 229)
+
+#### 강사 전용 혜택:
+1. **🚀 무제한 일일 지원**
+   - 무료 회원: 하루 5회 지원 제한
+   - 프리미엄 회원: 무제한 지원 가능
+   - 구현: `backend/app/services/daily_usage.py`, `backend/app/services/application.py`
+
+2. **📈 매칭 점수 30% 부스트**
+   - 모든 매칭 점수에 1.3배 자동 적용 (최대 100점)
+   - 스튜디오에게 더 높은 점수로 노출
+   - 구현: `backend/app/services/matching.py:calculate_matching_score(is_premium=True)`
+
+3. **📝 지원서 템플릿 10개 저장**
+   - 자주 사용하는 지원서 내용을 템플릿으로 저장
+   - 빠른 지원을 위한 맞춤 템플릿 관리
+   - 구현: `backend/app/services/application_template.py` (프리미엄 전용)
+
+#### 스튜디오 전용 혜택:
+1. **👀 무제한 강사 프로필 열람**
+   - 무료 회원: 하루 5명 열람 제한
+   - 프리미엄 회원: 무제한 열람
+   - 구현: `backend/app/services/daily_usage.py:track_profile_view()`
+   - API: `GET /api/v1/instructors/{instructor_id}`
+
+2. **⭐ 공고 우선 노출**
+   - 강사들에게 상단 우선 표시
+   - 프리미엄 공고가 항상 먼저 노출
+   - 구현: `backend/app/services/job_post.py:list()` (premium_first=True)
+
+3. **📊 프리미엄 강사 우선 매칭**
+   - 프리미엄 강사 지원 시 우선 정렬
+   - 구현: `backend/app/api/v1/endpoints/applications.py` (line 120)
+
+### 일일 사용 제한 시스템:
+- **데이터베이스**: `daily_usage_limits` 테이블
+- **리셋 시간**: 매일 자정
+- **추적 필드**:
+  - `daily_applications_today` - 오늘 지원 횟수
+  - `daily_views_today` - 오늘 열람 횟수
+  - `last_usage_reset_date` - 마지막 리셋 날짜
+  - `last_viewed_profiles` - 오늘 열람한 프로필 ID 목록
+
+### 관련 파일:
+- `backend/app/services/subscription.py` - 구독 관리 서비스
+- `backend/app/services/daily_usage.py` - 일일 사용량 추적 서비스
+- `backend/app/models/daily_usage.py` - 일일 사용량 모델
+- `backend/app/models/subscription.py` - 구독 데이터 모델
+- `backend/app/api/v1/endpoints/subscription.py` - 구독 API
+- `backend/app/api/v1/endpoints/usage.py` - 사용량 조회 API
+- `frontend/pages/step1_profile.py` - 프리미엄 UI (역할별 혜택 표시)
+
+---
+
 ## Debugging Tips
 
 ### Check Contract State
@@ -302,4 +407,4 @@ POST /api/v1/contracts/{id}/report-no-show
 
 ---
 
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-18*

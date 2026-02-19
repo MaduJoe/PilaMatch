@@ -9,7 +9,7 @@ import uuid
 conn = psycopg2.connect(
     host="localhost",
     port=5432,
-    database="pilamatch",
+    database="StudioBridge",
     user="postgres",
     password="password"
 )

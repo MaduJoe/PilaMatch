@@ -1,7 +1,7 @@
-# PilaMatch Codebase Exploration - Comprehensive Summary
+# StudioBridge Codebase Exploration - Comprehensive Summary
 
 **Date**: February 14, 2026
-**Project**: PilaMatch - 필라테스/요가 강사 매칭 플랫폼
+**Project**: StudioBridge - 필라테스/요가 강사 매칭 플랫폼
 **Status**: MVP Implementation Complete
 
 ---
@@ -69,7 +69,7 @@
 ## 2. Project Structure & File Organization
 
 ```
-PilaMatch/
+StudioBridge/
 ├── backend/                          # FastAPI Backend
 │   ├── app/
 │   │   ├── main.py                  # FastAPI application entry point
@@ -1638,14 +1638,14 @@ certifications = Column(JSON, default=[])  # Works in both
 1. **Clone and setup:**
    ```bash
    git clone <repo>
-   cd PilaMatch
+   cd StudioBridge
    docker-compose up -d --build
    ```
 
 2. **Access services:**
    - API: http://localhost:8000/api/v1/docs
    - Frontend: http://localhost:8501
-   - Database: postgres://postgres:password@localhost:5432/pilamatch
+   - Database: postgres://postgres:password@localhost:5432/StudioBridge
 
 3. **Run tests:**
    ```bash
@@ -1681,7 +1681,7 @@ certifications = Column(JSON, default=[])  # Works in both
 
 ## Summary
 
-**PilaMatch** is a well-structured MVP of a trust-based instructor-studio matching platform. The architecture follows FastAPI best practices with clear separation of concerns (endpoints → services → ORM), robust state machine implementation for complex workflows, and a carefully designed trust system with deposits, escrow, and penalties.
+**StudioBridge** is a well-structured MVP of a trust-based instructor-studio matching platform. The architecture follows FastAPI best practices with clear separation of concerns (endpoints → services → ORM), robust state machine implementation for complex workflows, and a carefully designed trust system with deposits, escrow, and penalties.
 
 **Key Strengths:**
 - Async-first design throughout

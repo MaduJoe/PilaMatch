@@ -1,5 +1,5 @@
 [project]
-name = "pilamatch"
+name = "StudioBridge"
 version = "1.0.0"
 description = "Pilates & Yoga Instructor Matching Platform"
 readme = "README.md"
