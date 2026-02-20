@@ -1,8 +1,16 @@
 import os
+import time
 import httpx
 from typing import Optional, Dict, Any
 
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+# Timeout configuration: 10s total, 5s connect
+_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+
+# Retry configuration
+_MAX_RETRIES = 3
+_RETRY_BACKOFF_BASE = 1  # seconds
 
 
 class APIClient:
@@ -23,14 +31,13 @@ class APIClient:
         data: Optional[Dict] = None,
         params: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             response = await client.request(
                 method,
                 f"{self.base_url}{endpoint}",
                 json=data,
                 params=params,
                 headers=self._headers(),
-                timeout=30.0,
             )
             if response.status_code >= 400:
                 error = response.json()
@@ -46,27 +53,39 @@ class APIClient:
         data: Optional[Dict] = None,
         params: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-        try:
-            with httpx.Client() as client:
-                response = client.request(
-                    method,
-                    f"{self.base_url}{endpoint}",
-                    json=data,
-                    params=params,
-                    headers=self._headers(),
-                    timeout=30.0,
-                )
-                if response.status_code >= 400:
-                    try:
-                        error = response.json()
-                    except:
-                        error = {"detail": {"code": "API_ERROR", "message": f"HTTP {response.status_code}: {response.text or 'No response'}"}}
-                    raise APIError(response.status_code, error)
-                if response.status_code == 204:
-                    return {}
-                return response.json()
-        except httpx.ConnectError:
-            raise APIError(503, {"detail": {"code": "CONNECTION_ERROR", "message": "Cannot connect to API server. Is the backend running?"}})
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                with httpx.Client(timeout=_TIMEOUT) as client:
+                    response = client.request(
+                        method,
+                        f"{self.base_url}{endpoint}",
+                        json=data,
+                        params=params,
+                        headers=self._headers(),
+                    )
+                    if response.status_code >= 400:
+                        try:
+                            error = response.json()
+                        except (ValueError, KeyError):
+                            error = {"detail": {"code": "API_ERROR", "message": f"HTTP {response.status_code}: {response.text or 'No response'}"}}
+                        # Don't retry client errors (4xx)
+                        raise APIError(response.status_code, error)
+                    if response.status_code == 204:
+                        return {}
+                    return response.json()
+            except APIError:
+                raise  # Don't retry API-level errors
+            except (httpx.ConnectError, httpx.TimeoutException, httpx.ReadError) as e:
+                last_exc = e
+                if attempt < _MAX_RETRIES - 1:
+                    wait = _RETRY_BACKOFF_BASE * (2 ** attempt)  # 1s, 2s
+                    time.sleep(wait)
+                    continue
+        # All retries exhausted
+        if isinstance(last_exc, httpx.TimeoutException):
+            raise APIError(504, {"detail": {"code": "TIMEOUT_ERROR", "message": "서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해주세요."}})
+        raise APIError(503, {"detail": {"code": "CONNECTION_ERROR", "message": "서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해주세요."}})
 
     # Auth
     def signup(self, email: str, password: str, role: str, display_name: str = None, business_name: str = None):

@@ -32,20 +32,21 @@ def render_login_form():
             if not email or not password:
                 st.error("이메일과 비밀번호를 입력하세요")
             else:
-                try:
-                    client = APIClient()
-                    result = client.login(email, password)
-                    st.session_state.token = result["access_token"]
+                with st.spinner("로그인 중..."):
+                    try:
+                        client = APIClient()
+                        result = client.login(email, password)
+                        st.session_state.token = result["access_token"]
 
-                    client = get_client()
-                    me = client.get_me()
-                    st.session_state.user = me["user"]
-                    st.session_state.profile_id = me.get("profile_id")
+                        client = get_client()
+                        me = client.get_me()
+                        st.session_state.user = me["user"]
+                        st.session_state.profile_id = me.get("profile_id")
 
-                    st.success("로그인 성공!")
-                    st.rerun()
-                except APIError as e:
-                    st.error(f"로그인 실패: {e.message}")
+                        st.success("로그인 성공!")
+                        st.rerun()
+                    except APIError as e:
+                        st.error(f"로그인 실패: {e.message}")
 
 
 def render_signup_form():
@@ -84,17 +85,18 @@ def render_signup_form():
             elif role == "studio" and not business_name:
                 st.error("스튜디오명을 입력하세요")
             else:
-                try:
-                    client = APIClient()
-                    result = client.signup(email, password, role, display_name, business_name)
-                    st.session_state.token = result["access_token"]
+                with st.spinner("회원가입 중..."):
+                    try:
+                        client = APIClient()
+                        result = client.signup(email, password, role, display_name, business_name)
+                        st.session_state.token = result["access_token"]
 
-                    client = get_client()
-                    me = client.get_me()
-                    st.session_state.user = me["user"]
-                    st.session_state.profile_id = me.get("profile_id")
+                        client = get_client()
+                        me = client.get_me()
+                        st.session_state.user = me["user"]
+                        st.session_state.profile_id = me.get("profile_id")
 
-                    st.success("가입 완료! 프로필을 완성해주세요.")
-                    st.rerun()
-                except APIError as e:
-                    st.error(f"가입 실패: {e.message}")
+                        st.success("가입 완료! 프로필을 완성해주세요.")
+                        st.rerun()
+                    except APIError as e:
+                        st.error(f"가입 실패: {e.message}")

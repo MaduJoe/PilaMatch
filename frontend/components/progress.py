@@ -14,25 +14,25 @@ def render_progress_bar(current_step, steps):
             if step_num < current_step:
                 # Completed
                 st.markdown(f"""
-                <div style="text-align: center; padding: 10px; background: #d4edda; border-radius: 10px; border: 2px solid #28a745;">
-                    <div style="font-size: 24px; color: #28a745;">✓</div>
-                    <div style="font-size: 14px; font-weight: bold; color: #155724;">{label}</div>
+                <div style="text-align: center; padding: 6px 4px; background: #d4edda; border-radius: 10px; border: 2px solid #28a745;">
+                    <div style="font-size: 20px; color: #28a745;">✓</div>
+                    <div style="font-size: 12px; font-weight: bold; color: #155724; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{label}</div>
                 </div>
                 """, unsafe_allow_html=True)
             elif step_num == current_step:
                 # Current
                 st.markdown(f"""
-                <div style="text-align: center; padding: 10px; background: #fff3cd; border-radius: 10px; border: 2px solid #ffc107;">
-                    <div style="font-size: 24px; font-weight: bold; color: #856404;">{num}</div>
-                    <div style="font-size: 14px; font-weight: bold; color: #856404;">{label}</div>
+                <div style="text-align: center; padding: 6px 4px; background: #fff3cd; border-radius: 10px; border: 2px solid #ffc107;">
+                    <div style="font-size: 20px; font-weight: bold; color: #856404;">{num}</div>
+                    <div style="font-size: 12px; font-weight: bold; color: #856404; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{label}</div>
                 </div>
                 """, unsafe_allow_html=True)
             else:
                 # Future
                 st.markdown(f"""
-                <div style="text-align: center; padding: 10px; background: #f8f9fa; border-radius: 10px; border: 2px solid #dee2e6;">
-                    <div style="font-size: 24px; color: #6c757d;">{num}</div>
-                    <div style="font-size: 14px; color: #6c757d;">{label}</div>
+                <div style="text-align: center; padding: 6px 4px; background: #f8f9fa; border-radius: 10px; border: 2px solid #dee2e6;">
+                    <div style="font-size: 20px; color: #6c757d;">{num}</div>
+                    <div style="font-size: 12px; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{label}</div>
                 </div>
                 """, unsafe_allow_html=True)
 

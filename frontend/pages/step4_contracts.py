@@ -19,7 +19,8 @@ def render_contracts_step():
     user = st.session_state.user
 
     try:
-        result = client.get_my_contracts()
+        with st.spinner("계약을 불러오는 중..."):
+            result = client.get_my_contracts()
         contracts = result.get("items", [])
 
         active = [
@@ -200,7 +201,8 @@ def _render_signing_section(contract: dict, role: str, client) -> None:
                     use_container_width=True,
                 ):
                     try:
-                        client.set_contract_in_progress(contract["id"])
+                        with st.spinner("서명을 처리하는 중..."):
+                            client.set_contract_in_progress(contract["id"])
                         if other_signed:
                             st.success("계약이 체결되었습니다! 수업을 진행해주세요.")
                             st.balloons()
@@ -253,7 +255,8 @@ def _render_in_progress_section(contract: dict, user: dict, client) -> None:
             use_container_width=True,
         ):
             try:
-                client.complete_contract(contract["id"])
+                with st.spinner("완료를 처리하는 중..."):
+                    client.complete_contract(contract["id"])
                 st.success("완료 확인! 상대방도 확인하면 정산이 진행됩니다.")
                 st.session_state.page = "complete"
                 st.rerun()
@@ -285,7 +288,8 @@ def _render_in_progress_section(contract: dict, user: dict, client) -> None:
                 with c1:
                     if st.form_submit_button("취소 확정", use_container_width=True):
                         try:
-                            client.cancel_contract(contract["id"], reason or "취소")
+                            with st.spinner("취소를 처리하는 중..."):
+                                client.cancel_contract(contract["id"], reason or "취소")
                             st.warning(
                                 "취소 처리되었습니다. "
                                 "약관에 따라 페널티가 적용될 수 있습니다."
@@ -319,7 +323,8 @@ def _render_in_progress_section(contract: dict, user: dict, client) -> None:
                         "노쇼 신고", type="primary", use_container_width=True
                     ):
                         try:
-                            client.report_no_show(contract["id"], reported_id)
+                            with st.spinner("신고를 접수하는 중..."):
+                                client.report_no_show(contract["id"], reported_id)
                             st.warning(
                                 "신고가 접수되었습니다. "
                                 "상대방에게 24시간 이의제기 기간이 부여됩니다."
@@ -366,7 +371,8 @@ def _render_pending_completion_section(
             use_container_width=True,
         ):
             try:
-                client.complete_contract(contract["id"])
+                with st.spinner("완료를 처리하는 중..."):
+                    client.complete_contract(contract["id"])
                 st.success("완료 확인되었습니다! 상대방도 확인하면 정산이 진행됩니다.")
                 st.session_state.page = "complete"
                 st.rerun()
@@ -414,7 +420,7 @@ def _render_completed_contracts_table(contracts: list, user: dict) -> None:
                 # Format as HH:MM (duration시간)
                 start_formatted = start_dt.strftime("%H:%M")
                 class_time = f"{start_formatted} ({duration_hours:.1f}시간)"
-            except:
+            except (ValueError, TypeError):
                 # Fallback to simple format if parsing fails
                 class_time = f"{start_time[:5] if len(start_time) > 5 else start_time}"
         else:

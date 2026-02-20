@@ -14,16 +14,17 @@ def render_offers_step():
     client = get_client()
 
     try:
-        result = client.get_my_offers()
-        offers = result.get("items", [])
+        with st.spinner("오퍼를 불러오는 중..."):
+            result = client.get_my_offers()
+            offers = result.get("items", [])
 
-        # Get existing contracts to filter out offers that already have contracts
-        contracts_result = client.get_my_contracts()
-        existing_contract_offer_ids = {
-            c.get("offer_id")
-            for c in contracts_result.get("items", [])
-            if c.get("offer_id")
-        }
+            # Get existing contracts to filter out offers that already have contracts
+            contracts_result = client.get_my_contracts()
+            existing_contract_offer_ids = {
+                c.get("offer_id")
+                for c in contracts_result.get("items", [])
+                if c.get("offer_id")
+            }
 
         # Filter out offers that already have contracts
         offers = [o for o in offers if o["id"] not in existing_contract_offer_ids]
@@ -119,7 +120,8 @@ def _render_pending_offer_card(offer: dict, client) -> None:
             use_container_width=True,
         ):
             try:
-                client.accept_offer(offer["id"])
+                with st.spinner("오퍼를 수락하는 중..."):
+                    client.accept_offer(offer["id"])
                 st.success("오퍼를 수락했습니다!")
                 st.rerun()
             except APIError as e:
@@ -131,7 +133,8 @@ def _render_pending_offer_card(offer: dict, client) -> None:
             use_container_width=True,
         ):
             try:
-                client.reject_offer(offer["id"])
+                with st.spinner("오퍼를 거절하는 중..."):
+                    client.reject_offer(offer["id"])
                 st.info("오퍼를 거절했습니다.")
                 st.rerun()
             except APIError as e:
@@ -150,7 +153,8 @@ def _render_accepted_offer_card(offer: dict, client) -> None:
         use_container_width=True,
     ):
         try:
-            client.create_contract_from_offer(offer["id"])
+            with st.spinner("계약을 생성하는 중..."):
+                client.create_contract_from_offer(offer["id"])
             st.success("계약이 생성되었습니다!")
             st.session_state.page = "contracts"
             st.rerun()
@@ -167,7 +171,8 @@ def render_applicants_step():
 
     try:
         # Get all job posts
-        all_jobs = client.list_job_posts().get("items", [])
+        with st.spinner("공고를 불러오는 중..."):
+            all_jobs = client.list_job_posts().get("items", [])
 
         # Filter to only my jobs
         my_studio_id = str(st.session_state.profile_id)
@@ -202,7 +207,8 @@ def render_applicants_step():
                 )
 
                 try:
-                    result = client.get_job_post_applications(job["id"])
+                    with st.spinner("지원자를 불러오는 중..."):
+                        result = client.get_job_post_applications(job["id"])
                     applications = result.get("items", [])
 
                     if not applications:
@@ -387,13 +393,14 @@ def _render_offer_form(client) -> None:
                 use_container_width=True,
             ):
                 try:
-                    client.create_offer(
-                        {
-                            "application_id": app["id"],
-                            "proposed_rate": proposed_rate,
-                            "message": message,
-                        }
-                    )
+                    with st.spinner("오퍼를 전송하는 중..."):
+                        client.create_offer(
+                            {
+                                "application_id": app["id"],
+                                "proposed_rate": proposed_rate,
+                                "message": message,
+                            }
+                        )
                     st.success(
                         f"{instructor_name} 강사에게 오퍼를 전송했습니다! "
                         "강사의 응답을 기다려주세요."

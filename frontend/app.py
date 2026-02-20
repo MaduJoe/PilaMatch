@@ -38,9 +38,39 @@ from pages import (
 st.set_page_config(
     page_title="StudioBridge",
     page_icon="🧘",
-    layout="wide",
+    layout="centered",
     initial_sidebar_state="collapsed",
 )
+
+# Mobile-responsive CSS
+st.markdown("""
+<style>
+/* Responsive column stacking on narrow screens */
+@media (max-width: 640px) {
+    /* Stack Streamlit columns vertically */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap;
+    }
+    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlockBorderWrapper"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+    /* Reduce padding for mobile */
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+    /* Smaller headers on mobile */
+    h1 { font-size: 1.5rem !important; }
+    h2 { font-size: 1.25rem !important; }
+    h3 { font-size: 1.1rem !important; }
+    /* Make buttons more tappable */
+    .stButton > button {
+        min-height: 44px;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Initialize session state
 init_session_state()
