@@ -9,11 +9,15 @@ Payment Flow:
    - If no-show by studio → Full refund from instructor, penalty from studio deposit
    - Normal cancel → Full refund to studio (status: REFUNDED)
 """
+import base64
 from decimal import Decimal
+
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models import Payment, Payout, Contract, User, PaymentStatus, PayoutStatus
+from app.core.config import settings
 
 
 PLATFORM_FEE_PERCENT = Decimal("0.05")  # 5% platform fee
@@ -129,12 +133,20 @@ async def refund_escrow_to_studio(
     refund_amount = total_amount * refund_percent
     penalty_amount = total_amount - refund_amount
 
+    # Call TossPayments cancel API for actual refund
+    pg_refund_result = await _call_toss_cancel(
+        payment_key=payment.payment_key,
+        cancel_amount=int(refund_amount),
+        cancel_reason=reason or "Contract cancelled",
+    )
+
     # Update payment
     payment.escrow_status = "REFUNDED"
+    payment.status = PaymentStatus.REFUNDED.value
+    if pg_refund_result:
+        payment.pg_response = pg_refund_result
 
     await db.commit()
-
-    # TODO: In production, initiate actual refund via TossPayments API
 
     return {
         "status": "refunded",
@@ -167,3 +179,45 @@ async def get_escrow_status(db: AsyncSession, contract_id: str) -> dict:
         "amount": float(payment.amount),
         "platform_fee": float(payment.platform_fee or 0),
     }
+
+
+async def _call_toss_cancel(
+    payment_key: str | None,
+    cancel_amount: int,
+    cancel_reason: str,
+) -> dict | None:
+    """Call TossPayments cancel API. Returns PG response or None in dev mode."""
+    if not payment_key:
+        return None
+
+    if not settings.TOSS_SECRET_KEY:
+        # Mock response for development
+        return {
+            "paymentKey": payment_key,
+            "status": "CANCELED",
+            "cancels": [{"cancelAmount": cancel_amount, "cancelReason": cancel_reason}],
+        }
+
+    secret_key = settings.TOSS_SECRET_KEY + ":"
+    encoded_key = base64.b64encode(secret_key.encode()).decode()
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"https://api.tosspayments.com/v1/payments/{payment_key}/cancel",
+            headers={
+                "Authorization": f"Basic {encoded_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "cancelReason": cancel_reason,
+                "cancelAmount": cancel_amount,
+            },
+        )
+
+        if response.status_code != 200:
+            error_data = response.json()
+            raise ValueError(
+                f"Toss refund failed: {error_data.get('message', 'Unknown error')}"
+            )
+
+        return response.json()

@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     TOSS_SECRET_KEY: Optional[str] = None
     TOSS_WEBHOOK_SECRET: Optional[str] = None
 
+    # CORS
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:8501",
+        "http://localhost:3000",
+    ]
+
     # Frontend
     API_BASE_URL: Optional[str] = "http://localhost:8000"
     KAKAO_MAP_KEY: Optional[str] = None

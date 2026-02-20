@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.db.session import get_db
 from app.core.deps import get_current_user
@@ -7,18 +9,22 @@ from app.models import User
 from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserResponse, MeResponse
 from app.services.auth import AuthService
 
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter()
 
 
 @router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def signup(
-    request: SignupRequest,
+    request: Request,
+    data: SignupRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """Register a new user."""
     service = AuthService(db)
     try:
-        user, token = await service.create_user(request)
+        user, token = await service.create_user(data)
         return TokenResponse(access_token=token)
     except ValueError as e:
         raise HTTPException(
@@ -28,15 +34,17 @@ async def signup(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 async def login(
-    request: LoginRequest,
+    request: Request,
+    data: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """Authenticate user and return token."""
     service = AuthService(db)
 
     try:
-        result = await service.authenticate(request.email, request.password)
+        result = await service.authenticate(data.email, data.password)
     except ValueError as e:
         if str(e) == "ACCOUNT_SUSPENDED":
             raise HTTPException(
