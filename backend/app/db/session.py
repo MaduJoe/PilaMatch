@@ -3,11 +3,22 @@ from sqlalchemy.orm import declarative_base
 
 from app.core.config import settings
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    future=True,
-)
+# Build engine kwargs - pool settings only apply to non-SQLite databases
+_engine_kwargs = {
+    "echo": settings.DEBUG,
+    "future": True,
+}
+
+if not settings.DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs.update({
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_timeout": settings.DB_POOL_TIMEOUT,
+        "pool_recycle": settings.DB_POOL_RECYCLE,
+        "pool_pre_ping": True,
+    })
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
