@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -70,6 +70,8 @@ async def create_application(
 )
 async def get_job_post_applications(
     job_post_id: UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_role(UserRole.STUDIO)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -84,7 +86,9 @@ async def get_job_post_applications(
         )
 
     try:
-        results = await service.get_by_job_post(job_post_id, studio_id)
+        results, total = await service.get_by_job_post(
+            job_post_id, studio_id, skip=skip, limit=limit
+        )
     except PermissionError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -119,11 +123,13 @@ async def get_job_post_applications(
     # Sort items: Premium instructors first, then by creation date
     items.sort(key=lambda x: (x.is_premium, x.created_at), reverse=True)
 
-    return ApplicationWithInstructorListResponse(items=items, total=len(items))
+    return ApplicationWithInstructorListResponse(items=items, total=total)
 
 
 @router.get("/applications/me", response_model=ApplicationListResponse)
 async def get_my_applications(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_role(UserRole.INSTRUCTOR)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -137,7 +143,9 @@ async def get_my_applications(
             detail={"code": "PROFILE_NOT_FOUND", "message": "Instructor profile not found"},
         )
 
-    results = await service.get_by_instructor(instructor_id)
+    results, total = await service.get_by_instructor(
+        instructor_id, skip=skip, limit=limit
+    )
 
     items = []
     for application, job_title, studio_name in results:
@@ -154,7 +162,7 @@ async def get_my_applications(
         )
         items.append(item)
 
-    return ApplicationListResponse(items=items, total=len(items))
+    return ApplicationListResponse(items=items, total=total)
 
 
 @router.post("/applications/{application_id}/withdraw", response_model=ApplicationResponse)

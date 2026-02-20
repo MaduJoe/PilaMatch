@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
@@ -36,6 +36,8 @@ async def create_contract_from_offer(
 
 @router.get("/me", response_model=ContractListResponse)
 async def get_my_contracts(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -44,9 +46,30 @@ async def get_my_contracts(
     from sqlalchemy import select
 
     service = ContractService(db)
-    contracts = await service.get_by_user(current_user.id, current_user.role)
+    contracts, total = await service.get_by_user(
+        current_user.id, current_user.role, skip=skip, limit=limit
+    )
 
-    # Enrich contracts with profile names
+    # Batch-fetch profile names to avoid N+1
+    instructor_ids = {c.instructor_id for c in contracts}
+    studio_ids = {c.studio_id for c in contracts}
+
+    instructor_names: dict = {}
+    if instructor_ids:
+        rows = await db.execute(
+            select(InstructorProfile.id, InstructorProfile.display_name)
+            .where(InstructorProfile.id.in_(instructor_ids))
+        )
+        instructor_names = {row[0]: row[1] for row in rows.all()}
+
+    studio_names: dict = {}
+    if studio_ids:
+        rows = await db.execute(
+            select(StudioProfile.id, StudioProfile.business_name)
+            .where(StudioProfile.id.in_(studio_ids))
+        )
+        studio_names = {row[0]: row[1] for row in rows.all()}
+
     enriched_contracts = []
     for contract in contracts:
         contract_dict = {
@@ -71,29 +94,14 @@ async def get_my_contracts(
             "cancelled_by_user_id": contract.cancelled_by_user_id,
             "created_at": contract.created_at,
             "updated_at": contract.updated_at,
+            "instructor_name": instructor_names.get(contract.instructor_id),
+            "studio_name": studio_names.get(contract.studio_id),
         }
-
-        # Get instructor name
-        instructor = await db.execute(
-            select(InstructorProfile.display_name)
-            .where(InstructorProfile.id == contract.instructor_id)
-        )
-        instructor_name = instructor.scalar_one_or_none()
-        contract_dict["instructor_name"] = instructor_name
-
-        # Get studio name
-        studio = await db.execute(
-            select(StudioProfile.business_name)
-            .where(StudioProfile.id == contract.studio_id)
-        )
-        studio_name = studio.scalar_one_or_none()
-        contract_dict["studio_name"] = studio_name
-
         enriched_contracts.append(ContractResponse(**contract_dict))
 
     return ContractListResponse(
         items=enriched_contracts,
-        total=len(enriched_contracts),
+        total=total,
     )
 
 

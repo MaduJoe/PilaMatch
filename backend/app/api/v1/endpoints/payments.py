@@ -2,6 +2,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.db.session import get_db
 from app.core.deps import require_role
@@ -14,11 +16,15 @@ from app.schemas.payment import (
 )
 from app.services.payment import PaymentService
 
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter()
 
 
 @router.post("/contracts/{contract_id}/payments", response_model=PaymentInitResponse)
+@limiter.limit("10/minute")
 async def initialize_payment(
+    request: Request,
     contract_id: UUID,
     current_user: User = Depends(require_role(UserRole.STUDIO)),
     db: AsyncSession = Depends(get_db),
@@ -43,7 +49,9 @@ async def initialize_payment(
 
 
 @router.post("/payments/confirm", response_model=PaymentResponse)
+@limiter.limit("10/minute")
 async def confirm_payment(
+    request: Request,
     data: PaymentConfirmRequest,
     current_user: User = Depends(require_role(UserRole.STUDIO)),
     db: AsyncSession = Depends(get_db),
@@ -66,14 +74,23 @@ async def payment_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle webhook from TossPayments."""
-    # In production, verify webhook signature
+    """Handle webhook from TossPayments with HMAC-SHA256 signature verification."""
+    body = await request.body()
+    signature = request.headers.get("X-Toss-Signature", "")
+
+    service = PaymentService(db)
+
+    if not service.verify_webhook_signature(body, signature):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "INVALID_SIGNATURE", "message": "Webhook signature verification failed"},
+        )
+
     try:
         data = await request.json()
         event_type = data.get("eventType", "")
         event_data = data.get("data", {})
 
-        service = PaymentService(db)
         await service.handle_webhook(event_type, event_data)
 
         return {"status": "ok"}

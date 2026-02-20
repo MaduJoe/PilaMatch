@@ -2,6 +2,8 @@ from typing import Optional, Tuple
 from uuid import UUID, uuid4
 from decimal import Decimal
 import base64
+import hmac
+import hashlib
 
 import httpx
 
@@ -163,6 +165,17 @@ class PaymentService:
                 raise ValueError(error_data.get("message", "Payment confirmation failed"))
 
             return response.json()
+
+    def verify_webhook_signature(self, payload: bytes, signature: str) -> bool:
+        """Verify TossPayments webhook HMAC-SHA256 signature."""
+        if not settings.TOSS_WEBHOOK_SECRET:
+            return True  # Skip verification in development
+        expected = hmac.new(
+            settings.TOSS_WEBHOOK_SECRET.encode(),
+            payload,
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature)
 
     async def handle_webhook(self, event_type: str, event_data: dict) -> None:
         """Handle webhook events from TossPayments."""

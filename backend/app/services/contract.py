@@ -3,7 +3,8 @@ from uuid import UUID
 from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 
 from app.models import (
     Contract, ContractEventLog, Offer, JobPost, Application,
@@ -178,27 +179,41 @@ class ContractService:
         await self.db.refresh(contract)
         return contract
 
-    async def get_by_user(self, user_id: UUID, role: str) -> List[Contract]:
+    async def get_by_user(
+        self, user_id: UUID, role: str, skip: int = 0, limit: int = 20
+    ) -> Tuple[List[Contract], int]:
         if role == "instructor":
-            instructor_id = await self.get_instructor_profile_id(user_id)
-            if not instructor_id:
-                return []
-            result = await self.db.execute(
-                select(Contract)
-                .where(Contract.instructor_id == instructor_id)
-                .order_by(Contract.created_at.desc())
-            )
+            profile_id = await self.get_instructor_profile_id(user_id)
+            if not profile_id:
+                return [], 0
+            filter_clause = Contract.instructor_id == profile_id
         else:
-            studio_id = await self.get_studio_profile_id(user_id)
-            if not studio_id:
-                return []
-            result = await self.db.execute(
-                select(Contract)
-                .where(Contract.studio_id == studio_id)
-                .order_by(Contract.created_at.desc())
-            )
+            profile_id = await self.get_studio_profile_id(user_id)
+            if not profile_id:
+                return [], 0
+            filter_clause = Contract.studio_id == profile_id
 
-        return list(result.scalars().all())
+        # Count total
+        count_result = await self.db.execute(
+            select(func.count(Contract.id)).where(filter_clause)
+        )
+        total = count_result.scalar_one()
+
+        # Fetch with eager loading + pagination
+        result = await self.db.execute(
+            select(Contract)
+            .options(
+                selectinload(Contract.offer),
+                selectinload(Contract.payment),
+                selectinload(Contract.payout),
+            )
+            .where(filter_clause)
+            .order_by(Contract.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+
+        return list(result.scalars().all()), total
 
     async def _check_payment(self, contract_id: UUID) -> bool:
         result = await self.db.execute(

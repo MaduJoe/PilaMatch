@@ -93,18 +93,28 @@ class ApplicationService:
         return application
 
     async def get_by_instructor(
-        self, instructor_id: UUID
-    ) -> List[Tuple[Application, str, str]]:
+        self, instructor_id: UUID, skip: int = 0, limit: int = 20
+    ) -> Tuple[List[Tuple[Application, str, str]], int]:
+        base_filter = Application.instructor_id == instructor_id
+
+        # Count total
+        count_result = await self.db.execute(
+            select(func.count(Application.id)).where(base_filter)
+        )
+        total = count_result.scalar_one()
+
         query = (
             select(Application, JobPost.title, StudioProfile.business_name)
             .join(JobPost, Application.job_post_id == JobPost.id)
             .join(StudioProfile, JobPost.studio_id == StudioProfile.id)
-            .where(Application.instructor_id == instructor_id)
+            .where(base_filter)
             .order_by(Application.created_at.desc())
+            .offset(skip)
+            .limit(limit)
         )
 
         result = await self.db.execute(query)
-        return result.all()
+        return result.all(), total
 
     async def get_studio_profile_id(self, user_id: UUID) -> Optional[UUID]:
         result = await self.db.execute(
@@ -113,10 +123,10 @@ class ApplicationService:
         return result.scalar_one_or_none()
 
     async def get_by_job_post(
-        self, job_post_id: UUID, studio_id: UUID
-    ) -> List[Tuple[Application, InstructorProfile, bool]]:
+        self, job_post_id: UUID, studio_id: UUID, skip: int = 0, limit: int = 20
+    ) -> Tuple[List[Tuple[Application, InstructorProfile, bool]], int]:
         """Get all applications for a job post (studio owner only).
-        Returns tuples of (Application, InstructorProfile, has_offer)."""
+        Returns tuples of (Application, InstructorProfile, has_offer) and total count."""
         # Verify job post belongs to studio
         job_post = await self.db.execute(
             select(JobPost).where(
@@ -127,27 +137,40 @@ class ApplicationService:
         if not job_post.scalar_one_or_none():
             raise PermissionError("Not authorized to view applications for this job post")
 
-        # Get applications with instructor info
+        base_filter = Application.job_post_id == job_post_id
+
+        # Count total
+        count_result = await self.db.execute(
+            select(func.count(Application.id)).where(base_filter)
+        )
+        total = count_result.scalar_one()
+
+        # Get applications with instructor info + pagination
         query = (
             select(Application, InstructorProfile)
             .join(InstructorProfile, Application.instructor_id == InstructorProfile.id)
-            .where(Application.job_post_id == job_post_id)
+            .where(base_filter)
             .order_by(Application.created_at.desc())
+            .offset(skip)
+            .limit(limit)
         )
 
         result = await self.db.execute(query)
         applications = result.all()
 
-        # Check which applications have offers
+        # Batch-check offers to avoid N+1
+        app_ids = [app.id for app, _ in applications]
+        offers_result = await self.db.execute(
+            select(Offer.application_id).where(Offer.application_id.in_(app_ids))
+        )
+        app_ids_with_offers = {row[0] for row in offers_result.all()}
+
         results = []
         for application, instructor in applications:
-            offer_result = await self.db.execute(
-                select(Offer.id).where(Offer.application_id == application.id)
-            )
-            has_offer = offer_result.scalar_one_or_none() is not None
+            has_offer = application.id in app_ids_with_offers
             results.append((application, instructor, has_offer))
 
-        return results
+        return results, total
 
     async def withdraw(self, application_id: UUID, instructor_id: UUID) -> Optional[Application]:
         application = await self.get_by_id(application_id)
