@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
 
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     # TossPayments
     TOSS_CLIENT_KEY: Optional[str] = None
     TOSS_SECRET_KEY: Optional[str] = None
