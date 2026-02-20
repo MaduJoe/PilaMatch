@@ -1,7 +1,11 @@
+import time
+
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.logging import setup_logging
 from app.api.v1.router import api_router
 
 app = FastAPI(
@@ -21,6 +25,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    logger = structlog.get_logger()
+    start = time.time()
+    response = await call_next(request)
+    duration = time.time() - start
+    logger.info(
+        "request",
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        duration_ms=round(duration * 1000),
+    )
+    return response
+
+
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
@@ -32,7 +53,7 @@ async def health_check():
 
 @app.on_event("startup")
 async def startup_event():
-    pass
+    setup_logging()
 
 
 @app.on_event("shutdown")
