@@ -17,43 +17,45 @@ def render_find_jobs_step():
     client = get_client()
 
     # v3.0 Phase 2: Show application limit status for Free tier users
-    try:
-        subscription_status = client.get_subscription_status()
-        membership_tier = subscription_status.get("membership_tier", "free")
+    with st.spinner("지원 현황을 불러오는 중..."):
+        try:
+            subscription_status = client.get_subscription_status()
+            membership_tier = subscription_status.get("membership_tier", "free")
 
-        if membership_tier == "free":
-            # Count active applications
-            my_applications = client.get_my_applications()
-            active_count = sum(
-                1 for app in my_applications.get("items", [])
-                if app.get("status") == "pending"
-            )
+            if membership_tier == "free":
+                # Count active applications
+                my_applications = client.get_my_applications()
+                active_count = sum(
+                    1 for app in my_applications.get("items", [])
+                    if app.get("status") == "pending"
+                )
 
-            MAX_FREE_APPLICATIONS = 5
-            remaining = MAX_FREE_APPLICATIONS - active_count
+                MAX_FREE_APPLICATIONS = 5
+                remaining = MAX_FREE_APPLICATIONS - active_count
 
-            if remaining <= 0:
-                st.error(f"📋 지원 한도 도달: {active_count}/{MAX_FREE_APPLICATIONS}개 (무료 회원)")
-                st.info("💎 프리미엄으로 업그레이드하면 무제한 지원이 가능합니다!")
-            elif remaining <= 2:
-                st.warning(f"📋 지원 가능: {remaining}개 남음 ({active_count}/{MAX_FREE_APPLICATIONS})")
+                if remaining <= 0:
+                    st.error(f"📋 지원 한도 도달: {active_count}/{MAX_FREE_APPLICATIONS}개 (무료 회원)")
+                    st.info("💎 프리미엄으로 업그레이드하면 무제한 지원이 가능합니다!")
+                elif remaining <= 2:
+                    st.warning(f"📋 지원 가능: {remaining}개 남음 ({active_count}/{MAX_FREE_APPLICATIONS})")
+                else:
+                    st.info(f"📋 지원 현황: {active_count}/{MAX_FREE_APPLICATIONS} (무료 회원)")
             else:
-                st.info(f"📋 지원 현황: {active_count}/{MAX_FREE_APPLICATIONS} (무료 회원)")
-        else:
-            st.success("💎 프리미엄 회원 - 무제한 지원 가능")
-    except:
-        pass
+                st.success("💎 프리미엄 회원 - 무제한 지원 가능")
+        except Exception:
+            pass
 
     # Get list of already applied jobs
     applied_job_ids = set()
-    try:
-        my_applications = client.get_my_applications()
-        applied_job_ids = {
-            app.get("job_post_id")
-            for app in my_applications.get("items", [])
-        }
-    except Exception:
-        pass  # If error, assume no applications
+    with st.spinner("지원 내역을 불러오는 중..."):
+        try:
+            my_applications = client.get_my_applications()
+            applied_job_ids = {
+                app.get("job_post_id")
+                for app in my_applications.get("items", [])
+            }
+        except Exception:
+            pass  # If error, assume no applications
 
     # Filter row (compact)
     filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 1])
@@ -82,7 +84,8 @@ def render_find_jobs_step():
         params["region"] = region_filter
 
     try:
-        result = client.list_job_posts_with_matching(params)
+        with st.spinner("공고를 불러오는 중..."):
+            result = client.list_job_posts_with_matching(params)
         jobs = result.get("items", [])
 
         if sort_by_score:
@@ -232,7 +235,8 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
             use_container_width=True,
         ):
             try:
-                client.apply_to_job(job["id"])
+                with st.spinner("지원서를 제출하는 중..."):
+                    client.apply_to_job(job["id"])
                 st.success("지원 완료! 스튜디오 응답을 기다려주세요.")
                 time.sleep(1)
                 st.rerun()
@@ -400,20 +404,21 @@ def render_create_job_step():
     # Register button
     if st.button("공고 등록하기", type="primary", use_container_width=True):
         try:
-            client.create_job_post(
-                {
-                    "title": auto_title,
-                    "category": category,
-                    "job_type": job_type,
-                    "date": str(date),
-                    "start_time": str(start_time) if start_time else "09:00:00",
-                    "end_time": str(end_time) if end_time else "10:00:00",
-                    "hourly_rate": hourly_rate,
-                    "description": memo,
-                    "region": st.session_state.job_region,
-                    "total_sessions": 1,
-                }
-            )
+            with st.spinner("공고를 등록하는 중..."):
+                client.create_job_post(
+                    {
+                        "title": auto_title,
+                        "category": category,
+                        "job_type": job_type,
+                        "date": str(date),
+                        "start_time": str(start_time) if start_time else "09:00:00",
+                        "end_time": str(end_time) if end_time else "10:00:00",
+                        "hourly_rate": hourly_rate,
+                        "description": memo,
+                        "region": st.session_state.job_region,
+                        "total_sessions": 1,
+                    }
+                )
             st.success("공고가 등록되었습니다!")
             # Reset form state
             for key in ["job_category", "job_type", "job_rate", "job_region"]:

@@ -50,7 +50,7 @@ def get_user_progress(client):
                 profile.get("description") and
                 profile.get("region")
             ])
-    except:
+    except Exception:
         profile_complete = False
 
     # Determine current step based on data availability
@@ -71,7 +71,7 @@ def get_user_progress(client):
                 )
                 if jobs.get("items"):
                     current_step = 3  # Has job posts with potential applicants
-        except:
+        except Exception:
             pass
 
         # Check for contracts
@@ -91,7 +91,7 @@ def get_user_progress(client):
                     current_step = 5  # Has completed contracts (can write reviews)
                 elif active_contracts:
                     current_step = 4  # Has active contracts but none completed yet
-        except:
+        except Exception:
             pass
 
     # Get current page from session state

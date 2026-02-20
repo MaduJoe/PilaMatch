@@ -2,6 +2,7 @@
 Step 1: Profile completion - both instructor and studio
 """
 
+import os
 import time
 import streamlit as st
 from api_client import APIError
@@ -19,28 +20,30 @@ def render_profile_step():
     col_score1, col_score2 = st.columns(2)
 
     with col_score1:
-        try:
-            completeness = client.get_profile_completeness()
-            percentage = completeness.get("percentage", 0)
-            message = completeness.get("message", "")
+        with st.spinner("프로필 정보를 불러오는 중..."):
+            try:
+                completeness = client.get_profile_completeness()
+                percentage = completeness.get("percentage", 0)
+                message = completeness.get("message", "")
 
-            # Progress bar with color based on percentage
-            if percentage < 70:
-                st.error(f"프로필 {percentage}% 완성")
-            elif percentage < 90:
-                st.warning(f"프로필 {percentage}% 완성")
-            else:
-                st.success(f"프로필 {percentage}% 완성")
+                # Progress bar with color based on percentage
+                if percentage < 70:
+                    st.error(f"프로필 {percentage}% 완성")
+                elif percentage < 90:
+                    st.warning(f"프로필 {percentage}% 완성")
+                else:
+                    st.success(f"프로필 {percentage}% 완성")
 
-            st.progress(percentage / 100)
-            if percentage < 100:
-                st.caption("프로필을 완성하면 Trust Score가 올라갑니다")
-        except:
-            pass
+                st.progress(percentage / 100)
+                if percentage < 100:
+                    st.caption("프로필을 완성하면 Trust Score가 올라갑니다")
+            except Exception:
+                pass
 
     with col_score2:
         try:
-            trust_data = client.get_trust_display()
+            with st.spinner("신뢰 점수를 불러오는 중..."):
+                trust_data = client.get_trust_display()
             score = trust_data.get("score", 40)
             level = trust_data.get("level", "신진")
             level_color = trust_data.get("level_color", "bronze")
@@ -59,12 +62,13 @@ def render_profile_step():
 
             if st.button("점수 새로고침", key="refresh_trust"):
                 try:
-                    result = client.refresh_trust_score()
+                    with st.spinner("점수를 새로고침하는 중..."):
+                        result = client.refresh_trust_score()
                     st.success(f"새 점수: {result['new_score']}점")
                     st.rerun()
-                except:
+                except APIError:
                     st.error("1시간에 한 번만 새로고침 가능합니다")
-        except:
+        except Exception:
             pass
 
     col1, col2 = st.columns(2)
@@ -234,7 +238,8 @@ def _render_verification_section(client, user):
             phone = st.text_input("휴대폰 번호", placeholder="01012345678")
             if st.form_submit_button("인증번호 발송"):
                 try:
-                    result = client.request_phone_verification(phone)
+                    with st.spinner("인증번호를 발송하는 중..."):
+                        result = client.request_phone_verification(phone)
                     st.session_state.verify_phone = phone
                     st.info(
                         f"인증번호가 발송되었습니다. (개발모드: {result.get('_dev_otp', '')})"
@@ -247,11 +252,12 @@ def _render_verification_section(client, user):
                 otp = st.text_input("인증번호 6자리")
                 if st.form_submit_button("확인"):
                     try:
-                        client.verify_phone(st.session_state.verify_phone, otp)
+                        with st.spinner("인증을 확인하는 중..."):
+                            client.verify_phone(st.session_state.verify_phone, otp)
+                            # Refresh user data
+                            me = client.get_me()
                         st.success("인증 완료!")
                         del st.session_state.verify_phone
-                        # Refresh user data
-                        me = client.get_me()
                         st.session_state.user = me["user"]
                         st.rerun()
                     except APIError as e:
@@ -270,9 +276,10 @@ def _render_verification_section(client, user):
                 )
                 if st.form_submit_button("인증"):
                     try:
-                        client.verify_business(biz_num)
+                        with st.spinner("사업자 인증 중..."):
+                            client.verify_business(biz_num)
+                            me = client.get_me()
                         st.success("인증 완료!")
-                        me = client.get_me()
                         st.session_state.user = me["user"]
                         st.rerun()
                     except APIError as e:
@@ -282,7 +289,8 @@ def _render_verification_section(client, user):
 def _render_membership_section(client):
     """Render premium membership status and upgrade UI."""
     try:
-        subscription_status = client.get_subscription_status()
+        with st.spinner("멤버십 정보를 불러오는 중..."):
+            subscription_status = client.get_subscription_status()
         membership_tier = subscription_status.get("membership_tier", "free")
 
         # Get user role from session state user object
@@ -327,7 +335,8 @@ def _render_membership_section(client):
                         st.info(f"다음 결제일: {next_date}")
                     if st.button("구독 취소", type="secondary"):
                         try:
-                            result = client.cancel_subscription("User requested")
+                            with st.spinner("구독을 취소하는 중..."):
+                                result = client.cancel_subscription("User requested")
                             st.success("구독이 취소되었습니다.")
                             st.rerun()
                         except APIError as e:
@@ -380,22 +389,27 @@ def _render_membership_section(client):
                     col_pay1, col_pay2 = st.columns(2)
                     with col_pay1:
                         if st.button("결제 진행", type="primary", use_container_width=True):
-                            try:
-                                result = client.initialize_premium_upgrade()
-                                st.session_state.premium_order_id = result["order_id"]
-                                st.session_state.premium_amount = result["amount"]
-                                st.success(f"주문번호: {result['order_id']}")
-                                st.info("토스페이먼츠 결제 페이지로 이동합니다...")
-                                time.sleep(1)
-                                confirm_result = client.confirm_subscription_payment(
-                                    "test_payment_key",
-                                    result["order_id"],
-                                )
-                                st.success("프리미엄 회원이 되신 것을 축하합니다!")
-                                del st.session_state.show_upgrade_modal
-                                st.rerun()
-                            except APIError as e:
-                                st.error(f"업그레이드 실패: {e.message}")
+                            toss_client_key = os.getenv("TOSS_CLIENT_KEY", "")
+                            if not toss_client_key:
+                                st.error("결제 설정이 완료되지 않았습니다. 관리자에게 문의하세요.")
+                            else:
+                                try:
+                                    with st.spinner("결제를 처리하는 중..."):
+                                        result = client.initialize_premium_upgrade()
+                                        st.session_state.premium_order_id = result["order_id"]
+                                        st.session_state.premium_amount = result["amount"]
+                                        st.success(f"주문번호: {result['order_id']}")
+                                        st.info("토스페이먼츠 결제 페이지로 이동합니다...")
+                                        time.sleep(1)
+                                        confirm_result = client.confirm_subscription_payment(
+                                            toss_client_key,
+                                            result["order_id"],
+                                        )
+                                    st.success("프리미엄 회원이 되신 것을 축하합니다!")
+                                    del st.session_state.show_upgrade_modal
+                                    st.rerun()
+                                except APIError as e:
+                                    st.error(f"업그레이드 실패: {e.message}")
                     with col_pay2:
                         if st.button("취소", type="secondary", use_container_width=True):
                             del st.session_state.show_upgrade_modal

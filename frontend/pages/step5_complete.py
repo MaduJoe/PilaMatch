@@ -35,7 +35,8 @@ def _render_completion_tab():
     role = user.get("role")
 
     try:
-        result = client.get_my_contracts()
+        with st.spinner("계약을 불러오는 중..."):
+            result = client.get_my_contracts()
         all_contracts = result.get("items", [])
 
         pending_completion = [
@@ -92,16 +93,17 @@ def _render_written_reviews_tab():
     st.subheader("내가 작성한 리뷰")
 
     try:
-        # Get all contracts to check which ones are reviewed
-        contracts_response = client.get_my_contracts()
-        contracts = contracts_response.get("items", [])
+        with st.spinner("리뷰를 불러오는 중..."):
+            # Get all contracts to check which ones are reviewed
+            contracts_response = client.get_my_contracts()
+            contracts = contracts_response.get("items", [])
 
-        # Filter for completed contracts
-        completed_contracts = [c for c in contracts if c["status"] == "completed"]
+            # Filter for completed contracts
+            completed_contracts = [c for c in contracts if c["status"] == "completed"]
 
-        # Get written reviews
-        written_reviews_response = client.get_written_reviews()
-        written_reviews = written_reviews_response.get("reviews", [])
+            # Get written reviews
+            written_reviews_response = client.get_written_reviews()
+            written_reviews = written_reviews_response.get("reviews", [])
 
         # Create a map of contract_id to review
         review_map = {review["contract_id"]: review for review in written_reviews}
@@ -135,7 +137,7 @@ def _render_written_reviews_tab():
                 try:
                     date_obj = datetime.fromisoformat(contract_date.replace('Z', '+00:00'))
                     date_str = date_obj.strftime("%m/%d")
-                except:
+                except (ValueError, TypeError):
                     date_str = contract_date[:10]
             else:
                 date_str = "-"
@@ -213,8 +215,9 @@ def _render_received_reviews_tab():
     st.subheader("내가 받은 리뷰")
 
     try:
-        # Get received reviews
-        response = client.get_received_reviews()
+        with st.spinner("리뷰를 불러오는 중..."):
+            # Get received reviews
+            response = client.get_received_reviews()
         reviews = response.get("reviews", [])
         avg_rating = response.get("average_rating", 0)
         total_count = response.get("total_count", 0)
@@ -257,7 +260,7 @@ def _render_received_reviews_tab():
                     try:
                         date_obj = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                         date_str = date_obj.strftime("%Y-%m-%d")
-                    except:
+                    except (ValueError, TypeError):
                         date_str = created_at[:10]
                 else:
                     date_str = "-"
@@ -296,7 +299,7 @@ def _render_received_reviews_tab():
                                 try:
                                     date_obj = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                                     st.caption(date_obj.strftime("%Y년 %m월 %d일"))
-                                except:
+                                except (ValueError, TypeError):
                                     st.caption(created_at[:10])
 
                         if review.get("comment"):
@@ -335,7 +338,8 @@ def _render_review_form_card(client, row):
                 if st.button("삭제", key=f"delete_{contract_id}", type="secondary"):
                     if st.session_state.get(f"confirm_delete_{contract_id}"):
                         try:
-                            client.delete_review(review["id"])
+                            with st.spinner("리뷰를 삭제하는 중..."):
+                                client.delete_review(review["id"])
                             st.success("리뷰가 삭제되었습니다.")
                             st.rerun()
                         except APIError as e:
@@ -373,10 +377,11 @@ def _render_new_review_form(client, contract_id, partner_name):
 
     if st.button("리뷰 작성", key=f"submit_{contract_id}", type="primary"):
         try:
-            client.create_review(contract_id, {
-                "rating": rating,
-                "comment": comment if comment else None
-            })
+            with st.spinner("리뷰를 작성하는 중..."):
+                client.create_review(contract_id, {
+                    "rating": rating,
+                    "comment": comment if comment else None
+                })
             st.success("리뷰가 작성되었습니다!")
             st.rerun()
         except APIError as e:
@@ -407,10 +412,11 @@ def _render_review_edit_form(client, contract_id, review):
     with col1:
         if st.button("저장", key=f"save_edit_{contract_id}", type="primary"):
             try:
-                client.update_review(review["id"], {
-                    "rating": new_rating,
-                    "comment": new_comment if new_comment else None
-                })
+                with st.spinner("리뷰를 수정하는 중..."):
+                    client.update_review(review["id"], {
+                        "rating": new_rating,
+                        "comment": new_comment if new_comment else None
+                    })
                 st.success("리뷰가 수정되었습니다!")
                 del st.session_state[f"editing_{contract_id}"]
                 st.rerun()
@@ -471,7 +477,8 @@ def _render_pending_completion_card(
             use_container_width=True,
         ):
             try:
-                client.complete_contract(contract["id"])
+                with st.spinner("완료를 처리하는 중..."):
+                    client.complete_contract(contract["id"])
                 st.success("확인되었습니다! 상대방도 확인하면 정산이 진행됩니다.")
                 st.rerun()
             except APIError as e:
