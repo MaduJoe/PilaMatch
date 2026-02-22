@@ -98,14 +98,12 @@ async def calculate_studio_completeness(profile: StudioProfile) -> Dict[str, Any
         dict with completeness percentage and missing fields
     """
     required_fields = {
-        "business_name": 20,  # 20% weight
+        "business_name": 25,  # 25% weight
         "phone": 10,
-        "description": 15,
+        "description": 20,
         "address": 15,
         "region": 15,
-        "business_number": 10,
-        "owner_name": 10,
-        "categories": 5,
+        "categories": 15,
     }
 
     total_weight = sum(required_fields.values())
@@ -138,16 +136,6 @@ async def calculate_studio_completeness(profile: StudioProfile) -> Dict[str, Any
     else:
         missing_fields.append("region")
 
-    if profile.business_number and len(profile.business_number) > 0:
-        completed_weight += required_fields["business_number"]
-    else:
-        missing_fields.append("business_number")
-
-    if profile.owner_name and len(profile.owner_name) > 0:
-        completed_weight += required_fields["owner_name"]
-    else:
-        missing_fields.append("owner_name")
-
     if profile.categories and len(profile.categories) > 0:
         completed_weight += required_fields["categories"]
     else:
@@ -165,8 +153,6 @@ async def calculate_studio_completeness(profile: StudioProfile) -> Dict[str, Any
             "description": "소개",
             "address": "주소",
             "region": "지역",
-            "business_number": "사업자등록번호",
-            "owner_name": "대표자명",
             "categories": "운영 종목",
         },
     }
