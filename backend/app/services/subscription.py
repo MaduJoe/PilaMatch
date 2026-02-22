@@ -1,10 +1,13 @@
 """Subscription service for Premium membership management."""
 
+import base64
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional, List, Tuple
 import uuid
+
+import httpx
 
 from sqlalchemy import select, and_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -120,8 +123,8 @@ class SubscriptionService:
             logger.warning(f"Payment {order_id} already completed")
             return payment
 
-        # TODO: Verify payment with TossPayments API
-        # For now, we'll assume the payment is valid
+        # Verify payment with TossPayments API
+        await self._call_toss_confirm(payment_key, order_id, int(payment.amount))
 
         # Update payment
         payment.status = SubscriptionPaymentStatus.COMPLETED.value
@@ -161,6 +164,33 @@ class SubscriptionService:
 
         logger.info(f"Activated subscription {subscription.id} with payment {order_id}")
         return payment
+
+    async def _call_toss_confirm(self, payment_key: str, order_id: str, amount: int) -> dict:
+        """Call TossPayments confirm API for subscription payment."""
+        if not settings.TOSS_SECRET_KEY:
+            # Mock for development when no secret key configured
+            return {"paymentKey": payment_key, "orderId": order_id, "status": "DONE", "method": "카드"}
+
+        secret_key = settings.TOSS_SECRET_KEY + ":"
+        encoded_key = base64.b64encode(secret_key.encode()).decode()
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.tosspayments.com/v1/payments/confirm",
+                headers={
+                    "Authorization": f"Basic {encoded_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "paymentKey": payment_key,
+                    "orderId": order_id,
+                    "amount": amount,
+                },
+            )
+            if response.status_code != 200:
+                error_data = response.json()
+                raise ValueError(error_data.get("message", "Subscription payment confirmation failed"))
+            return response.json()
 
     async def cancel_subscription(
         self, user_id: str, reason: Optional[str] = None
@@ -213,8 +243,18 @@ class SubscriptionService:
         logger.info(f"Cancelled subscription {subscription.id} for user {user_id}")
         return history
 
-    async def process_auto_renewal(self, subscription_id: str) -> SubscriptionPayment:
-        """Process automatic renewal for a subscription."""
+    async def process_auto_renewal(self, subscription_id: str) -> Optional[SubscriptionPayment]:
+        """Process automatic renewal for a subscription.
+
+        Args:
+            subscription_id: The ID of the subscription to renew.
+
+        Returns:
+            The renewal payment record, or None if renewal could not proceed.
+
+        Raises:
+            ValueError: If the subscription is not found.
+        """
         # Get subscription
         result = await self.db.execute(
             select(Subscription).where(Subscription.id == subscription_id)
@@ -229,46 +269,65 @@ class SubscriptionService:
             await self.db.commit()
             return None
 
-        # Create renewal payment
-        order_id = f"RENEW-{uuid.uuid4().hex[:16].upper()}"
-        payment = SubscriptionPayment(
-            id=str(uuid.uuid4()),
-            subscription_id=subscription_id,
-            amount=subscription.monthly_amount,
-            status=SubscriptionPaymentStatus.PENDING.value,
-            due_date=datetime.utcnow(),
-            order_id=order_id,
-            retry_count=0,
+        # Check if billing key exists for auto-charge
+        if not subscription.toss_billing_key:
+            # No billing key - cannot auto-renew, mark as expired
+            logger.warning(
+                f"Subscription {subscription_id} has no billing key, cannot auto-renew"
+            )
+            subscription.status = SubscriptionStatus.EXPIRED.value
+            subscription.auto_renew = False
+
+            # Downgrade user to free tier
+            await self.db.execute(
+                update(User)
+                .where(User.id == subscription.user_id)
+                .values(membership_tier=MembershipTier.FREE.value)
+            )
+
+            # Record in history
+            history = SubscriptionHistory(
+                id=str(uuid.uuid4()),
+                user_id=subscription.user_id,
+                old_tier=MembershipTier.PREMIUM.value,
+                new_tier=MembershipTier.FREE.value,
+                reason=SubscriptionChangeReason.AUTO_RENEW.value,
+                note="Auto-renewal failed: no billing key registered",
+            )
+            self.db.add(history)
+
+            await self.db.commit()
+            return None
+
+        # TODO: Implement Toss Billing API auto-charge using subscription.toss_billing_key
+        # For now, mark as expired since billing API is not yet integrated
+        logger.info(
+            f"Subscription {subscription_id} billing API not yet integrated, "
+            f"marking as expired"
         )
-        self.db.add(payment)
+        subscription.status = SubscriptionStatus.EXPIRED.value
+        subscription.auto_renew = False
 
-        # TODO: Call TossPayments Billing API to charge saved payment method
-        # For now, simulate successful payment
-        payment.status = SubscriptionPaymentStatus.COMPLETED.value
-        payment.payment_date = datetime.utcnow()
-        payment.toss_payment_key = f"test_key_{uuid.uuid4().hex[:8]}"
-
-        # Extend subscription
-        subscription.end_date = subscription.end_date + timedelta(days=30)
-        subscription.next_billing_date = subscription.end_date
+        # Downgrade user to free tier
+        await self.db.execute(
+            update(User)
+            .where(User.id == subscription.user_id)
+            .values(membership_tier=MembershipTier.FREE.value)
+        )
 
         # Record in history
         history = SubscriptionHistory(
             id=str(uuid.uuid4()),
             user_id=subscription.user_id,
             old_tier=MembershipTier.PREMIUM.value,
-            new_tier=MembershipTier.PREMIUM.value,
+            new_tier=MembershipTier.FREE.value,
             reason=SubscriptionChangeReason.AUTO_RENEW.value,
-            note=f"Auto-renewal processed successfully",
-            payment_id=payment.id,
+            note="Auto-renewal pending: Toss Billing API integration required",
         )
         self.db.add(history)
 
         await self.db.commit()
-        await self.db.refresh(payment)
-
-        logger.info(f"Auto-renewed subscription {subscription_id}")
-        return payment
+        return None
 
     async def check_renewals_due(self) -> List[Subscription]:
         """Find all subscriptions due for renewal today."""

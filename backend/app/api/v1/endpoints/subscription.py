@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_db
@@ -174,18 +174,28 @@ async def get_subscription_history(
 
 @router.post("/webhooks/payment")
 async def handle_subscription_webhook(
-    request: SubscriptionWebhookRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Handle TossPayments subscription webhooks.
+    """Handle TossPayments subscription webhooks with signature verification."""
+    # Verify webhook signature (same pattern as payment webhook)
+    body = await request.body()
+    signature = request.headers.get("X-Toss-Signature", "")
 
-    This endpoint should be configured in TossPayments webhook settings.
-    """
+    from app.services.payment import PaymentService
+    payment_service = PaymentService(db)
+    if not payment_service.verify_webhook_signature(body, signature):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "INVALID_SIGNATURE", "message": "Webhook signature verification failed"},
+        )
+
     service = SubscriptionService(db)
 
     try:
-        event_type = request.event_type
-        event_data = request.data
+        data = await request.json()
+        event_type = data.get("event_type", "")
+        event_data = data.get("data", {})
 
         # Handle different webhook events
         if event_type == "PAYMENT.COMPLETED":

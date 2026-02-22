@@ -7,6 +7,7 @@ import time
 import streamlit as st
 from api_client import APIError
 from utils.helpers import get_client
+from components import render_toss_payment_widget
 
 
 def render_profile_step():
@@ -40,10 +41,12 @@ def render_profile_step():
             except Exception:
                 pass
 
+    trust_data = None
+
     with col_score2:
         try:
             with st.spinner("신뢰 점수를 불러오는 중..."):
-                trust_data = client.get_trust_display()
+                trust_data = client.get_my_trust_score()
             score = trust_data.get("score", 40)
             level = trust_data.get("level", "신진")
             level_color = trust_data.get("level_color", "bronze")
@@ -70,6 +73,17 @@ def render_profile_step():
                     st.error("1시간에 한 번만 새로고침 가능합니다")
         except Exception:
             pass
+
+    # Trust Score detailed breakdown (expandable)
+    with st.expander("내 Trust Score 상세보기"):
+        if trust_data:
+            from components import render_trust_score_detail
+            try:
+                render_trust_score_detail(trust_data)
+            except Exception:
+                st.caption("상세 점수를 불러올 수 없습니다")
+        else:
+            st.caption("상세 점수를 불러올 수 없습니다")
 
     col1, col2 = st.columns(2)
 
@@ -241,9 +255,11 @@ def _render_verification_section(client, user):
                     with st.spinner("인증번호를 발송하는 중..."):
                         result = client.request_phone_verification(phone)
                     st.session_state.verify_phone = phone
-                    st.info(
-                        f"인증번호가 발송되었습니다. (개발모드: {result.get('_dev_otp', '')})"
-                    )
+                    otp_hint = result.get("_dev_otp")
+                    if otp_hint:
+                        st.info(f"인증번호가 발송되었습니다. (개발모드: {otp_hint})")
+                    else:
+                        st.success("인증번호가 발송되었습니다.")
                 except APIError as e:
                     st.error(f"오류: {e.message}")
 
@@ -386,34 +402,73 @@ def _render_membership_section(client):
                     st.markdown("### 프리미엄 멤버십 결제")
                     st.info("월 9,900원으로 더 빠른 계약 성공을 경험하세요!")
 
-                    col_pay1, col_pay2 = st.columns(2)
-                    with col_pay1:
-                        if st.button("결제 진행", type="primary", use_container_width=True):
-                            toss_client_key = os.getenv("TOSS_CLIENT_KEY", "")
-                            if not toss_client_key:
-                                st.error("결제 설정이 완료되지 않았습니다. 관리자에게 문의하세요.")
-                            else:
+                    # Step 1: Initialize payment if not yet done
+                    if "premium_order_data" not in st.session_state:
+                        col_pay1, col_pay2 = st.columns(2)
+                        with col_pay1:
+                            if st.button("결제 진행", type="primary", use_container_width=True):
                                 try:
-                                    with st.spinner("결제를 처리하는 중..."):
+                                    with st.spinner("결제를 준비하는 중..."):
                                         result = client.initialize_premium_upgrade()
-                                        st.session_state.premium_order_id = result["order_id"]
-                                        st.session_state.premium_amount = result["amount"]
-                                        st.success(f"주문번호: {result['order_id']}")
-                                        st.info("토스페이먼츠 결제 페이지로 이동합니다...")
-                                        time.sleep(1)
-                                        confirm_result = client.confirm_subscription_payment(
-                                            toss_client_key,
-                                            result["order_id"],
-                                        )
-                                    st.success("프리미엄 회원이 되신 것을 축하합니다!")
-                                    del st.session_state.show_upgrade_modal
+                                    st.session_state.premium_order_data = {
+                                        "order_id": result["order_id"],
+                                        "amount": int(float(result["amount"])),
+                                        "client_key": result.get("client_key", ""),
+                                        "subscription_id": result.get("subscription_id", ""),
+                                    }
                                     st.rerun()
                                 except APIError as e:
-                                    st.error(f"업그레이드 실패: {e.message}")
-                    with col_pay2:
-                        if st.button("취소", type="secondary", use_container_width=True):
-                            del st.session_state.show_upgrade_modal
+                                    st.error(f"결제 준비 실패: {e.message}")
+                        with col_pay2:
+                            if st.button("취소", type="secondary", use_container_width=True):
+                                st.session_state.pop("show_upgrade_modal", None)
+                                st.rerun()
+                    else:
+                        # Step 2: Show payment widget
+                        order_data = st.session_state.premium_order_data
+                        order_id = order_data["order_id"]
+
+                        # Check if mock payment was completed
+                        completed = st.session_state.get(f"payment_completed_{order_id}")
+                        if completed:
+                            try:
+                                with st.spinner("결제를 확인하는 중..."):
+                                    client.confirm_subscription_payment(
+                                        completed["payment_key"],
+                                        completed["order_id"],
+                                    )
+                                st.success("프리미엄 회원이 되신 것을 축하합니다!")
+                                # Clean up session state
+                                st.session_state.pop("premium_order_data", None)
+                                st.session_state.pop("show_upgrade_modal", None)
+                                st.session_state.pop(f"payment_completed_{order_id}", None)
+                                time.sleep(1)
+                                st.rerun()
+                            except APIError as e:
+                                st.error(f"결제 확인 실패: {e.message}")
+                                st.session_state.pop(f"payment_completed_{order_id}", None)
+
+                        # Check if cancelled
+                        elif st.session_state.get(f"payment_cancelled_{order_id}"):
+                            st.session_state.pop("premium_order_data", None)
+                            st.session_state.pop("show_upgrade_modal", None)
+                            st.session_state.pop(f"payment_cancelled_{order_id}", None)
                             st.rerun()
+                        else:
+                            # Render payment widget
+                            user = st.session_state.user
+                            render_toss_payment_widget(
+                                client_key=order_data["client_key"],
+                                order_id=order_id,
+                                order_name="StudioBridge 프리미엄 멤버십 (월)",
+                                amount=order_data["amount"],
+                                customer_key=str(user.get("id", "guest")),
+                                payment_type="subscription",
+                            )
+                            if st.button("결제 취소", key="cancel_premium_pay"):
+                                st.session_state.pop("premium_order_data", None)
+                                st.session_state.pop("show_upgrade_modal", None)
+                                st.rerun()
     except APIError:
         st.warning("멤버십 정보를 불러올 수 없습니다")
 

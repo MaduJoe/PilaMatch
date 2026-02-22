@@ -170,7 +170,7 @@ class PaymentService:
         """Verify TossPayments webhook HMAC-SHA256 signature."""
         if not settings.TOSS_WEBHOOK_SECRET:
             return True  # Skip verification in development
-        expected = hmac.new(
+        expected = hmac.HMAC(
             settings.TOSS_WEBHOOK_SECRET.encode(),
             payload,
             hashlib.sha256,
