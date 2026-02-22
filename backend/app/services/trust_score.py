@@ -16,6 +16,28 @@ from app.models import (
     MembershipTier
 )
 
+# Module-level constants for Trust Score factor metadata and level thresholds.
+# Defined once here to avoid recreating on each call.
+
+FACTOR_LABELS: Dict[str, Dict[str, Any]] = {
+    "identity_verification": {"name": "본인인증", "max": 20},
+    "profile_completeness": {"name": "프로필 완성도", "max": 15},
+    "contract_history": {"name": "계약 이력", "max": 20},
+    "review_average": {"name": "평균 평점", "max": 15},
+    "response_rate": {"name": "활동 빈도", "max": 5},
+    "certifications": {"name": "자격증/인증", "max": 15},
+    "premium_membership": {"name": "프리미엄", "max": 10},
+    "no_show_penalty": {"name": "노쇼 감점", "max": 0},
+    "account_age": {"name": "가입 기간", "max": 5},
+}
+
+LEVEL_THRESHOLDS: list[Dict[str, Any]] = [
+    {"level": "신진", "min": 0, "max": 39, "color": "bronze"},
+    {"level": "인증", "min": 40, "max": 59, "color": "silver"},
+    {"level": "전문", "min": 60, "max": 79, "color": "gold"},
+    {"level": "마스터", "min": 80, "max": 100, "color": "platinum"},
+]
+
 
 class TrustLevel:
     """Trust level thresholds and names."""
@@ -272,7 +294,9 @@ async def calculate_trust_score(
         "breakdown": breakdown,
         "recommendations": recommendations,
         "next_level_score": 40 if final_score < 40 else (60 if final_score < 60 else (80 if final_score < 80 else 100)),
-        "points_to_next_level": max(0, (40 if final_score < 40 else (60 if final_score < 60 else (80 if final_score < 80 else 100))) - final_score)
+        "points_to_next_level": max(0, (40 if final_score < 40 else (60 if final_score < 60 else (80 if final_score < 80 else 100))) - final_score),
+        "factor_labels": FACTOR_LABELS,
+        "level_thresholds": LEVEL_THRESHOLDS,
     }
 
 

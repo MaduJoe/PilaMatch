@@ -7,9 +7,84 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models import User
+from app.core.config import settings
 
-# In-memory OTP storage (use Redis in production)
+# OTP storage - uses Redis when available, falls back to in-memory
 _otp_store: Dict[str, dict] = {}
+_redis_client = None
+
+
+async def _get_redis():
+    """Get Redis client for OTP storage. Returns None if unavailable."""
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
+    try:
+        import redis.asyncio as aioredis
+        _redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        await _redis_client.ping()
+        return _redis_client
+    except Exception:
+        _redis_client = None
+        return None
+
+
+async def _store_otp(key: str, otp: str, expiry_seconds: int) -> None:
+    """Store OTP in Redis (preferred) or in-memory fallback."""
+    import json
+    redis = await _get_redis()
+    if redis:
+        data = json.dumps({"otp": otp, "attempts": 0})
+        await redis.setex(f"otp:{key}", expiry_seconds, data)
+    else:
+        _otp_store[key] = {
+            "otp": otp,
+            "expiry": datetime.utcnow() + timedelta(seconds=expiry_seconds),
+            "attempts": 0,
+        }
+
+
+async def _get_otp(key: str) -> Optional[dict]:
+    """Retrieve stored OTP data."""
+    import json
+    redis = await _get_redis()
+    if redis:
+        data = await redis.get(f"otp:{key}")
+        if data:
+            return json.loads(data)
+        return None
+    else:
+        stored = _otp_store.get(key)
+        if stored and datetime.utcnow() > stored["expiry"]:
+            del _otp_store[key]
+            return None
+        return stored
+
+
+async def _increment_otp_attempts(key: str) -> None:
+    """Increment OTP attempt counter."""
+    import json
+    redis = await _get_redis()
+    if redis:
+        data = await redis.get(f"otp:{key}")
+        if data:
+            parsed = json.loads(data)
+            parsed["attempts"] = parsed.get("attempts", 0) + 1
+            ttl = await redis.ttl(f"otp:{key}")
+            if ttl > 0:
+                await redis.setex(f"otp:{key}", ttl, json.dumps(parsed))
+    else:
+        if key in _otp_store:
+            _otp_store[key]["attempts"] += 1
+
+
+async def _delete_otp(key: str) -> None:
+    """Remove OTP from storage."""
+    redis = await _get_redis()
+    if redis:
+        await redis.delete(f"otp:{key}")
+    else:
+        _otp_store.pop(key, None)
 
 OTP_EXPIRY_MINUTES = 5
 
@@ -41,25 +116,22 @@ async def request_phone_verification(
     otp = generate_otp()
     expiry = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
 
-    # Store OTP (in production, use Redis with TTL)
-    _otp_store[f"{user_id}:{phone}"] = {
-        "otp": otp,
-        "expiry": expiry,
-        "attempts": 0,
-    }
+    # Store OTP in Redis (or in-memory fallback)
+    await _store_otp(f"{user_id}:{phone}", otp, OTP_EXPIRY_MINUTES * 60)
 
     # Update user's phone number
     user.phone = phone
     await db.commit()
 
-    # TODO: Send SMS via provider
-    # For MVP, we'll return the OTP in development mode
-    return {
+    # TODO: Send SMS via provider (NHN Cloud, AWS SNS, etc.)
+    result = {
         "message": "Verification code sent",
         "expires_in": OTP_EXPIRY_MINUTES * 60,
-        # Remove in production:
-        "_dev_otp": otp,
     }
+    # Only expose OTP in development mode
+    if settings.APP_ENV == "development":
+        result["_dev_otp"] = otp
+    return result
 
 
 async def verify_phone(
@@ -72,22 +144,19 @@ async def verify_phone(
     from uuid import UUID
 
     key = f"{user_id}:{phone}"
-    stored = _otp_store.get(key)
+    stored = await _get_otp(key)
 
     if not stored:
         raise ValueError("No verification request found. Please request a new code.")
 
     if stored["attempts"] >= 3:
-        del _otp_store[key]
+        await _delete_otp(key)
         raise ValueError("Too many attempts. Please request a new code.")
 
-    if datetime.utcnow() > stored["expiry"]:
-        del _otp_store[key]
-        raise ValueError("Code expired. Please request a new code.")
-
     if stored["otp"] != otp:
-        stored["attempts"] += 1
-        raise ValueError(f"Invalid code. {3 - stored['attempts']} attempts remaining.")
+        await _increment_otp_attempts(key)
+        remaining = 3 - (stored["attempts"] + 1)
+        raise ValueError(f"Invalid code. {remaining} attempts remaining.")
 
     # Success - update user
     result = await db.execute(select(User).where(User.id == UUID(user_id)))
@@ -102,7 +171,7 @@ async def verify_phone(
     await db.commit()
 
     # Clean up
-    del _otp_store[key]
+    await _delete_otp(key)
 
     return {
         "verified": True,
