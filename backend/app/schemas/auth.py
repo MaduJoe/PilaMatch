@@ -21,6 +21,7 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
 
 
@@ -49,6 +50,10 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class MeResponse(BaseModel):

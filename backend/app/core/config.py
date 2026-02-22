@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "StudioBridge API"
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
 
     # Database
@@ -21,9 +21,10 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 1800  # 30 minutes
 
     # JWT
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -41,11 +42,13 @@ class Settings(BaseSettings):
 
     # Frontend
     API_BASE_URL: Optional[str] = "http://localhost:8000"
+    FRONTEND_URL: str = "http://localhost:8501"
     KAKAO_MAP_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()

@@ -18,6 +18,18 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     token = credentials.credentials
+
+    # Check token blacklist
+    try:
+        from app.api.v1.endpoints.auth import is_token_blacklisted
+        if is_token_blacklisted(token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"code": "TOKEN_REVOKED", "message": "Token has been revoked"},
+            )
+    except ImportError:
+        pass  # Graceful fallback if auth module not loaded yet
+
     user_id = decode_access_token(token)
 
     if user_id is None:

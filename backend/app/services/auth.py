@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models import User, InstructorProfile, StudioProfile, UserRole
-from app.core.security import get_password_hash, verify_password, create_access_token
+from app.core.security import get_password_hash, verify_password, create_access_token, create_refresh_token
 from app.schemas.auth import SignupRequest
 
 
@@ -17,7 +17,7 @@ class AuthService:
         result = await self.db.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()
 
-    async def create_user(self, request: SignupRequest) -> Tuple[User, str]:
+    async def create_user(self, request: SignupRequest) -> Tuple[User, str, str]:
         # Check if email exists
         existing_user = await self.get_user_by_email(request.email)
         if existing_user:
@@ -55,12 +55,13 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(user)
 
-        # Generate token
-        token = create_access_token(str(user.id))
+        # Generate tokens
+        access_token = create_access_token(str(user.id))
+        refresh_token = create_refresh_token(str(user.id))
 
-        return user, token
+        return user, access_token, refresh_token
 
-    async def authenticate(self, email: str, password: str) -> Optional[Tuple[User, str]]:
+    async def authenticate(self, email: str, password: str) -> Optional[Tuple[User, str, str]]:
         user = await self.get_user_by_email(email)
         if not user:
             return None
@@ -71,8 +72,9 @@ class AuthService:
         if user.is_suspended:
             raise ValueError("ACCOUNT_SUSPENDED")
 
-        token = create_access_token(str(user.id))
-        return user, token
+        access_token = create_access_token(str(user.id))
+        refresh_token = create_refresh_token(str(user.id))
+        return user, access_token, refresh_token
 
     async def get_user_profile_id(self, user: User) -> Optional[UUID]:
         if user.role == UserRole.INSTRUCTOR.value:
