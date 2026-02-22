@@ -3,6 +3,7 @@ Step 3: Offers management (instructor) and applicant selection (studio)
 """
 
 import streamlit as st
+from datetime import date as date_today
 from api_client import APIError
 from utils.helpers import get_client
 
@@ -195,9 +196,16 @@ def render_applicants_step():
                 "contract": "계약",
             }.get(job.get("job_type", ""), job.get("job_type", ""))
 
+            # FB-1: Mark past jobs
+            job_is_past = False
+            try:
+                job_is_past = date_today.fromisoformat(str(job.get("date", ""))) < date_today.today()
+            except (ValueError, TypeError):
+                pass
+            past_label = " [지난공고]" if job_is_past else ""
             with st.expander(
-                f"**{job['title']}** | {job['date']} | 지원자 {app_count}명",
-                expanded=(app_count > 0),
+                f"**{job['title']}**{past_label} | {job['date']} | 지원자 {app_count}명",
+                expanded=(app_count > 0 and not job_is_past),
             ):
                 # Job summary info (1 line)
                 st.caption(
@@ -227,9 +235,9 @@ def render_applicants_step():
                 except APIError as e:
                     st.caption(f"지원자 정보를 불러올 수 없습니다: {e.message}")
 
-        # Offer form section - rendered below applicant list
-        if st.session_state.get("show_offer_modal"):
-            _render_offer_form(client)
+        # FB-3: Process offer send if triggered
+        if st.session_state.get("_offer_send"):
+            _process_offer_send(client)
 
     except APIError as e:
         st.error(f"로드 실패: {e.message}")
@@ -268,23 +276,38 @@ def _render_applicant_card(app: dict) -> None:
         }
         st.caption(status_labels.get(app["status"], app["status"]))
 
-    # Send offer button
+    # Send offer button - inline expander (FB-3: no scroll needed)
     if app["status"] == "pending" and not app.get("has_offer"):
-        already_open = (
-            st.session_state.get("show_offer_modal")
-            and st.session_state.get("selected_application", {}).get("id")
-            == app["id"]
-        )
-        if already_open:
-            if st.button(
-                "오퍼 작성 중 (아래 확인)",
-                key=f"offer_{app['id']}",
-                use_container_width=True,
-            ):
-                st.session_state.offer_scroll_trigger = (
-                    st.session_state.get("offer_scroll_trigger", 0) + 1
-                )
-                st.rerun()
+        offer_key = f"offer_open_{app['id']}"
+        if st.session_state.get(offer_key):
+            st.markdown(f"**오퍼 작성 - {instructor_name}**")
+            proposed_rate = st.number_input(
+                "제안 시급 (원)",
+                min_value=0,
+                step=5000,
+                value=50000,
+                key=f"rate_{app['id']}",
+            )
+            message = st.text_area(
+                "메시지 (선택)",
+                placeholder="근무 조건을 자유롭게 작성하세요.",
+                height=80,
+                key=f"msg_{app['id']}",
+            )
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("오퍼 전송", type="primary", use_container_width=True, key=f"send_{app['id']}"):
+                    st.session_state._offer_send = {
+                        "app_id": app["id"],
+                        "rate": proposed_rate,
+                        "message": message,
+                        "name": instructor_name,
+                        "key": offer_key,
+                    }
+            with c2:
+                if st.button("취소", use_container_width=True, key=f"cancel_offer_{app['id']}"):
+                    st.session_state[offer_key] = False
+                    st.rerun()
         else:
             if st.button(
                 "오퍼 보내기",
@@ -292,126 +315,26 @@ def _render_applicant_card(app: dict) -> None:
                 type="primary",
                 use_container_width=True,
             ):
-                st.session_state.show_offer_modal = False
-                st.session_state.selected_application = None
-                st.session_state.selected_application = app
-                st.session_state.show_offer_modal = True
+                st.session_state[offer_key] = True
                 st.rerun()
 
     st.markdown("---")
 
 
-def _render_offer_form(client) -> None:
-    """Render the offer creation form anchored below the applicant list."""
-    app = st.session_state.selected_application
-    instructor_name = app.get("instructor_name", "강사")
-
-    # Auto-scroll anchor
-    scroll_key = st.session_state.get("offer_scroll_trigger", 0)
-    st.markdown(
-        f"""
-        <div id="offer-form-anchor" data-scroll-key="{scroll_key}"></div>
-        <script>
-            (function() {{
-                var anchor = document.getElementById('offer-form-anchor');
-                if (anchor) {{
-                    setTimeout(function() {{
-                        anchor.scrollIntoView({{behavior: 'smooth', block: 'start'}});
-                    }}, 300);
-                }}
-            }})();
-        </script>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.info(
-        f"**{instructor_name}** 강사에게 오퍼를 작성 중입니다. "
-        "아래 양식을 작성한 후 오퍼를 전송하세요.",
-        icon="✏️",
-    )
-
-    st.markdown(
-        f"""
-        <style>
-        .offer-card {{
-            background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
-            border: 2px solid #1a73e8;
-            border-radius: 12px;
-            padding: 24px 28px 8px 28px;
-            margin: 8px 0 16px 0;
-            box-shadow: 0 4px 16px rgba(26, 115, 232, 0.15);
-        }}
-        .offer-card-title {{
-            color: #1a73e8;
-            font-size: 1.15rem;
-            font-weight: 700;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }}
-        .offer-card-subtitle {{
-            color: #555;
-            font-size: 0.9rem;
-            margin-bottom: 16px;
-        }}
-        </style>
-        <div class="offer-card">
-            <div class="offer-card-title">
-                &#9997;&#65039; 오퍼 작성 중...
-            </div>
-            <div class="offer-card-subtitle">
-                대상 강사: <strong>{instructor_name}</strong>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    with st.form("offer_form"):
-        proposed_rate = st.number_input(
-            "제안 시급 (원)",
-            min_value=0,
-            step=5000,
-            value=50000,
-            help="강사에게 제안할 시간당 급여를 입력하세요.",
-        )
-        message = st.text_area(
-            "메시지 (선택)",
-            placeholder="스튜디오 소개나 구체적인 근무 조건을 자유롭게 작성하세요.",
-            height=100,
-        )
-
-        st.markdown("---")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.form_submit_button(
-                "오퍼 전송",
-                type="primary",
-                use_container_width=True,
-            ):
-                try:
-                    with st.spinner("오퍼를 전송하는 중..."):
-                        client.create_offer(
-                            {
-                                "application_id": app["id"],
-                                "proposed_rate": proposed_rate,
-                                "message": message,
-                            }
-                        )
-                    st.success(
-                        f"{instructor_name} 강사에게 오퍼를 전송했습니다! "
-                        "강사의 응답을 기다려주세요."
-                    )
-                    st.session_state.show_offer_modal = False
-                    st.session_state.selected_application = None
-                    st.rerun()
-                except APIError as e:
-                    st.error(f"오류: {e.message}")
-        with col2:
-            if st.form_submit_button("취소", use_container_width=True):
-                st.session_state.show_offer_modal = False
-                st.session_state.selected_application = None
-                st.rerun()
+def _process_offer_send(client) -> None:
+    """Process the offer send action from inline expander form."""
+    data = st.session_state.pop("_offer_send")
+    try:
+        with st.spinner("오퍼를 전송하는 중..."):
+            client.create_offer(
+                {
+                    "application_id": data["app_id"],
+                    "proposed_rate": data["rate"],
+                    "message": data["message"],
+                }
+            )
+        st.success(f"{data['name']} 강사에게 오퍼를 전송했습니다!")
+        st.session_state[data["key"]] = False
+        st.rerun()
+    except APIError as e:
+        st.error(f"오류: {e.message}")
