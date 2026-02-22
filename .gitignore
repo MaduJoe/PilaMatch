@@ -11,6 +11,11 @@ ENV/
 # Environment
 .env
 .env.local
+.env.prod
+.env.staging
+.env.production
+.env.*
+!.env.example
 
 # IDE
 .idea/

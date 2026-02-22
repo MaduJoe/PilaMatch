@@ -40,6 +40,11 @@ services:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - DEBUG=${DEBUG:-false}
       - REDIS_URL=redis://redis:6379/0
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8501}
+      - TOSS_CLIENT_KEY=${TOSS_CLIENT_KEY:-}
+      - TOSS_SECRET_KEY=${TOSS_SECRET_KEY:-}
+      - TOSS_WEBHOOK_SECRET=${TOSS_WEBHOOK_SECRET:-}
+      - APP_ENV=${APP_ENV:-production}
     depends_on:
       db:
         condition: service_healthy
@@ -56,30 +61,13 @@ services:
       - "8501:8501"
     environment:
       - API_BASE_URL=http://backend:8000
+      - BACKEND_PUBLIC_URL=${BACKEND_PUBLIC_URL:-http://localhost:8000}
+      - TOSS_CLIENT_KEY=${TOSS_CLIENT_KEY:-}
       - KAKAO_MAP_KEY=${KAKAO_MAP_KEY:-}
     depends_on:
       - backend
     volumes:
       - ./frontend:/app
-
-  admin:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "8502:8502"
-    environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=${POSTGRES_DB:-pilamatch}
-      - DB_USER=${POSTGRES_USER:-postgres}
-      - DB_PASSWORD=${POSTGRES_PASSWORD}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
-    depends_on:
-      - db
-    volumes:
-      - ./frontend:/app
-    command: streamlit run admin.py --server.port=8502 --server.address=0.0.0.0
 
 volumes:
   postgres_data:
