@@ -4,6 +4,7 @@ Step 2: Job finding (instructor) and job creation (studio)
 
 import time
 import streamlit as st
+from datetime import date as date_today
 from api_client import APIError
 from utils.helpers import get_client
 from utils.constants import SEOUL_REGIONS, RATE_PRESETS
@@ -85,6 +86,9 @@ def render_find_jobs_step():
 
     try:
         with st.spinner("공고를 불러오는 중..."):
+            current_page = st.session_state.get("job_page", 1)
+            params["page"] = current_page
+            params["page_size"] = 20
             result = client.list_job_posts_with_matching(params)
         jobs = result.get("items", [])
 
@@ -94,6 +98,15 @@ def render_find_jobs_step():
                 key=lambda x: x.get("matching", {}).get("total", 0),
                 reverse=True,
             )
+
+        # FB-1: Push past jobs to bottom (secondary sort)
+        def _is_past_job(item):
+            job = item.get("job", item)
+            try:
+                return date_today.fromisoformat(str(job.get("date", ""))) < date_today.today()
+            except (ValueError, TypeError):
+                return job.get("is_past", False)
+        jobs = sorted(jobs, key=_is_past_job)
 
         if not jobs:
             st.info("등록된 공고가 없습니다.")
@@ -126,6 +139,37 @@ def render_find_jobs_step():
                             job, matching, score, is_applied, client, is_urgent
                         )
 
+            # T2-#11: Pagination controls
+            total = result.get("total", len(jobs))
+            page_size = 20
+            current_page = st.session_state.get("job_page", 1)
+            total_pages = max(1, (total + page_size - 1) // page_size)
+
+            if total_pages > 1:
+                st.markdown("---")
+                nav_col1, nav_col2, nav_col3 = st.columns([1, 2, 1])
+                with nav_col1:
+                    if st.button(
+                        "← 이전",
+                        disabled=(current_page <= 1),
+                        use_container_width=True,
+                    ):
+                        st.session_state.job_page = current_page - 1
+                        st.rerun()
+                with nav_col2:
+                    st.markdown(
+                        f"<div style='text-align:center'>페이지 {current_page} / {total_pages}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with nav_col3:
+                    if st.button(
+                        "다음 →",
+                        disabled=(current_page >= total_pages),
+                        use_container_width=True,
+                    ):
+                        st.session_state.job_page = current_page + 1
+                        st.rerun()
+
     except APIError as e:
         st.error(f"공고 로드 실패: {e.message}")
 
@@ -153,6 +197,14 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
     if is_urgent:
         urgent_badge = " 🚨"  # Emergency/urgent indicator
 
+    # FB-1: Detect past jobs
+    is_past = False
+    try:
+        job_date = date_today.fromisoformat(str(job.get("date", "")))
+        is_past = job_date < date_today.today()
+    except (ValueError, TypeError):
+        is_past = job.get("is_past", False)
+
     # Matching score badge color - boosted scores may be higher
     is_boosted = matching.get("is_boosted", False)
     if score >= 80:
@@ -168,9 +220,14 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
 
     applied_mark = " :white_check_mark:" if is_applied else ""
 
-    st.markdown(
-        f"**{type_emoji} {type_label}{applied_mark}{premium_badge}{urgent_badge}** &nbsp; {score_badge}"
-    )
+    if is_past:
+        st.markdown(
+            f"~~**{type_emoji} {type_label}**~~ :gray[지난공고]{premium_badge}{urgent_badge} &nbsp; {score_badge}"
+        )
+    else:
+        st.markdown(
+            f"**{type_emoji} {type_label}{applied_mark}{premium_badge}{urgent_badge}** &nbsp; {score_badge}"
+        )
 
     # Core info (2-line compact)
     st.caption(
@@ -229,10 +286,11 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
                 st.rerun()
     else:
         if st.button(
-            "지원하기",
+            "지원 불가 (지난 공고)" if is_past else "지원하기",
             key=f"apply_{job['id']}",
             type="primary",
             use_container_width=True,
+            disabled=is_past,
         ):
             try:
                 with st.spinner("지원서를 제출하는 중..."):
@@ -388,18 +446,17 @@ def render_create_job_step():
             label_visibility="collapsed",
         )
 
+        # FB-2: Show title preview immediately below memo
+        type_labels_preview = {"substitute": "대타", "regular": "정규", "contract": "계약"}
+        auto_title = (
+            f"[{type_labels_preview[job_type]}] {st.session_state.job_region}구 "
+            f"{'필라테스' if category == 'pilates' else '요가'} 강사"
+        )
+        if memo:
+            auto_title += f" - {memo}"
+        st.info(f"공고 제목: {auto_title}")
+
     st.markdown("---")
-
-    # Auto-generated title preview
-    type_labels = {"substitute": "대타", "regular": "정규", "contract": "계약"}
-    auto_title = (
-        f"[{type_labels[job_type]}] {st.session_state.job_region}구 "
-        f"{'필라테스' if category == 'pilates' else '요가'} 강사"
-    )
-    if memo:
-        auto_title += f" - {memo}"
-
-    st.info(f"공고 제목: {auto_title}")
 
     # Register button
     if st.button("공고 등록하기", type="primary", use_container_width=True):

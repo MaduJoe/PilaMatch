@@ -57,6 +57,7 @@ class JobPostResponse(BaseModel):
     required_certifications: List[str]
     region: Optional[str] = None
     address: Optional[str] = None
+    is_past: bool = False
     application_count: int = 0
     # Note: is_premium is added at the endpoint level for security reasons
 

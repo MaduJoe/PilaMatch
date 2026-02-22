@@ -106,8 +106,15 @@ async def list_job_posts(
 
     items, total = await service.list(filters, page, page_size, sort_by, sort_order)
 
+    today = date.today()
+    response_items = []
+    for item in items:
+        job_response = JobPostResponse.model_validate(item)
+        job_response.is_past = item.date < today if item.date else False
+        response_items.append(job_response)
+
     return JobPostListResponse(
-        items=[JobPostResponse.model_validate(item) for item in items],
+        items=response_items,
         total=total,
         page=page,
         page_size=page_size,
@@ -294,7 +301,9 @@ async def list_job_posts_with_matching(
     return JobPostWithMatchingListResponse(
         items=[
             JobPostWithMatchingResponse(
-                job=JobPostResponse.model_validate(item["job"]),
+                job=JobPostResponse.model_validate(item["job"]).model_copy(
+                    update={"is_past": item["job"].date < date.today() if item["job"].date else False}
+                ),
                 matching=MatchingScore(
                     total=item["score"],
                     label=get_match_label(item["score"]),

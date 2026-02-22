@@ -1,8 +1,9 @@
 from typing import Optional, List, Tuple
 from uuid import UUID
+from datetime import date as date_type
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, case
 
 from app.models import JobPost, StudioProfile, JobPostStatus
 from app.schemas.job_post import JobPostCreate, JobPostUpdate, JobPostFilter
@@ -83,31 +84,39 @@ class JobPostService:
         total_result = await self.db.execute(count_query)
         total = total_result.scalar()
 
+        # Past-date jobs go to bottom (FB-1)
+        past_order = case(
+            (JobPost.date < date_type.today(), 1),
+            else_=0
+        )
+
         # Apply sorting with premium priority (v3.0)
         if premium_first:
             # Join with user table to get premium status
             query = query.join(StudioProfile, JobPost.studio_id == StudioProfile.id)
             query = query.join(User, StudioProfile.user_id == User.id)
 
-            # Sort by premium status first, then by the requested column
+            # Sort: past jobs last -> premium first -> requested sort
             sort_column = getattr(JobPost, sort_by, JobPost.created_at)
             if sort_order == "desc":
                 query = query.order_by(
-                    User.membership_tier.desc(),  # Premium first
+                    past_order.asc(),
+                    User.membership_tier.desc(),
                     sort_column.desc()
                 )
             else:
                 query = query.order_by(
-                    User.membership_tier.desc(),  # Premium first
+                    past_order.asc(),
+                    User.membership_tier.desc(),
                     sort_column.asc()
                 )
         else:
             # Standard sorting without premium priority
             sort_column = getattr(JobPost, sort_by, JobPost.created_at)
             if sort_order == "desc":
-                query = query.order_by(sort_column.desc())
+                query = query.order_by(past_order.asc(), sort_column.desc())
             else:
-                query = query.order_by(sort_column.asc())
+                query = query.order_by(past_order.asc(), sort_column.asc())
 
         # Apply pagination
         offset = (page - 1) * page_size
@@ -155,7 +164,11 @@ class JobPostService:
         total_result = await self.db.execute(count_query)
         total = total_result.scalar()
 
-        query = query.order_by(JobPost.created_at.desc())
+        past_order = case(
+            (JobPost.date < date_type.today(), 1),
+            else_=0
+        )
+        query = query.order_by(past_order.asc(), JobPost.created_at.desc())
         offset = (page - 1) * page_size
         query = query.offset(offset).limit(page_size)
 
