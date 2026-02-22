@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Set
+from typing import Optional, List, Dict, Set, Tuple
 from uuid import UUID
 from datetime import datetime
 
@@ -146,7 +146,7 @@ class ContractService:
         if start_time and end_time:
             start_dt = datetime.combine(datetime.today(), start_time)
             end_dt = datetime.combine(datetime.today(), end_time)
-            hours = (end_dt - start_dt).seconds / 3600
+            hours = (end_dt - start_dt).total_seconds() / 3600
 
         total_amount = float(offer.proposed_rate) * hours * total_sessions
 

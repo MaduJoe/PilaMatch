@@ -3,11 +3,13 @@ Step 4: Contract management - signing, progress tracking, completion
 """
 
 from datetime import datetime, date
+import time
 import streamlit as st
 import pandas as pd
 from api_client import APIError
 from utils.helpers import get_client
 from utils.constants import CONTRACT_TERMS
+from components import render_toss_payment_widget
 
 
 def render_contracts_step():
@@ -42,15 +44,9 @@ def render_contracts_step():
         if active:
             st.subheader(f"진행 중인 계약 ({len(active)})")
 
-            COLS = 2
-            for row_start in range(0, len(active), COLS):
-                row_contracts = active[row_start : row_start + COLS]
-                cols = st.columns(COLS)
-                for col_idx, contract in enumerate(row_contracts):
-                    with cols[col_idx]:
-                        with st.container():
-                            _render_contract_card(contract, user, client)
-                            st.markdown("---")
+            for contract in active:
+                with st.container():
+                    _render_contract_card(contract, user, client)
 
         # Completed/cancelled contracts (table format)
         if completed:
@@ -66,47 +62,45 @@ def _render_contract_card(contract: dict, user: dict, client) -> None:
     role = user.get("role")
     status = contract["status"]
 
-    # Status badge
+    # Determine partner name prominently
+    if role == "instructor":
+        partner_name = contract.get("studio_name") or "스튜디오"
+        partner_label = "스튜디오"
+    else:
+        partner_name = contract.get("instructor_name") or "강사"
+        partner_label = "강사"
+
+    # Status config
     status_emoji = {
-        "confirmed": "",
-        "in_progress": "",
-        "pending_completion": "",
-    }.get(status, "")
+        "confirmed": "📝",
+        "in_progress": "🏃",
+        "pending_completion": "⏳",
+    }.get(status, "📋")
     status_label = {
         "confirmed": "서명 대기",
         "in_progress": "진행 중",
         "pending_completion": "완료 대기",
     }.get(status, status)
 
-    st.markdown(f"### {status_emoji} {status_label}")
-    st.caption(f"계약 ID: {contract['id'][:8]}...")
+    # Time info for header
+    time_str = ""
+    if contract.get("start_time"):
+        try:
+            start = datetime.strptime(contract["start_time"], "%H:%M:%S")
+            time_str = f" {start.strftime('%H:%M')}"
+        except Exception:
+            pass
 
-    # Contract party info box
+    # Header: partner name + date + status (most important info at a glance)
+    st.markdown(
+        f"### {status_emoji} {partner_name}  \n"
+        f":gray[{contract['date']}{time_str} · {status_label}]"
+    )
+
+    # Compact contract details
     with st.container():
-        st.markdown("**계약 상세 정보**")
-
-        party_col1, party_col2 = st.columns(2)
-        with party_col1:
-            st.markdown("**강사 정보**")
-            instructor_id = contract.get("instructor_id", "-")
-            st.caption(f"강사 ID: {str(instructor_id)[:8]}...")
-            if contract.get("instructor_name"):
-                st.caption(f"이름: {contract['instructor_name']}")
-
-        with party_col2:
-            st.markdown("**스튜디오 정보**")
-            studio_id = contract.get("studio_id", "-")
-            st.caption(f"스튜디오 ID: {str(studio_id)[:8]}...")
-            if contract.get("studio_name"):
-                st.caption(f"이름: {contract['studio_name']}")
-
-        st.markdown("---")
-
-        # Contract terms (2-column)
-        st.markdown("**계약 조건**")
         detail_col1, detail_col2 = st.columns(2)
         with detail_col1:
-            st.caption(f"날짜: **{contract['date']}**")
             if contract.get("start_time") and contract.get("end_time"):
                 try:
                     start = datetime.strptime(contract["start_time"], "%H:%M:%S")
@@ -114,21 +108,17 @@ def _render_contract_card(contract: dict, user: dict, client) -> None:
                     duration = (end - start).total_seconds() / 3600
                     start_formatted = start.strftime("%H:%M")
                     end_formatted = end.strftime("%H:%M")
-                    st.caption(f"시간: **{start_formatted} ~ {end_formatted}**")
-                    st.caption(f"수업: **{start_formatted} ({duration:.1f}시간)**")
+                    duration_display = f"{duration:.2f}".rstrip('0').rstrip('.')
+                    st.caption(f"수업: **{duration_display}시간** ({start_formatted} ~ {end_formatted})")
                 except Exception:
-                    st.caption(f"시간: **{contract.get('start_time', '-')} ~ {contract.get('end_time', '-')}**")
-            else:
-                st.caption(f"시간: **{contract.get('start_time', '-')} ~ {contract.get('end_time', '-')}**")
+                    st.caption(f"시간: {contract.get('start_time', '-')} ~ {contract.get('end_time', '-')}")
+            st.caption(f"{partner_label}: **{partner_name}**")
 
         with detail_col2:
             hourly_rate = contract.get("hourly_rate", 0)
             total_amount = float(contract.get("total_amount", 0))
             st.caption(f"시급: **₩{int(float(hourly_rate)):,}**")
             st.caption(f"총액: **₩{int(total_amount):,}**")
-            platform_fee = total_amount * 0.05
-            settlement = total_amount - platform_fee
-            st.caption(f"정산금: **₩{int(settlement):,}** (수수료 5%)")
 
     st.markdown("---")
 
@@ -216,6 +206,83 @@ def _render_signing_section(contract: dict, role: str, client) -> None:
                             st.warning("이미 서명하셨습니다.")
                         else:
                             st.error(f"오류: {e.message}")
+
+    # Contract payment section (studio only, confirmed contracts)
+    if role == "studio":
+        st.markdown("---")
+        _render_contract_payment_section(contract, client)
+
+
+def _render_contract_payment_section(contract: dict, client) -> None:
+    """Render payment widget for studio to pay for a confirmed contract."""
+    contract_id = contract["id"]
+    total_amount = float(contract.get("total_amount", 0))
+    st.subheader("계약금 결제")
+    st.caption(f"계약금 ₩{int(total_amount):,} + 플랫폼 수수료 5%를 결제해주세요.")
+
+    payment_key = f"contract_payment_{contract_id}"
+
+    # Check if payment order already initialized
+    if payment_key not in st.session_state:
+        if st.button(
+            "계약금 결제하기",
+            key=f"init_pay_{contract_id}",
+            type="primary",
+            use_container_width=True,
+        ):
+            try:
+                with st.spinner("결제를 준비하는 중..."):
+                    result = client.initialize_payment(contract_id)
+                st.session_state[payment_key] = {
+                    "order_id": result["order_id"],
+                    "amount": int(float(result["amount"])),
+                    "order_name": result.get("order_name", f"계약 {contract_id[:8]}"),
+                }
+                st.rerun()
+            except APIError as e:
+                st.error(f"결제 준비 실패: {e.message}")
+    else:
+        import os
+        order_data = st.session_state[payment_key]
+        order_id = order_data["order_id"]
+        toss_client_key = os.getenv("TOSS_CLIENT_KEY", "")
+
+        # Check if mock payment completed
+        completed = st.session_state.get(f"payment_completed_{order_id}")
+        if completed:
+            try:
+                with st.spinner("결제를 확인하는 중..."):
+                    client.confirm_payment(
+                        completed["payment_key"],
+                        completed["order_id"],
+                        completed["amount"],
+                    )
+                st.success("계약금 결제가 완료되었습니다!")
+                st.session_state.pop(payment_key, None)
+                st.session_state.pop(f"payment_completed_{order_id}", None)
+                time.sleep(1)
+                st.rerun()
+            except APIError as e:
+                st.error(f"결제 확인 실패: {e.message}")
+                st.session_state.pop(f"payment_completed_{order_id}", None)
+
+        elif st.session_state.get(f"payment_cancelled_{order_id}"):
+            st.session_state.pop(payment_key, None)
+            st.session_state.pop(f"payment_cancelled_{order_id}", None)
+            st.rerun()
+        else:
+            user = st.session_state.user
+            render_toss_payment_widget(
+                client_key=toss_client_key,
+                order_id=order_id,
+                order_name=order_data["order_name"],
+                amount=order_data["amount"],
+                customer_key=str(user.get("id", "guest")),
+                payment_type="contract",
+            )
+            if st.button("결제 취소", key=f"cancel_contract_pay_{contract_id}"):
+                st.session_state.pop(payment_key, None)
+                st.rerun()
 
 
 def _render_in_progress_section(contract: dict, user: dict, client) -> None:
@@ -419,7 +486,8 @@ def _render_completed_contracts_table(contracts: list, user: dict) -> None:
                 duration_hours = (end_dt - start_dt).total_seconds() / 3600
                 # Format as HH:MM (duration시간)
                 start_formatted = start_dt.strftime("%H:%M")
-                class_time = f"{start_formatted} ({duration_hours:.1f}시간)"
+                duration_display = f"{duration_hours:.2f}".rstrip('0').rstrip('.')
+                class_time = f"{start_formatted} ({duration_display}시간)"
             except (ValueError, TypeError):
                 # Fallback to simple format if parsing fails
                 class_time = f"{start_time[:5] if len(start_time) > 5 else start_time}"
