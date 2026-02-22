@@ -45,7 +45,29 @@ st.set_page_config(
 # Mobile-responsive CSS
 st.markdown("""
 <style>
-/* Responsive column stacking on narrow screens */
+/* Large screens */
+@media (min-width: 1024px) {
+    .block-container {
+        max-width: 900px !important;
+    }
+}
+
+/* Tablet (641px - 1024px) */
+@media (min-width: 641px) and (max-width: 1024px) {
+    .block-container {
+        max-width: 720px !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap;
+    }
+    [data-testid="stHorizontalBlock"] > [data-testid="stVerticalBlockBorderWrapper"] {
+        min-width: 45% !important;
+    }
+}
+
+/* Mobile (max 640px) */
 @media (max-width: 640px) {
     /* Stack Streamlit columns vertically */
     [data-testid="stHorizontalBlock"] {
@@ -69,11 +91,50 @@ st.markdown("""
         min-height: 44px;
     }
 }
+
+/* Small mobile (< 400px) */
+@media (max-width: 400px) {
+    h1 { font-size: 1.25rem !important; }
+    h2 { font-size: 1.1rem !important; }
+    .block-container {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    .stButton > button {
+        font-size: 14px !important;
+        padding: 8px 12px !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
 init_session_state()
+
+
+def handle_payment_callback():
+    """Check st.query_params for payment_result and display success/failure message."""
+    params = st.query_params
+    result = params.get("payment_result")
+    if not result:
+        return
+
+    payment_type = params.get("type", "contract")
+    type_label = "프리미엄 구독" if payment_type == "subscription" else "계약"
+
+    if result == "success":
+        st.success(f"{type_label} 결제가 완료되었습니다!")
+        st.balloons()
+    elif result == "fail":
+        error_msg = params.get("error_message", "알 수 없는 오류")
+        st.error(f"{type_label} 결제 실패: {error_msg}")
+
+    # Clear params to prevent re-display on refresh
+    st.query_params.clear()
+
+
+# Handle payment callbacks from TossPayments redirects
+handle_payment_callback()
 
 
 def render_header():
