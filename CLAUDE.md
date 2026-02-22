@@ -40,6 +40,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **payment-trust** | 결제(Toss), 에스크로, 보증금, 패널티, `services/escrow.py`, `services/penalty.py`, `services/deposit.py` |
 | **security-reviewer** | 인증/인가, JWT, CORS, 입력 검증, 보안 취약점 리뷰, `core/security.py`, `core/deps.py` |
 | **test-qa** | 테스트 작성/수정, 커버리지 분석, `tests/` 하위 작업, pytest 실행 |
+| **verify-app** | 앱 전체 동작 검증, 배포 전 체크, 서비스 헬스체크, 통합 검증 |
 
 ### 라우팅 판단 기준
 
@@ -209,6 +210,75 @@ async def create_contract(
 
 ---
 
+## Testing Workflow
+
+### 테스트 피드백 루프 (필수)
+
+> **Claude에게 작업을 검증할 방법을 제공하는 것이 최종 결과물 품질을 2~3배 높이는 가장 중요한 요소다.**
+
+모든 기능 구현은 다음 루프를 따른다:
+```
+구현 → 테스트 작성 → 실행 → 실패 시 수정 → 재실행 → 통과 시 커밋
+```
+
+### 변경 대상별 테스트 실행 규칙
+
+| 변경 대상 | 필수 테스트 | 명령어 |
+|-----------|------------|--------|
+| `app/services/` | 단위 테스트 | `uv run pytest tests/test_{service}.py -v` |
+| `app/api/` | API 통합 테스트 | `uv run pytest tests/test_{endpoint}.py -v` |
+| `app/models/` | 스키마 + 전체 | `uv run pytest --cov=app` |
+| `services/escrow.py`, `penalty.py`, `deposit.py` | 결제/신뢰 (필수) | `uv run pytest tests/test_payment*.py tests/test_penalty*.py -v` |
+| `core/security.py`, `core/deps.py` | 보안 테스트 | `uv run pytest tests/test_auth.py -v` |
+| `frontend/` | 수동 브라우저 검증 | DevTools 모바일 뷰 확인 |
+
+### 테스트 우선순위
+
+```
+P0 (반드시 테스트):
+  - 회원가입/로그인 인증 플로우
+  - 보증금 입금/차감
+  - 에스크로 결제 → 완료 → 정산
+  - 노쇼 패널티 → 3회 정지
+  - 계약 상태 전이 (state machine)
+
+P1 (기능 완성 시 테스트):
+  - 매칭 알고리즘 점수 계산
+  - 프리미엄 멤버십 혜택 적용
+  - 일일 사용량 제한/리셋
+
+P2 (시간 여유 시):
+  - 프로필 CRUD
+  - 공고 목록 정렬/필터
+  - 리뷰 작성
+```
+
+### 테스트 실패 시 행동 규칙
+
+```
+1. 에러 메시지 읽고 원인 분석
+2. 테스트가 잘못된 경우 → 테스트 수정
+3. 코드가 잘못된 경우 → 코드 수정
+4. 수정 후 반드시 재실행 (최대 3회 반복)
+5. 3회 후에도 실패 → 원인과 시도한 방법을 정리하여 사용자에게 보고
+```
+
+### E2E 테스트 (Playwright)
+
+```bash
+uv add --dev pytest-playwright
+uv run playwright install chromium
+uv run pytest tests/e2e/ -v
+```
+
+E2E 대상 (크리티컬 플로우만):
+1. 회원가입 → 인증 → 보증금 입금 → 서비스 이용 가능
+2. 공고 작성 → 매칭 → 지원 → 오퍼 → 계약 → 결제 → 완료
+3. 노쇼 신고 → 패널티 → 보증금 차감 → 3회 시 계정 정지
+4. 프리미엄 구독 → 혜택 적용 확인
+
+---
+
 ## Development Rules
 
 ### 1. Session Documentation
@@ -236,10 +306,13 @@ test: Test changes
 ```
 
 ### 4. Testing Requirements
-- Test auth flows
-- Test state transitions
-- Test payment webhooks
-- Mock external services (SMS, payments)
+- 모든 기능 구현 후 반드시 관련 테스트 작성 및 통과 확인
+- 결제/신뢰 관련 변경 시 `/test-payment` 필수 실행
+- PR 생성 전 `/test-and-fix` 필수 실행
+- 커버리지: 핵심 서비스 80%+, 전체 60%+
+- 필수 케이스: Happy path + 엣지케이스 + 에러 케이스 (최소 3개)
+- Mock 대상: SMS API, 토스페이먼츠 API, 국세청 API
+- 테스트 통과 전 커밋 금지
 
 ---
 

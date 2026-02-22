@@ -30,6 +30,7 @@ test = [
     "pytest-asyncio>=0.23.3",
     "pytest-cov>=4.1.0",
     "aiosqlite>=0.19.0",
+    "pytest-playwright>=0.7.2",
 ]
 frontend = [
     "streamlit>=1.30.0",
@@ -44,6 +45,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
+markers = ["e2e: end-to-end tests (require running services via docker-compose up)"]
 
 [tool.uv]
 dev-dependencies = [
@@ -51,4 +53,6 @@ dev-dependencies = [
     "pytest-asyncio>=0.23.3",
     "pytest-cov>=4.1.0",
     "aiosqlite>=0.19.0",
+    "pytest-playwright>=0.7.2",
+    "structlog>=25.5.0",
 ]
