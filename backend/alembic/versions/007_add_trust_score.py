@@ -4,7 +4,11 @@ Revision ID: 007_add_trust_score
 Revises: 006_deposit_deprecation
 Create Date: 2026-02-18
 
-Add trust_score and trust_level fields to users table for v3.0 trust system.
+Add trust_level field and update trust_score default for v3.0 trust system.
+
+Note: trust_score column and idx_users_trust_score index already exist from
+migration 003_prdv2_updates. This migration only changes the default from
+'0' to '40' and adds the new trust_level column.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -17,19 +21,21 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Add trust score fields to users table."""
-    # Add trust_score column (0-100)
-    op.add_column('users',
-        sa.Column('trust_score', sa.Integer(), nullable=False, server_default='40')
+    """Update trust_score default and add trust_level column."""
+    # trust_score column already exists from 003_prdv2_updates (default='0').
+    # Change the server default from '0' to '40' for v3.0 trust system.
+    op.alter_column('users', 'trust_score',
+        existing_type=sa.Integer(),
+        existing_nullable=False,
+        server_default='40',
     )
 
-    # Add trust_level column
+    # Add trust_level column (new in v3.0)
     op.add_column('users',
         sa.Column('trust_level', sa.String(20), nullable=False, server_default='신진')
     )
 
-    # Add index for trust_score for efficient sorting
-    op.create_index('ix_users_trust_score', 'users', ['trust_score'], unique=False)
+    # Index idx_users_trust_score already exists from 003_prdv2_updates; skip.
 
     # Set initial trust scores based on existing data
     # Premium users get bonus, verified users get bonus
@@ -56,7 +62,15 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Remove trust score fields."""
-    op.drop_index('ix_users_trust_score', table_name='users')
+    """Remove trust_level and revert trust_score default."""
+    # Drop trust_level column (owned by this migration)
     op.drop_column('users', 'trust_level')
-    op.drop_column('users', 'trust_score')
+
+    # Revert trust_score server default back to '0' (003_prdv2_updates value).
+    # Do NOT drop the trust_score column or idx_users_trust_score index;
+    # those are owned by 003_prdv2_updates.
+    op.alter_column('users', 'trust_score',
+        existing_type=sa.Integer(),
+        existing_nullable=False,
+        server_default='0',
+    )
