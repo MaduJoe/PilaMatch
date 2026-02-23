@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**StudioBridge** - Trust-based Pilates/Yoga instructor-studio matching platform MVP built with FastAPI + Streamlit.
+**StudioBridge** - Trust-based Pilates/Yoga instructor-studio matching platform MVP built with FastAPI + Next.js.
 
 ### Core Values
 - **신뢰 (Trust)**: Safety first - verified users, escrow payments, penalty system
@@ -36,7 +36,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **database** | 스키마 변경, Alembic 마이그레이션, 쿼리 최적화, `app/models/` 수정, SQLAlchemy 관련 |
 | **devops** | Docker, docker-compose, CI/CD, 배포 스크립트, 인프라 설정 |
 | **doc-writer** | README, API 문서, `docs/` 하위 파일, 세션 요약 문서 작성 |
-| **frontend-ui** | Streamlit UI, `frontend/` 하위 코드, 화면 레이아웃, UX 개선 |
+| **frontend-ui** | Next.js UI, `frontend-next/` 하위 코드, 화면 레이아웃, UX 개선 |
 | **payment-trust** | 결제(Toss), 에스크로, 보증금, 패널티, `services/escrow.py`, `services/penalty.py`, `services/deposit.py` |
 | **security-reviewer** | 인증/인가, JWT, CORS, 입력 검증, 보안 취약점 리뷰, `core/security.py`, `core/deps.py` |
 | **test-qa** | 테스트 작성/수정, 커버리지 분석, `tests/` 하위 작업, pytest 실행 |
@@ -78,7 +78,7 @@ docker-compose down -v && docker-compose up -d
 open http://localhost:8000/api/v1/docs
 
 # Frontend
-open http://localhost:8501
+open http://localhost:3000
 ```
 
 ### Testing
@@ -109,7 +109,7 @@ Job Posting → Matching Score → Application → Offer → Contract → Paymen
 ### Tech Stack
 - **Backend**: FastAPI 0.109+ with async/await throughout
 - **Database**: PostgreSQL (prod) / SQLite (test) via SQLAlchemy 2.0+
-- **Frontend**: Streamlit 1.30 (MVP)
+- **Frontend**: Next.js 15 (React)
 - **Auth**: JWT tokens with HTTPBearer dependency
 - **Package Manager**: uv (not pip)
 
@@ -125,9 +125,10 @@ backend/
 ├── alembic/               # Database migrations
 └── tests/                 # pytest test suite
 
-frontend/
-├── app.py                 # Streamlit UI (10+ screens)
-└── api_client.py          # HTTP client wrapper
+frontend-next/
+├── src/app/               # Next.js App Router pages
+├── src/components/        # React components (shadcn/ui)
+└── src/lib/               # API client, utilities
 ```
 
 ---
@@ -230,7 +231,7 @@ async def create_contract(
 | `app/models/` | 스키마 + 전체 | `uv run pytest --cov=app` |
 | `services/escrow.py`, `penalty.py`, `deposit.py` | 결제/신뢰 (필수) | `uv run pytest tests/test_payment*.py tests/test_penalty*.py -v` |
 | `core/security.py`, `core/deps.py` | 보안 테스트 | `uv run pytest tests/test_auth.py -v` |
-| `frontend/` | 수동 브라우저 검증 | DevTools 모바일 뷰 확인 |
+| `frontend-next/` | 수동 브라우저 검증 | DevTools 모바일 뷰 확인 |
 
 ### 테스트 우선순위
 
@@ -422,7 +423,7 @@ BUSINESS_API_KEY=...  # 국세청
 - `backend/app/models/subscription.py` - 구독 데이터 모델
 - `backend/app/api/v1/endpoints/subscription.py` - 구독 API
 - `backend/app/api/v1/endpoints/usage.py` - 사용량 조회 API
-- `frontend/pages/step1_profile.py` - 프리미엄 UI (역할별 혜택 표시)
+- `frontend-next/src/app/` - 프리미엄 UI (역할별 혜택 표시)
 
 ---
 
@@ -462,7 +463,7 @@ POST /api/v1/contracts/{id}/report-no-show
 | `backend/app/models/base.py` | GUID type, mixins |
 | `backend/app/core/deps.py` | Auth dependencies |
 | `backend/app/core/security.py` | JWT, password hashing |
-| `frontend/app.py` | Streamlit UI entry point |
+| `frontend-next/` | Next.js frontend |
 | `docker-compose.yml` | Service orchestration |
 
 ---

@@ -31,8 +31,6 @@ from app.models.review import Review
 from app.models.report import Report, Block
 from app.models.support import SupportTicket
 from app.models.dispute import Dispute, DisputeType, DisputeStatus, DisputeResolution
-from app.models.user_churn import UserChurnLog, ChurnEventType, ChurnReasonCode
-from app.models.policy_agreement import PolicyAgreement, PolicyType
 from app.models.subscription import Subscription, SubscriptionPayment, SubscriptionHistory
 from app.models.application_template import ApplicationTemplate  # v3.0 Phase 2
 from app.models.daily_usage import DailyUsageLimit  # v3.0 Daily usage tracking
@@ -78,11 +76,6 @@ __all__ = [
     "DisputeType",
     "DisputeStatus",
     "DisputeResolution",
-    "UserChurnLog",
-    "ChurnEventType",
-    "ChurnReasonCode",
-    "PolicyAgreement",
-    "PolicyType",
     "Subscription",
     "SubscriptionPayment",
     "SubscriptionHistory",

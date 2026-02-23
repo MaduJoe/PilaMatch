@@ -38,6 +38,10 @@ test.db
 # OS
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
+
+# Screenshots (root-level only)
+/*.png
 
 # Logs
 *.log
