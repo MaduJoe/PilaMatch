@@ -290,8 +290,11 @@ async def list_job_posts_with_matching(
                 "is_urgent": is_urgent,  # v3.0 Phase 2: Add urgent flag
             })
 
-    # Sort by: 1) Premium studios first, 2) Matching score (descending)
-    jobs_with_scores.sort(key=lambda x: (x["is_premium"], x["score"]), reverse=True)
+    # Sort by: 1) Premium studios first, 2) Matching score, 3) Newest first
+    jobs_with_scores.sort(
+        key=lambda x: (x["is_premium"], x["score"], x["job"].created_at or datetime.min),
+        reverse=True,
+    )
 
     # Paginate
     start = (page - 1) * page_size

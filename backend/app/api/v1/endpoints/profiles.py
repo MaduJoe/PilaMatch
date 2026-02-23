@@ -32,7 +32,7 @@ async def get_profile_completeness(
                 "missing_fields": ["all"],
                 "message": "프로필을 먼저 생성해주세요",
             }
-        completeness = await calculate_instructor_completeness(profile)
+        completeness = await calculate_instructor_completeness(profile, user=current_user)
     else:  # studio
         service = StudioService(db)
         profile = await service.get_profile_by_user_id(current_user.id)
@@ -43,7 +43,7 @@ async def get_profile_completeness(
                 "missing_fields": ["all"],
                 "message": "프로필을 먼저 생성해주세요",
             }
-        completeness = await calculate_studio_completeness(profile)
+        completeness = await calculate_studio_completeness(profile, user=current_user)
 
     # Add helpful message
     if completeness["percentage"] < 70:

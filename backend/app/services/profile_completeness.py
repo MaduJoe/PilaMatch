@@ -3,14 +3,16 @@
 This service calculates profile completeness percentage and
 enforces completeness requirements for certain actions.
 """
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models import User, InstructorProfile, StudioProfile
 
 
-async def calculate_instructor_completeness(profile: InstructorProfile) -> Dict[str, Any]:
+async def calculate_instructor_completeness(
+    profile: InstructorProfile, user: Optional[User] = None
+) -> Dict[str, Any]:
     """Calculate instructor profile completeness.
 
     Returns:
@@ -37,7 +39,8 @@ async def calculate_instructor_completeness(profile: InstructorProfile) -> Dict[
     else:
         missing_fields.append("display_name")
 
-    if profile.phone and len(profile.phone) > 0:
+    phone_ok = (profile.phone and len(profile.phone) > 0) or (user and user.phone_verified)
+    if phone_ok:
         completed_weight += required_fields["phone"]
     else:
         missing_fields.append("phone")
@@ -91,7 +94,9 @@ async def calculate_instructor_completeness(profile: InstructorProfile) -> Dict[
     }
 
 
-async def calculate_studio_completeness(profile: StudioProfile) -> Dict[str, Any]:
+async def calculate_studio_completeness(
+    profile: StudioProfile, user: Optional[User] = None
+) -> Dict[str, Any]:
     """Calculate studio profile completeness.
 
     Returns:
@@ -116,7 +121,8 @@ async def calculate_studio_completeness(profile: StudioProfile) -> Dict[str, Any
     else:
         missing_fields.append("business_name")
 
-    if profile.phone and len(profile.phone) > 0:
+    phone_ok = (profile.phone and len(profile.phone) > 0) or (user and user.phone_verified)
+    if phone_ok:
         completed_weight += required_fields["phone"]
     else:
         missing_fields.append("phone")
@@ -199,7 +205,7 @@ async def check_profile_completeness_for_action(
                 "percentage": 0,
             }
 
-        completeness = await calculate_instructor_completeness(profile)
+        completeness = await calculate_instructor_completeness(profile, user=user)
     else:  # studio
         # Get studio profile
         result = await db.execute(
@@ -214,7 +220,7 @@ async def check_profile_completeness_for_action(
                 "percentage": 0,
             }
 
-        completeness = await calculate_studio_completeness(profile)
+        completeness = await calculate_studio_completeness(profile, user=user)
 
     # Check threshold based on action
     thresholds = {

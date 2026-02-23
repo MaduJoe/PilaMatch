@@ -1,5 +1,6 @@
 """
 Step 2: Job finding (instructor) and job creation (studio)
+Cards use inline matching info (no expanders). Detail via @st.dialog.
 """
 
 import time
@@ -92,21 +93,34 @@ def render_find_jobs_step():
             result = client.list_job_posts_with_matching(params)
         jobs = result.get("items", [])
 
-        if sort_by_score:
-            jobs = sorted(
-                jobs,
-                key=lambda x: x.get("matching", {}).get("total", 0),
-                reverse=True,
-            )
-
-        # FB-1: Push past jobs to bottom (secondary sort)
         def _is_past_job(item):
             job = item.get("job", item)
             try:
                 return date_today.fromisoformat(str(job.get("date", ""))) < date_today.today()
             except (ValueError, TypeError):
                 return job.get("is_past", False)
-        jobs = sorted(jobs, key=_is_past_job)
+
+        if sort_by_score:
+            # Primary: past jobs last, then matching score desc, then newest first
+            jobs = sorted(
+                jobs,
+                key=lambda x: (
+                    not _is_past_job(x),
+                    x.get("matching", {}).get("total", 0),
+                    x.get("job", x).get("created_at", ""),
+                ),
+                reverse=True,
+            )
+        else:
+            # Primary: past jobs last, then newest first
+            jobs = sorted(
+                jobs,
+                key=lambda x: (
+                    not _is_past_job(x),
+                    x.get("job", x).get("created_at", ""),
+                ),
+                reverse=True,
+            )
 
         if not jobs:
             st.info("등록된 공고가 없습니다.")
@@ -132,7 +146,7 @@ def render_find_jobs_step():
                     matching = item.get("matching", {})
                     score = matching.get("total", 0)
                     is_applied = job["id"] in applied_job_ids
-                    is_urgent = item.get("is_urgent", False)  # v3.0 Phase 2
+                    is_urgent = item.get("is_urgent", False)
 
                     with cols[col_idx]:
                         _render_job_card(
@@ -174,8 +188,87 @@ def render_find_jobs_step():
         st.error(f"공고 로드 실패: {e.message}")
 
 
+@st.dialog("공고 상세 정보")
+def _job_detail_dialog(job: dict, matching: dict, score: int, is_applied: bool, client, is_urgent: bool):
+    """Dialog showing full job detail + matching breakdown + apply button."""
+    type_label = {
+        "substitute": "대타",
+        "regular": "정규",
+        "contract": "계약",
+    }.get(job["job_type"], "")
+
+    is_premium = job.get("is_premium", False)
+    is_boosted = matching.get("is_boosted", False)
+
+    st.markdown(f"### {type_label} | {job.get('region', '-')}")
+    st.markdown(f"**₩{int(float(job['hourly_rate'])):,}** / 시간")
+    st.caption(
+        f"📆 {job['date']} | "
+        f"시간: {job.get('start_time', '-')} ~ {job.get('end_time', '-')}"
+    )
+
+    if job.get("description"):
+        st.markdown(f"_{job['description']}_")
+
+    # Matching breakdown
+    st.markdown("---")
+    st.markdown("**매칭 분석**")
+    breakdown = matching.get("breakdown", {})
+    if breakdown:
+        bd_col1, bd_col2 = st.columns(2)
+        with bd_col1:
+            st.caption(f"지역: {breakdown.get('region', 0)}점")
+            st.caption(f"경력: {breakdown.get('experience', 0)}점")
+        with bd_col2:
+            st.caption(f"자격: {breakdown.get('certifications', 0)}점")
+            st.caption(f"시급: {breakdown.get('hourly_rate', 0)}점")
+
+    if is_boosted:
+        original_score = matching.get("original_score", score)
+        st.info(f"💎 프리미엄 부스트 적용: {original_score}% → {score}% (+30%)")
+    elif is_premium:
+        st.info("💎 프리미엄 스튜디오")
+
+    if is_urgent:
+        st.warning("🚨 긴급 매칭 - 24시간 내 수업 (프리미엄 회원 전용)")
+
+    # Apply button inside dialog
+    if is_applied:
+        st.button("지원완료", disabled=True, use_container_width=True)
+    else:
+        is_past = False
+        try:
+            job_date = date_today.fromisoformat(str(job.get("date", "")))
+            is_past = job_date < date_today.today()
+        except (ValueError, TypeError):
+            is_past = job.get("is_past", False)
+
+        if st.button(
+            "지원 불가 (지난 공고)" if is_past else "지원하기",
+            type="primary",
+            use_container_width=True,
+            disabled=is_past,
+        ):
+            try:
+                with st.spinner("지원서를 제출하는 중..."):
+                    client.apply_to_job(job["id"])
+                st.success("지원 완료! 스튜디오 응답을 기다려주세요.")
+                time.sleep(1)
+                st.rerun()
+            except APIError as e:
+                if "ALREADY_APPLIED" in str(e.code):
+                    st.warning("이미 지원한 공고입니다.")
+                elif "INCOMPLETE_PROFILE" in str(e.code):
+                    st.warning(f"프로필 미완성: {e.message}")
+                elif "APPLICATION_LIMIT" in str(e.code):
+                    st.error(f"{e.message}")
+                    st.info("💎 프리미엄으로 업그레이드하면 무제한 지원이 가능합니다!")
+                else:
+                    st.error(f"오류: {e.message}")
+
+
 def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, client, is_urgent: bool = False) -> None:
-    """Render a single job posting card."""
+    """Render a single job posting card — compact, no expander."""
     type_emoji = {
         "substitute": "",
         "regular": "",
@@ -187,15 +280,9 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
         "contract": "계약",
     }.get(job["job_type"], "")
 
-    # v3.0 Phase 2: Premium badge and urgent indicator
-    premium_badge = ""
     is_premium = job.get("is_premium", False)
-    if is_premium:
-        premium_badge = " 💎"
-
-    urgent_badge = ""
-    if is_urgent:
-        urgent_badge = " 🚨"  # Emergency/urgent indicator
+    premium_badge = " 💎" if is_premium else ""
+    urgent_badge = " 🚨" if is_urgent else ""
 
     # FB-1: Detect past jobs
     is_past = False
@@ -205,7 +292,7 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
     except (ValueError, TypeError):
         is_past = job.get("is_past", False)
 
-    # Matching score badge color - boosted scores may be higher
+    # Matching score badge color
     is_boosted = matching.get("is_boosted", False)
     if score >= 80:
         score_badge = f":green[**{score}%**]"
@@ -214,7 +301,6 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
     else:
         score_badge = f":gray[{score}%]"
 
-    # Add boost indicator if score was boosted
     if is_boosted:
         score_badge += " ↗️"
 
@@ -241,29 +327,14 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
         desc = job["description"]
         st.caption(desc[:40] + "..." if len(desc) > 40 else desc)
 
-    # Detail expander
-    with st.expander("상세 보기"):
-        breakdown = matching.get("breakdown", {})
-        if breakdown:
-            st.caption(
-                f"지역 {breakdown.get('region', 0)}점 | "
-                f"경력 {breakdown.get('experience', 0)}점 | "
-                f"자격 {breakdown.get('certifications', 0)}점 | "
-                f"시급 {breakdown.get('hourly_rate', 0)}점"
-            )
-
-        # v3.0 Phase 2: Show boost info if applicable
-        if is_boosted:
-            original_score = matching.get("original_score", score)
-            st.info(f"💎 프리미엄 부스트 적용: {original_score}% → {score}% (+30%)")
-        elif is_premium:
-            st.info("💎 프리미엄 스튜디오")
-
-        # v3.0 Phase 2: Show urgent status
-        if is_urgent:
-            st.warning("🚨 긴급 매칭 - 24시간 내 수업 (프리미엄 회원 전용)")
+    # Inline matching score breakdown (compact 1-line)
+    breakdown = matching.get("breakdown", {})
+    if breakdown:
         st.caption(
-            f"시간: {job.get('start_time', '-')} ~ {job.get('end_time', '-')}"
+            f"지역 {breakdown.get('region', 0)} | "
+            f"경력 {breakdown.get('experience', 0)} | "
+            f"자격 {breakdown.get('certifications', 0)} | "
+            f"시급 {breakdown.get('hourly_rate', 0)}"
         )
 
     # Buttons at card bottom
@@ -278,49 +349,53 @@ def _render_job_card(job: dict, matching: dict, score: int, is_applied: bool, cl
             )
         with btn_col2:
             if st.button(
-                "내역 보기",
-                key=f"view_{job['id']}",
+                "상세",
+                key=f"detail_{job['id']}",
                 use_container_width=True,
             ):
-                st.session_state.page = "offers"
-                st.rerun()
+                _job_detail_dialog(job, matching, score, is_applied, client, is_urgent)
     else:
-        if st.button(
-            "지원 불가 (지난 공고)" if is_past else "지원하기",
-            key=f"apply_{job['id']}",
-            type="primary",
-            use_container_width=True,
-            disabled=is_past,
-        ):
-            try:
-                with st.spinner("지원서를 제출하는 중..."):
-                    client.apply_to_job(job["id"])
-                st.success("지원 완료! 스튜디오 응답을 기다려주세요.")
-                time.sleep(1)
-                st.rerun()
-            except APIError as e:
-                if "ALREADY_APPLIED" in str(e.code):
-                    st.warning("이미 지원한 공고입니다.")
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            if st.button(
+                "지원 불가" if is_past else "지원하기",
+                key=f"apply_{job['id']}",
+                type="primary",
+                use_container_width=True,
+                disabled=is_past,
+            ):
+                try:
+                    with st.spinner("지원서를 제출하는 중..."):
+                        client.apply_to_job(job["id"])
+                    st.success("지원 완료!")
+                    time.sleep(1)
                     st.rerun()
-                # v3.0: Profile completeness check replaces deposit check
-                elif "INCOMPLETE_PROFILE" in str(e.code):
-                    st.warning(f"프로필 미완성: {e.message}")
-                    st.info("프로필 페이지로 이동합니다...")
-                    time.sleep(2)
-                    st.session_state.page = "profile"
-                    st.rerun()
-                # v3.0 Phase 2: Application limit for Free tier
-                elif "APPLICATION_LIMIT" in str(e.code):
-                    st.error(f"{e.message}")
-                    st.info("💎 프리미엄으로 업그레이드하면 무제한 지원이 가능합니다!")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("프리미엄 업그레이드", type="primary", use_container_width=True):
+                except APIError as e:
+                    if "ALREADY_APPLIED" in str(e.code):
+                        st.warning("이미 지원한 공고입니다.")
+                        st.rerun()
+                    elif "INCOMPLETE_PROFILE" in str(e.code):
+                        st.warning(f"프로필 미완성: {e.message}")
+                        st.info("프로필 페이지로 이동합니다...")
+                        time.sleep(2)
+                        st.session_state.page = "profile"
+                        st.rerun()
+                    elif "APPLICATION_LIMIT" in str(e.code):
+                        st.error(f"{e.message}")
+                        st.info("💎 프리미엄으로 업그레이드하면 무제한 지원이 가능합니다!")
+                        if st.button("프리미엄 업그레이드", type="primary", use_container_width=True, key=f"upgrade_{job['id']}"):
                             st.session_state.page = "profile"
                             st.session_state.show_upgrade_modal = True
                             st.rerun()
-                else:
-                    st.error(f"오류: {e.message}")
+                    else:
+                        st.error(f"오류: {e.message}")
+        with btn_col2:
+            if st.button(
+                "상세",
+                key=f"detail_{job['id']}",
+                use_container_width=True,
+            ):
+                _job_detail_dialog(job, matching, score, is_applied, client, is_urgent)
 
     st.markdown("---")
 
@@ -438,22 +513,23 @@ def render_create_job_step():
         with col3:
             end_time = st.time_input("종료", value=None)
 
-        # 6. One-line memo (optional)
+        # 6. One-line memo (optional) — title preview updates on Enter/blur
         st.subheader("6. 한 줄 메모 (선택)")
-        memo = st.text_input(
-            "",
-            placeholder="예: 리포머 수업, 초급자 대상, 주차 가능",
-            label_visibility="collapsed",
-        )
 
-        # FB-2: Show title preview immediately below memo
         type_labels_preview = {"substitute": "대타", "regular": "정규", "contract": "계약"}
-        auto_title = (
+        base_title = (
             f"[{type_labels_preview[job_type]}] {st.session_state.job_region}구 "
             f"{'필라테스' if category == 'pilates' else '요가'} 강사"
         )
-        if memo:
-            auto_title += f" - {memo}"
+
+        memo = st.text_input(
+            "메모 입력",
+            value=st.session_state.get("job_memo", ""),
+            placeholder="예: 리포머 수업, 초급자 대상, 주차 가능",
+            label_visibility="collapsed",
+            key="job_memo",
+        )
+        auto_title = base_title + (f" - {memo}" if memo else "")
         st.info(f"공고 제목: {auto_title}")
 
     st.markdown("---")
@@ -478,7 +554,7 @@ def render_create_job_step():
                 )
             st.success("공고가 등록되었습니다!")
             # Reset form state
-            for key in ["job_category", "job_type", "job_rate", "job_region"]:
+            for key in ["job_category", "job_type", "job_rate", "job_region", "job_memo"]:
                 if key in st.session_state:
                     del st.session_state[key]
             st.session_state.page = "applicants"

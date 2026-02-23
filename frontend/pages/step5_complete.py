@@ -1,5 +1,6 @@
 """
 Step 5: Contract completion confirmation and reviews
+Uses Master-Detail pattern for review writing and dataframe for received reviews.
 """
 
 import streamlit as st
@@ -13,17 +14,25 @@ def render_complete_step():
     """Render the completion confirmation and review management UI."""
     st.header("5단계: 완료 & 리뷰")
 
-    # Create tabs for completion and reviews
-    tab1, tab2, tab3 = st.tabs(["✅ 완료 확인", "✍️ 내가 쓴 리뷰", "⭐ 받은 리뷰"])
-
-    with tab1:
-        _render_completion_tab()
-
-    with tab2:
-        _render_written_reviews_tab()
-
-    with tab3:
-        _render_received_reviews_tab()
+    # Check if redirected from completion for review
+    auto_review = st.session_state.pop("complete_tab", None) == "review"
+    if auto_review:
+        tab_labels = ["✍️ 내가 쓴 리뷰", "✅ 완료 확인", "⭐ 받은 리뷰"]
+        tab1, tab2, tab3 = st.tabs(tab_labels)
+        with tab1:
+            _render_written_reviews_tab(auto_open_form=True)
+        with tab2:
+            _render_completion_tab()
+        with tab3:
+            _render_received_reviews_tab()
+    else:
+        tab1, tab2, tab3 = st.tabs(["✅ 완료 확인", "✍️ 내가 쓴 리뷰", "⭐ 받은 리뷰"])
+        with tab1:
+            _render_completion_tab()
+        with tab2:
+            _render_written_reviews_tab()
+        with tab3:
+            _render_received_reviews_tab()
 
 
 def _render_completion_tab():
@@ -86,8 +95,77 @@ def _render_completion_tab():
         st.error(f"계약 정보를 불러올 수 없습니다: {str(e)}")
 
 
-def _render_written_reviews_tab():
-    """Render the tab for reviews written by the current user."""
+@st.dialog("리뷰 작성")
+def _write_review_dialog(contract_id: str, partner_name: str, client):
+    """Dialog modal for writing a new review."""
+    st.markdown(f"**{partner_name}**님에 대한 리뷰를 작성해주세요.")
+
+    rating = st.radio(
+        "평점",
+        options=[5, 4, 3, 2, 1],
+        format_func=lambda x: _format_star_rating(x),
+        horizontal=True,
+    )
+
+    comment = st.text_area(
+        "후기 (선택사항)",
+        placeholder="서비스에 대한 솔직한 후기를 남겨주세요.",
+        height=100,
+    )
+
+    if st.button("리뷰 작성", type="primary", use_container_width=True):
+        try:
+            with st.spinner("리뷰를 작성하는 중..."):
+                client.create_review(contract_id, {
+                    "rating": rating,
+                    "comment": comment if comment else None,
+                })
+            st.success("리뷰가 작성되었습니다!")
+            st.rerun()
+        except APIError as e:
+            st.error(f"리뷰 작성 실패: {e.message}")
+
+
+@st.dialog("리뷰 수정")
+def _edit_review_dialog(review_id: str, current_rating: int, current_comment: str, client):
+    """Dialog modal for editing an existing review."""
+    new_rating = st.radio(
+        "평점",
+        options=[5, 4, 3, 2, 1],
+        format_func=lambda x: _format_star_rating(x),
+        index=[5, 4, 3, 2, 1].index(current_rating) if current_rating in [5, 4, 3, 2, 1] else 0,
+        horizontal=True,
+    )
+
+    new_comment = st.text_area(
+        "후기",
+        value=current_comment or "",
+        height=100,
+    )
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("저장", type="primary", use_container_width=True):
+            try:
+                with st.spinner("리뷰를 수정하는 중..."):
+                    client.update_review(review_id, {
+                        "rating": new_rating,
+                        "comment": new_comment if new_comment else None,
+                    })
+                st.success("리뷰가 수정되었습니다!")
+                st.rerun()
+            except APIError as e:
+                st.error(f"수정 실패: {e.message}")
+    with c2:
+        if st.button("취소", use_container_width=True):
+            st.rerun()
+
+
+def _render_written_reviews_tab(auto_open_form: bool = False):
+    """Render the tab for reviews written by the current user.
+    Uses Master-Detail: dataframe + selectbox to pick contract → review form below.
+    If auto_open_form=True, auto-selects first unreviewed contract and shows inline form.
+    """
     client = get_client()
 
     st.subheader("내가 작성한 리뷰")
@@ -143,14 +221,12 @@ def _render_written_reviews_tab():
                 date_str = "-"
 
             if review:
-                # Reviewed
                 status = "✅ 작성"
                 rating = _format_star_rating(review.get("rating", 0))
                 comment = review.get("comment", "")[:30]
                 if len(review.get("comment", "")) > 30:
                     comment += "..."
             else:
-                # Not reviewed yet
                 status = "⏳ 미작성"
                 rating = "-"
                 comment = "리뷰를 작성해주세요"
@@ -161,12 +237,13 @@ def _render_written_reviews_tab():
                 "계약일": date_str,
                 "평점": rating,
                 "리뷰 내용": comment,
-                "contract_id": contract_id,
-                "review": review
+                "_contract_id": contract_id,
+                "_review": review,
+                "_partner_name": partner_name,
             })
 
         # Sort: unreviewed first, then by date
-        table_data.sort(key=lambda x: (x["상태"] == "✅ 작성", x["계약일"]), reverse=False)
+        table_data.sort(key=lambda x: (x["상태"] == "✅ 작성", x["계약일"]))
 
         if table_data:
             # Display the table
@@ -176,7 +253,7 @@ def _render_written_reviews_tab():
                     "상대방": row["상대방"],
                     "계약일": row["계약일"],
                     "평점": row["평점"],
-                    "리뷰 내용": row["리뷰 내용"]
+                    "리뷰 내용": row["리뷰 내용"],
                 }
                 for row in table_data
             ])
@@ -185,20 +262,103 @@ def _render_written_reviews_tab():
                 display_df,
                 hide_index=True,
                 use_container_width=True,
-                height=min(400, 50 + len(table_data) * 35)
+                height=min(400, 50 + len(table_data) * 35),
             )
 
-            # Show review forms in expanders below the table
+            # Master-Detail: selectbox to pick a contract for review action
             st.markdown("---")
             st.markdown("### 리뷰 관리")
 
-            # Create 2-column layout for review forms
-            cols = st.columns(2)
-            for idx, row in enumerate(table_data):
-                col = cols[idx % 2]
-                with col:
-                    _render_review_form_card(client, row)
+            # Build options for selectbox
+            options = []
+            for row in table_data:
+                label = f"{row['상태']} {row['계약일']} | {row['상대방']}"
+                options.append(label)
 
+            # Auto-select first unreviewed contract when redirected from completion
+            default_idx = 0
+            if auto_open_form:
+                for i, row in enumerate(table_data):
+                    if row["_review"] is None:
+                        default_idx = i
+                        break
+
+            selected_idx = st.selectbox(
+                "계약 선택",
+                range(len(table_data)),
+                index=default_idx,
+                format_func=lambda i: options[i],
+            )
+
+            selected = table_data[selected_idx]
+            contract_id = selected["_contract_id"]
+            review = selected["_review"]
+            partner_name = selected["_partner_name"]
+
+            # Detail: show review form or existing review
+            if review:
+                # Show existing review
+                st.markdown(f"**평점:** {_format_star_rating(review.get('rating', 0))}")
+                if review.get("comment"):
+                    st.markdown(f"**리뷰:** {review['comment']}")
+
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("수정", key=f"edit_{contract_id}"):
+                        _edit_review_dialog(
+                            review["id"],
+                            review.get("rating", 5),
+                            review.get("comment", ""),
+                            client,
+                        )
+                with c2:
+                    if st.button("삭제", key=f"delete_{contract_id}", type="secondary"):
+                        if st.session_state.get(f"confirm_delete_{contract_id}"):
+                            try:
+                                with st.spinner("리뷰를 삭제하는 중..."):
+                                    client.delete_review(review["id"])
+                                st.success("리뷰가 삭제되었습니다.")
+                                st.rerun()
+                            except APIError as e:
+                                st.error(f"삭제 실패: {e.message}")
+                        else:
+                            st.session_state[f"confirm_delete_{contract_id}"] = True
+                            st.warning("정말 삭제하시겠습니까? 다시 클릭하세요.")
+            else:
+                # Show inline review form directly (no dialog button needed)
+                st.markdown(f"**{partner_name}**님에 대한 리뷰를 작성해주세요.")
+
+                rating = st.radio(
+                    "평점",
+                    options=[5, 4, 3, 2, 1],
+                    format_func=lambda x: _format_star_rating(x),
+                    key=f"rating_{contract_id}",
+                    horizontal=True,
+                )
+
+                comment = st.text_area(
+                    "후기 (선택사항)",
+                    key=f"comment_{contract_id}",
+                    placeholder="서비스에 대한 솔직한 후기를 남겨주세요.",
+                    height=100,
+                )
+
+                if st.button(
+                    "리뷰 작성",
+                    key=f"submit_{contract_id}",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    try:
+                        with st.spinner("리뷰를 작성하는 중..."):
+                            client.create_review(contract_id, {
+                                "rating": rating,
+                                "comment": comment if comment else None,
+                            })
+                        st.success("리뷰가 작성되었습니다!")
+                        st.rerun()
+                    except APIError as e:
+                        st.error(f"리뷰 작성 실패: {e.message}")
         else:
             st.info("아직 완료된 계약이 없습니다.")
 
@@ -209,14 +369,15 @@ def _render_written_reviews_tab():
 
 
 def _render_received_reviews_tab():
-    """Render the tab for reviews received by the current user."""
+    """Render the tab for reviews received by the current user.
+    Uses dataframe with enough info. No checkbox toggle — detail shown inline.
+    """
     client = get_client()
 
     st.subheader("내가 받은 리뷰")
 
     try:
         with st.spinner("리뷰를 불러오는 중..."):
-            # Get received reviews
             response = client.get_received_reviews()
         reviews = response.get("reviews", [])
         avg_rating = response.get("average_rating", 0)
@@ -230,7 +391,7 @@ def _render_received_reviews_tab():
                 st.metric(
                     "평균 평점",
                     f"{star_display} {avg_rating:.1f} / 5.0",
-                    f"총 {total_count}건의 리뷰"
+                    f"총 {total_count}건의 리뷰",
                 )
             else:
                 st.metric("평균 평점", "아직 리뷰가 없습니다", "")
@@ -251,10 +412,9 @@ def _render_received_reviews_tab():
         st.markdown("---")
 
         if reviews:
-            # Prepare table data
+            # Prepare table data — include full comment in the table
             table_data = []
             for review in reviews:
-                # Format date
                 created_at = review.get("created_at")
                 if created_at:
                     try:
@@ -269,43 +429,20 @@ def _render_received_reviews_tab():
                     "날짜": date_str,
                     "작성자": review.get("reviewer_name", "익명"),
                     "평점": _format_star_rating(review.get("rating", 0)),
-                    "리뷰 내용": review.get("comment", "-")
+                    "리뷰 내용": review.get("comment", "-"),
                 })
 
             # Sort by date (most recent first)
             table_data.sort(key=lambda x: x["날짜"], reverse=True)
 
-            # Display the table
+            # Display the table with full comment visible
             df = pd.DataFrame(table_data)
             st.dataframe(
                 df,
                 hide_index=True,
                 use_container_width=True,
-                height=min(400, 50 + len(table_data) * 35)
+                height=min(400, 50 + len(table_data) * 35),
             )
-
-            # Show detailed reviews below
-            if st.checkbox("리뷰 상세 보기"):
-                st.markdown("---")
-                for review in sorted(reviews, key=lambda x: x.get("created_at", ""), reverse=True):
-                    with st.container():
-                        col1, col2 = st.columns([3, 1])
-                        with col1:
-                            st.markdown(f"**{review.get('reviewer_name', '익명')}**")
-                            st.markdown(_format_star_rating(review.get("rating", 0)))
-                        with col2:
-                            created_at = review.get("created_at")
-                            if created_at:
-                                try:
-                                    date_obj = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                                    st.caption(date_obj.strftime("%Y년 %m월 %d일"))
-                                except (ValueError, TypeError):
-                                    st.caption(created_at[:10])
-
-                        if review.get("comment"):
-                            st.markdown(f"_{review['comment']}_")
-                        st.markdown("---")
-
         else:
             st.info("아직 받은 리뷰가 없습니다. 계약을 완료하면 리뷰를 받을 수 있습니다.")
 
@@ -313,120 +450,6 @@ def _render_received_reviews_tab():
         st.error(f"리뷰 정보를 불러올 수 없습니다: {e.message}")
     except Exception as e:
         st.error(f"오류가 발생했습니다: {str(e)}")
-
-
-def _render_review_form_card(client, row):
-    """Render a review form card for a contract."""
-    contract_id = row["contract_id"]
-    review = row["review"]
-    partner_name = row["상대방"]
-
-    with st.expander(f"{'✅' if review else '⏳'} {row['계약일']} | {partner_name}"):
-        if review:
-            # Show existing review with edit option
-            st.markdown(f"**평점:** {_format_star_rating(review.get('rating', 0))}")
-            if review.get("comment"):
-                st.markdown(f"**리뷰:**")
-                st.caption(review["comment"])
-
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("수정", key=f"edit_{contract_id}"):
-                    st.session_state[f"editing_{contract_id}"] = True
-
-            with col2:
-                if st.button("삭제", key=f"delete_{contract_id}", type="secondary"):
-                    if st.session_state.get(f"confirm_delete_{contract_id}"):
-                        try:
-                            with st.spinner("리뷰를 삭제하는 중..."):
-                                client.delete_review(review["id"])
-                            st.success("리뷰가 삭제되었습니다.")
-                            st.rerun()
-                        except APIError as e:
-                            st.error(f"삭제 실패: {e.message}")
-                    else:
-                        st.session_state[f"confirm_delete_{contract_id}"] = True
-                        st.warning("정말 삭제하시겠습니까? 다시 클릭하세요.")
-
-            # Edit form
-            if st.session_state.get(f"editing_{contract_id}"):
-                _render_review_edit_form(client, contract_id, review)
-        else:
-            # Show new review form
-            _render_new_review_form(client, contract_id, partner_name)
-
-
-def _render_new_review_form(client, contract_id, partner_name):
-    """Render form for creating a new review."""
-    st.markdown(f"**{partner_name}**님에 대한 리뷰를 작성해주세요.")
-
-    rating = st.radio(
-        "평점",
-        options=[5, 4, 3, 2, 1],
-        format_func=lambda x: _format_star_rating(x),
-        key=f"rating_{contract_id}",
-        horizontal=True
-    )
-
-    comment = st.text_area(
-        "후기 (선택사항)",
-        key=f"comment_{contract_id}",
-        placeholder="서비스에 대한 솔직한 후기를 남겨주세요.",
-        height=100
-    )
-
-    if st.button("리뷰 작성", key=f"submit_{contract_id}", type="primary"):
-        try:
-            with st.spinner("리뷰를 작성하는 중..."):
-                client.create_review(contract_id, {
-                    "rating": rating,
-                    "comment": comment if comment else None
-                })
-            st.success("리뷰가 작성되었습니다!")
-            st.rerun()
-        except APIError as e:
-            st.error(f"리뷰 작성 실패: {e.message}")
-
-
-def _render_review_edit_form(client, contract_id, review):
-    """Render form for editing an existing review."""
-    st.markdown("### 리뷰 수정")
-
-    new_rating = st.radio(
-        "평점",
-        options=[5, 4, 3, 2, 1],
-        format_func=lambda x: _format_star_rating(x),
-        index=[5, 4, 3, 2, 1].index(review.get("rating", 5)),
-        key=f"edit_rating_{contract_id}",
-        horizontal=True
-    )
-
-    new_comment = st.text_area(
-        "후기",
-        value=review.get("comment", ""),
-        key=f"edit_comment_{contract_id}",
-        height=100
-    )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("저장", key=f"save_edit_{contract_id}", type="primary"):
-            try:
-                with st.spinner("리뷰를 수정하는 중..."):
-                    client.update_review(review["id"], {
-                        "rating": new_rating,
-                        "comment": new_comment if new_comment else None
-                    })
-                st.success("리뷰가 수정되었습니다!")
-                del st.session_state[f"editing_{contract_id}"]
-                st.rerun()
-            except APIError as e:
-                st.error(f"수정 실패: {e.message}")
-
-    with col2:
-        if st.button("취소", key=f"cancel_edit_{contract_id}"):
-            del st.session_state[f"editing_{contract_id}"]
-            st.rerun()
 
 
 def _format_star_rating(rating):

@@ -1,8 +1,10 @@
 """
 Step 3: Offers management (instructor) and applicant selection (studio)
+Uses tabs (instructor) and Master-Detail + @st.dialog (studio) patterns.
 """
 
 import streamlit as st
+import pandas as pd
 from datetime import date as date_today
 from api_client import APIError
 from utils.helpers import get_client
@@ -36,64 +38,48 @@ def render_offers_step():
             o for o in offers if o["status"] not in ("pending", "accepted")
         ]
 
-        # Pending offers: 2-column cards
-        if pending:
-            st.subheader(f"수락/거절 대기 중 ({len(pending)})")
-            COLS = 2
-            for row_start in range(0, len(pending), COLS):
-                row_offers = pending[row_start : row_start + COLS]
-                cols = st.columns(COLS)
-                for col_idx, offer in enumerate(row_offers):
-                    with cols[col_idx]:
-                        _render_pending_offer_card(offer, client)
+        # 3 tabs: Pending / Accepted / History
+        tab_pending, tab_accepted, tab_history = st.tabs([
+            f"📬 대기 중 ({len(pending)})",
+            f"✅ 수락됨 ({len(accepted)})",
+            f"📋 처리 내역 ({len(others)})",
+        ])
 
-        # Accepted offers awaiting contract creation: 2-column
-        if accepted:
-            st.subheader(f"계약 생성 대기 ({len(accepted)})")
-            COLS = 2
-            for row_start in range(0, len(accepted), COLS):
-                row_offers = accepted[row_start : row_start + COLS]
-                cols = st.columns(COLS)
-                for col_idx, offer in enumerate(row_offers):
-                    with cols[col_idx]:
-                        _render_accepted_offer_card(offer, client)
-
-        if not pending and not accepted:
-            st.info(
-                "아직 받은 오퍼가 없습니다. "
-                "공고에 지원하면 스튜디오에서 오퍼를 보냅니다."
-            )
-            if st.button("일 찾기로 돌아가기"):
-                st.session_state.page = "find_jobs"
-                st.rerun()
-
-        # Processed offer history (expander)
-        if others:
-            with st.expander(f"처리된 오퍼 내역 ({len(others)})"):
-                status_map = {
-                    "accepted": "수락됨",
-                    "rejected": "거절됨",
-                    "expired": "만료됨",
-                    "cancelled": "취소됨",
-                }
+        with tab_pending:
+            if pending:
                 COLS = 2
-                for row_start in range(0, len(others), COLS):
-                    row_offers = others[row_start : row_start + COLS]
+                for row_start in range(0, len(pending), COLS):
+                    row_offers = pending[row_start : row_start + COLS]
                     cols = st.columns(COLS)
                     for col_idx, offer in enumerate(row_offers):
                         with cols[col_idx]:
-                            status_label = status_map.get(
-                                offer["status"], offer["status"].upper()
-                            )
-                            st.markdown(
-                                f"**{status_label}** - "
-                                f"₩{int(float(offer['proposed_rate'])):,}/시간"
-                            )
-                            if offer["id"] in existing_contract_offer_ids:
-                                st.caption("계약 생성됨 (계약 내역에서 확인)")
-                            if offer.get("message"):
-                                st.caption(offer["message"][:50])
-                            st.markdown("---")
+                            _render_pending_offer_card(offer, client)
+            else:
+                st.info(
+                    "아직 받은 오퍼가 없습니다. "
+                    "공고에 지원하면 스튜디오에서 오퍼를 보냅니다."
+                )
+                if st.button("일 찾기로 돌아가기"):
+                    st.session_state.page = "find_jobs"
+                    st.rerun()
+
+        with tab_accepted:
+            if accepted:
+                COLS = 2
+                for row_start in range(0, len(accepted), COLS):
+                    row_offers = accepted[row_start : row_start + COLS]
+                    cols = st.columns(COLS)
+                    for col_idx, offer in enumerate(row_offers):
+                        with cols[col_idx]:
+                            _render_accepted_offer_card(offer, client)
+            else:
+                st.caption("수락된 오퍼가 없습니다.")
+
+        with tab_history:
+            if others:
+                _render_offer_history_table(others, existing_contract_offer_ids)
+            else:
+                st.caption("처리된 오퍼 내역이 없습니다.")
 
     except APIError as e:
         st.error(f"오퍼 로드 실패: {e.message}")
@@ -102,14 +88,10 @@ def render_offers_step():
 def _render_pending_offer_card(offer: dict, client) -> None:
     """Render a single pending offer card with accept/reject buttons."""
     st.markdown(f"**제안 시급: ₩{int(float(offer['proposed_rate'])):,}**")
-    if offer.get("message"):
-        msg = offer["message"]
-        st.caption(msg[:60] + "..." if len(msg) > 60 else msg)
 
-    # Full message expander
-    if offer.get("message") and len(offer["message"]) > 60:
-        with st.expander("전체 메시지 보기"):
-            st.write(offer["message"])
+    # Show full message directly (no expander)
+    if offer.get("message"):
+        st.caption(offer["message"])
 
     # Accept / Reject buttons
     btn_col1, btn_col2 = st.columns(2)
@@ -164,8 +146,39 @@ def _render_accepted_offer_card(offer: dict, client) -> None:
     st.markdown("---")
 
 
+def _render_offer_history_table(others: list, existing_contract_offer_ids: set) -> None:
+    """Render processed offers as a dataframe table."""
+    status_map = {
+        "accepted": "수락됨",
+        "rejected": "거절됨",
+        "expired": "만료됨",
+        "cancelled": "취소됨",
+    }
+
+    table_data = []
+    for offer in others:
+        status_label = status_map.get(offer["status"], offer["status"].upper())
+        has_contract = "✅" if offer["id"] in existing_contract_offer_ids else "-"
+        msg = (offer.get("message") or "-")[:50]
+        table_data.append({
+            "상태": status_label,
+            "시급": f"₩{int(float(offer['proposed_rate'])):,}",
+            "계약": has_contract,
+            "메시지": msg,
+        })
+
+    st.dataframe(
+        pd.DataFrame(table_data),
+        hide_index=True,
+        use_container_width=True,
+        height=min(400, 50 + len(table_data) * 35),
+    )
+
+
 def render_applicants_step():
-    """Render the applicant selection UI for studios."""
+    """Render the applicant selection UI for studios.
+    Uses Master-Detail pattern: selectbox for job → applicant cards.
+    """
     st.header("3단계: 지원자 선택")
 
     client = get_client()
@@ -186,8 +199,8 @@ def render_applicants_step():
                 st.rerun()
             return
 
-        st.subheader("내 공고")
-
+        # Master: selectbox to pick a job
+        job_options = []
         for job in jobs:
             app_count = job.get("application_count", 0)
             type_label = {
@@ -196,55 +209,91 @@ def render_applicants_step():
                 "contract": "계약",
             }.get(job.get("job_type", ""), job.get("job_type", ""))
 
-            # FB-1: Mark past jobs
             job_is_past = False
             try:
                 job_is_past = date_today.fromisoformat(str(job.get("date", ""))) < date_today.today()
             except (ValueError, TypeError):
                 pass
             past_label = " [지난공고]" if job_is_past else ""
-            with st.expander(
-                f"**{job['title']}**{past_label} | {job['date']} | 지원자 {app_count}명",
-                expanded=(app_count > 0 and not job_is_past),
-            ):
-                # Job summary info (1 line)
-                st.caption(
-                    f"유형: {type_label} | "
-                    f"시급: ₩{int(float(job['hourly_rate'])):,} | "
-                    f"지역: {job.get('region', '-')}"
-                )
+            label = f"{job['title']}{past_label} | {job['date']} | 지원자 {app_count}명"
+            job_options.append(label)
 
-                try:
-                    with st.spinner("지원자를 불러오는 중..."):
-                        result = client.get_job_post_applications(job["id"])
-                    applications = result.get("items", [])
+        selected_idx = st.selectbox(
+            "내 공고 선택",
+            range(len(jobs)),
+            format_func=lambda i: job_options[i],
+        )
+        selected_job = jobs[selected_idx]
 
-                    if not applications:
-                        st.caption("아직 지원자가 없습니다.")
-                    else:
-                        # 2-column applicant cards
-                        COLS = 2
-                        for row_start in range(0, len(applications), COLS):
-                            row_apps = applications[row_start : row_start + COLS]
-                            cols = st.columns(COLS)
+        # Detail: show applicants for selected job
+        st.markdown("---")
+        type_label = {
+            "substitute": "대타",
+            "regular": "정규",
+            "contract": "계약",
+        }.get(selected_job.get("job_type", ""), selected_job.get("job_type", ""))
+        st.caption(
+            f"유형: {type_label} | "
+            f"시급: ₩{int(float(selected_job['hourly_rate'])):,} | "
+            f"지역: {selected_job.get('region', '-')}"
+        )
 
-                            for col_idx, app in enumerate(row_apps):
-                                with cols[col_idx]:
-                                    _render_applicant_card(app)
+        try:
+            with st.spinner("지원자를 불러오는 중..."):
+                result = client.get_job_post_applications(selected_job["id"])
+            applications = result.get("items", [])
 
-                except APIError as e:
-                    st.caption(f"지원자 정보를 불러올 수 없습니다: {e.message}")
+            if not applications:
+                st.info("아직 지원자가 없습니다.")
+            else:
+                st.subheader(f"지원자 ({len(applications)}명)")
+                # 2-column applicant cards
+                COLS = 2
+                for row_start in range(0, len(applications), COLS):
+                    row_apps = applications[row_start : row_start + COLS]
+                    cols = st.columns(COLS)
+                    for col_idx, app in enumerate(row_apps):
+                        with cols[col_idx]:
+                            _render_applicant_card(app, client)
 
-        # FB-3: Process offer send if triggered
-        if st.session_state.get("_offer_send"):
-            _process_offer_send(client)
+        except APIError as e:
+            st.error(f"지원자 정보를 불러올 수 없습니다: {e.message}")
 
     except APIError as e:
         st.error(f"로드 실패: {e.message}")
 
 
-def _render_applicant_card(app: dict) -> None:
-    """Render a single applicant card."""
+@st.dialog("오퍼 보내기")
+def _send_offer_dialog(app_id: str, instructor_name: str, client):
+    """Dialog modal for sending an offer to an applicant."""
+    st.markdown(f"**{instructor_name}** 강사에게 오퍼를 보냅니다.")
+    proposed_rate = st.number_input(
+        "제안 시급 (원)",
+        min_value=0,
+        step=5000,
+        value=50000,
+    )
+    message = st.text_area(
+        "메시지 (선택)",
+        placeholder="근무 조건을 자유롭게 작성하세요.",
+        height=80,
+    )
+    if st.button("오퍼 전송", type="primary", use_container_width=True):
+        try:
+            with st.spinner("오퍼를 전송하는 중..."):
+                client.create_offer({
+                    "application_id": app_id,
+                    "proposed_rate": proposed_rate,
+                    "message": message,
+                })
+            st.success(f"{instructor_name} 강사에게 오퍼를 전송했습니다!")
+            st.rerun()
+        except APIError as e:
+            st.error(f"오류: {e.message}")
+
+
+def _render_applicant_card(app: dict, client) -> None:
+    """Render a single applicant card with offer dialog trigger."""
     instructor_name = app.get("instructor_name", "강사")
     exp_years = app.get("instructor_experience_years", 0)
     rating = app.get("instructor_rating")
@@ -254,12 +303,9 @@ def _render_applicant_card(app: dict) -> None:
     if rating:
         st.caption(f"평점: {rating:.1f} / 5.0")
 
+    # Show full cover letter (no expander)
     if app.get("cover_letter"):
-        cl = app["cover_letter"]
-        st.caption(cl[:50] + "..." if len(cl) > 50 else cl)
-        if len(cl) > 50:
-            with st.expander("전체 보기"):
-                st.write(cl)
+        st.caption(app["cover_letter"])
 
     # Offer status display
     if app.get("has_offer"):
@@ -276,65 +322,14 @@ def _render_applicant_card(app: dict) -> None:
         }
         st.caption(status_labels.get(app["status"], app["status"]))
 
-    # Send offer button - inline expander (FB-3: no scroll needed)
+    # Send offer button → opens dialog modal
     if app["status"] == "pending" and not app.get("has_offer"):
-        offer_key = f"offer_open_{app['id']}"
-        if st.session_state.get(offer_key):
-            st.markdown(f"**오퍼 작성 - {instructor_name}**")
-            proposed_rate = st.number_input(
-                "제안 시급 (원)",
-                min_value=0,
-                step=5000,
-                value=50000,
-                key=f"rate_{app['id']}",
-            )
-            message = st.text_area(
-                "메시지 (선택)",
-                placeholder="근무 조건을 자유롭게 작성하세요.",
-                height=80,
-                key=f"msg_{app['id']}",
-            )
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("오퍼 전송", type="primary", use_container_width=True, key=f"send_{app['id']}"):
-                    st.session_state._offer_send = {
-                        "app_id": app["id"],
-                        "rate": proposed_rate,
-                        "message": message,
-                        "name": instructor_name,
-                        "key": offer_key,
-                    }
-            with c2:
-                if st.button("취소", use_container_width=True, key=f"cancel_offer_{app['id']}"):
-                    st.session_state[offer_key] = False
-                    st.rerun()
-        else:
-            if st.button(
-                "오퍼 보내기",
-                key=f"offer_{app['id']}",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.session_state[offer_key] = True
-                st.rerun()
+        if st.button(
+            "오퍼 보내기",
+            key=f"offer_{app['id']}",
+            type="primary",
+            use_container_width=True,
+        ):
+            _send_offer_dialog(app["id"], instructor_name, client)
 
     st.markdown("---")
-
-
-def _process_offer_send(client) -> None:
-    """Process the offer send action from inline expander form."""
-    data = st.session_state.pop("_offer_send")
-    try:
-        with st.spinner("오퍼를 전송하는 중..."):
-            client.create_offer(
-                {
-                    "application_id": data["app_id"],
-                    "proposed_rate": data["rate"],
-                    "message": data["message"],
-                }
-            )
-        st.success(f"{data['name']} 강사에게 오퍼를 전송했습니다!")
-        st.session_state[data["key"]] = False
-        st.rerun()
-    except APIError as e:
-        st.error(f"오류: {e.message}")

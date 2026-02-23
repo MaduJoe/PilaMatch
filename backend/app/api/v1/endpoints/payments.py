@@ -148,7 +148,9 @@ async def payment_success_redirect(
 
 
 @router.get("/payments/fail")
+@limiter.limit("5/minute")
 async def payment_fail_redirect(
+    request: Request,
     code: str = "",
     message: str = "",
     orderId: str = "",

@@ -22,6 +22,9 @@ class Contract(Base, UUIDMixin, TimestampMixin):
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
 
+    # SHA-256 hash of contract content at signing time (non-repudiation)
+    content_hash = Column(String(64))
+
     # Signature tracking - both parties must sign before IN_PROGRESS
     instructor_signed_at = Column(DateTime)
     studio_signed_at = Column(DateTime)

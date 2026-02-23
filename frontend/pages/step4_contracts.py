@@ -1,5 +1,6 @@
 """
 Step 4: Contract management - signing, progress tracking, completion
+Uses @st.dialog modals for signing, cancellation, and no-show reporting.
 """
 
 from datetime import datetime, date
@@ -126,8 +127,81 @@ def _render_contract_card(contract: dict, user: dict, client) -> None:
         _render_signing_section(contract, role, client)
     elif status == "in_progress":
         _render_in_progress_section(contract, user, client)
+        # Studio: show payment section during in_progress too
+        if role == "studio":
+            st.markdown("---")
+            _render_contract_payment_section(contract, client)
     elif status == "pending_completion":
         _render_pending_completion_section(contract, role, client)
+        # Studio: show payment section during pending_completion too
+        if role == "studio":
+            st.markdown("---")
+            _render_contract_payment_section(contract, client)
+
+
+@st.dialog("계약 서명")
+def _sign_contract_dialog(contract_id: str, other_signed: bool, other_party: str, client):
+    """Dialog modal for contract signing with terms agreement."""
+    st.markdown(CONTRACT_TERMS)
+    agree = st.checkbox("위 약속 사항에 동의합니다")
+    if agree:
+        btn_text = "서명하고 계약 시작하기" if other_signed else "서명하기"
+        if st.button(btn_text, type="primary", use_container_width=True):
+            try:
+                with st.spinner("서명을 처리하는 중..."):
+                    client.set_contract_in_progress(contract_id)
+                if other_signed:
+                    st.success("계약이 체결되었습니다! 수업을 진행해주세요.")
+                    st.balloons()
+                else:
+                    st.success(f"서명 완료. {other_party}의 서명을 기다리고 있습니다.")
+                st.rerun()
+            except APIError as e:
+                if "Already signed" in str(e):
+                    st.warning("이미 서명하셨습니다.")
+                else:
+                    st.error(f"오류: {e.message}")
+
+
+@st.dialog("계약 취소")
+def _cancel_contract_dialog(contract_id: str, client):
+    """Dialog modal for contract cancellation with reason input."""
+    st.warning("계약을 취소하시겠습니까?")
+    st.caption("약관에 따라 페널티가 적용될 수 있습니다.")
+    reason = st.text_input("취소 사유")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("취소 확정", type="primary", use_container_width=True):
+            try:
+                with st.spinner("취소를 처리하는 중..."):
+                    client.cancel_contract(contract_id, reason or "취소")
+                st.warning("취소 처리되었습니다.")
+                st.rerun()
+            except APIError as e:
+                st.error(f"오류: {e.message}")
+    with c2:
+        if st.button("돌아가기", use_container_width=True):
+            st.rerun()
+
+
+@st.dialog("불참 신고")
+def _noshow_report_dialog(contract_id: str, reported_id: str, report_msg: str, client):
+    """Dialog modal for no-show reporting."""
+    st.warning(report_msg)
+    st.caption("노쇼 신고 시 24시간 내 이의제기가 없으면 패널티가 적용됩니다.")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("노쇼 신고", type="primary", use_container_width=True):
+            try:
+                with st.spinner("신고를 접수하는 중..."):
+                    client.report_no_show(contract_id, reported_id)
+                st.warning("신고가 접수되었습니다. 상대방에게 24시간 이의제기 기간이 부여됩니다.")
+                st.rerun()
+            except APIError as e:
+                st.error(f"오류: {e.message}")
+    with c2:
+        if st.button("돌아가기", use_container_width=True):
+            st.rerun()
 
 
 def _render_signing_section(contract: dict, role: str, client) -> None:
@@ -174,43 +248,14 @@ def _render_signing_section(contract: dict, role: str, client) -> None:
     else:
         if other_signed:
             st.info(f"{other_party}가 서명했습니다. 서명을 완료해주세요.")
-        with st.expander("약관 확인 후 서명"):
-            st.markdown(CONTRACT_TERMS)
-            agree = st.checkbox(
-                "위 약속 사항에 동의합니다",
-                key=f"agree_{contract['id']}",
-            )
-            if agree:
-                btn_text = (
-                    "서명하고 계약 시작하기" if other_signed else "서명하기"
-                )
-                if st.button(
-                    btn_text,
-                    key=f"sign_{contract['id']}",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    try:
-                        with st.spinner("서명을 처리하는 중..."):
-                            client.set_contract_in_progress(contract["id"])
-                        if other_signed:
-                            st.success("계약이 체결되었습니다! 수업을 진행해주세요.")
-                            st.balloons()
-                        else:
-                            st.success(
-                                f"서명 완료. {other_party}의 서명을 기다리고 있습니다."
-                            )
-                        st.rerun()
-                    except APIError as e:
-                        if "Already signed" in str(e):
-                            st.warning("이미 서명하셨습니다.")
-                        else:
-                            st.error(f"오류: {e.message}")
-
-    # Contract payment section (studio only, confirmed contracts)
-    if role == "studio":
-        st.markdown("---")
-        _render_contract_payment_section(contract, client)
+        # "서명하기" button opens modal dialog
+        if st.button(
+            "서명하기",
+            key=f"sign_{contract['id']}",
+            type="primary",
+            use_container_width=True,
+        ):
+            _sign_contract_dialog(contract["id"], other_signed, other_party, client)
 
 
 def _render_contract_payment_section(contract: dict, client) -> None:
@@ -221,9 +266,24 @@ def _render_contract_payment_section(contract: dict, client) -> None:
     st.caption(f"계약금 ₩{int(total_amount):,} + 플랫폼 수수료 5%를 결제해주세요.")
 
     payment_key = f"contract_payment_{contract_id}"
+    auto_pay = st.session_state.pop(f"auto_pay_{contract_id}", False)
 
     # Check if payment order already initialized
     if payment_key not in st.session_state:
+        # Auto-initialize payment if triggered by "수업 완료" button
+        if auto_pay:
+            try:
+                with st.spinner("결제를 준비하는 중..."):
+                    result = client.initialize_payment(contract_id)
+                st.session_state[payment_key] = {
+                    "order_id": result["order_id"],
+                    "amount": int(float(result["amount"])),
+                    "order_name": result.get("order_name", f"계약 {contract_id[:8]}"),
+                }
+                st.rerun()
+            except APIError as e:
+                st.error(f"결제 준비 실패: {e.message}")
+
         if st.button(
             "계약금 결제하기",
             key=f"init_pay_{contract_id}",
@@ -313,6 +373,7 @@ def _render_in_progress_section(contract: dict, user: dict, client) -> None:
 
     st.markdown("---")
 
+    role = user.get("role")
     action_col1, action_col2, action_col3 = st.columns(3)
     with action_col1:
         if st.button(
@@ -325,8 +386,15 @@ def _render_in_progress_section(contract: dict, user: dict, client) -> None:
                 with st.spinner("완료를 처리하는 중..."):
                     client.complete_contract(contract["id"])
                 st.success("완료 확인! 상대방도 확인하면 정산이 진행됩니다.")
-                st.session_state.page = "complete"
-                st.rerun()
+                if role == "studio":
+                    # Studio: auto-initialize payment after completion
+                    st.session_state[f"auto_pay_{contract['id']}"] = True
+                    st.rerun()
+                else:
+                    # Instructor: go to review tab
+                    st.session_state.page = "complete"
+                    st.session_state["complete_tab"] = "review"
+                    st.rerun()
             except APIError as e:
                 st.error(f"오류: {e.message}")
 
@@ -336,75 +404,23 @@ def _render_in_progress_section(contract: dict, user: dict, client) -> None:
             key=f"cancel_btn_{contract['id']}",
             use_container_width=True,
         ):
-            st.session_state[f"show_cancel_{contract['id']}"] = True
+            _cancel_contract_dialog(contract["id"], client)
 
     with action_col3:
+        # Determine reported party
+        if user.get("role") == "studio":
+            reported_id = contract.get("instructor_id", "")
+            report_msg = "강사가 수업에 불참했나요?"
+        else:
+            reported_id = contract.get("studio_id", "")
+            report_msg = "스튜디오에서 수업을 진행하지 않았나요?"
+
         if st.button(
             "불참 신고",
             key=f"noshow_btn_{contract['id']}",
             use_container_width=True,
         ):
-            st.session_state[f"show_noshow_{contract['id']}"] = True
-
-    # Cancel form (expander)
-    if st.session_state.get(f"show_cancel_{contract['id']}"):
-        with st.expander("취소 사유 입력", expanded=True):
-            with st.form(key=f"cancel_form_{contract['id']}"):
-                reason = st.text_input("취소 사유")
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.form_submit_button("취소 확정", use_container_width=True):
-                        try:
-                            with st.spinner("취소를 처리하는 중..."):
-                                client.cancel_contract(contract["id"], reason or "취소")
-                            st.warning(
-                                "취소 처리되었습니다. "
-                                "약관에 따라 페널티가 적용될 수 있습니다."
-                            )
-                            st.session_state[f"show_cancel_{contract['id']}"] = False
-                            st.rerun()
-                        except APIError as e:
-                            st.error(f"오류: {e.message}")
-                with c2:
-                    if st.form_submit_button("돌아가기", use_container_width=True):
-                        st.session_state[f"show_cancel_{contract['id']}"] = False
-
-    # No-show report form (expander)
-    if st.session_state.get(f"show_noshow_{contract['id']}"):
-        with st.expander("노쇼 신고", expanded=True):
-            with st.form(key=f"noshow_form_{contract['id']}"):
-                user = st.session_state.user
-                if user.get("role") == "studio":
-                    reported_id = contract.get("instructor_id", "")
-                    report_msg = "강사가 수업에 불참했나요?"
-                else:
-                    reported_id = contract.get("studio_id", "")
-                    report_msg = "스튜디오에서 수업을 진행하지 않았나요?"
-                st.warning(report_msg)
-                st.caption(
-                    "노쇼 신고 시 24시간 내 이의제기가 없으면 패널티가 적용됩니다."
-                )
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.form_submit_button(
-                        "노쇼 신고", type="primary", use_container_width=True
-                    ):
-                        try:
-                            with st.spinner("신고를 접수하는 중..."):
-                                client.report_no_show(contract["id"], reported_id)
-                            st.warning(
-                                "신고가 접수되었습니다. "
-                                "상대방에게 24시간 이의제기 기간이 부여됩니다."
-                            )
-                            st.session_state[f"show_noshow_{contract['id']}"] = False
-                            st.rerun()
-                        except APIError as e:
-                            st.error(f"오류: {e.message}")
-                with c2:
-                    if st.form_submit_button("돌아가기", use_container_width=True):
-                        st.session_state[f"show_noshow_{contract['id']}"] = False
-
-
+            _noshow_report_dialog(contract["id"], reported_id, report_msg, client)
 
 
 def _render_pending_completion_section(
@@ -441,8 +457,14 @@ def _render_pending_completion_section(
                 with st.spinner("완료를 처리하는 중..."):
                     client.complete_contract(contract["id"])
                 st.success("완료 확인되었습니다! 상대방도 확인하면 정산이 진행됩니다.")
-                st.session_state.page = "complete"
-                st.rerun()
+                if role == "studio":
+                    # Studio: auto-initialize payment after completion
+                    st.session_state[f"auto_pay_{contract['id']}"] = True
+                    st.rerun()
+                else:
+                    st.session_state.page = "complete"
+                    st.session_state["complete_tab"] = "review"
+                    st.rerun()
             except APIError as e:
                 st.error(f"오류: {e.message}")
 
@@ -451,10 +473,6 @@ def _render_completed_contracts_table(contracts: list, user: dict) -> None:
     """Render completed/cancelled contracts as an interactive table."""
     if not contracts:
         return
-
-    # Show standard contract terms in a small expander
-    with st.expander("ℹ️ 표준 계약 약관 보기", expanded=False):
-        st.markdown(CONTRACT_TERMS)
 
     # Prepare data for the table
     table_data = []
@@ -466,10 +484,8 @@ def _render_completed_contracts_table(contracts: list, user: dict) -> None:
 
         # Get partner name based on user role
         if user.get("role") == "instructor":
-            # 강사가 보는 경우: 스튜디오 이름 표시
             partner_name = contract.get("studio_name") or "스튜디오"
         else:
-            # 스튜디오가 보는 경우: 강사 활동명 표시
             partner_name = contract.get("instructor_name") or "강사"
 
         # Format date and time
@@ -484,12 +500,10 @@ def _render_completed_contracts_table(contracts: list, user: dict) -> None:
                 start_dt = datetime.strptime(start_time, "%H:%M:%S")
                 end_dt = datetime.strptime(end_time, "%H:%M:%S")
                 duration_hours = (end_dt - start_dt).total_seconds() / 3600
-                # Format as HH:MM (duration시간)
                 start_formatted = start_dt.strftime("%H:%M")
                 duration_display = f"{duration_hours:.2f}".rstrip('0').rstrip('.')
                 class_time = f"{start_formatted} ({duration_display}시간)"
             except (ValueError, TypeError):
-                # Fallback to simple format if parsing fails
                 class_time = f"{start_time[:5] if len(start_time) > 5 else start_time}"
         else:
             class_time = "-"
@@ -517,7 +531,7 @@ def _render_completed_contracts_table(contracts: list, user: dict) -> None:
         pd.DataFrame(table_data),
         hide_index=True,
         use_container_width=True,
-        height=min(400, 50 + len(table_data) * 35),  # Dynamic height based on rows
+        height=min(400, 50 + len(table_data) * 35),
     )
 
     # Summary statistics

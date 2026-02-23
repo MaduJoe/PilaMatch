@@ -1,6 +1,8 @@
 from typing import Optional, List, Dict, Set, Tuple
 from uuid import UUID
 from datetime import datetime
+import hashlib
+import json
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -259,6 +261,22 @@ class ContractService:
 
         # Check if both parties have signed
         if contract.studio_signed_at and contract.instructor_signed_at:
+            # Both signed - compute SHA-256 hash for non-repudiation
+            contract_content = {
+                "id": str(contract.id),
+                "hourly_rate": str(contract.hourly_rate),
+                "total_amount": str(contract.total_amount),
+                "total_sessions": contract.total_sessions,
+                "date": contract.date.isoformat(),
+                "start_time": contract.start_time.isoformat(),
+                "end_time": contract.end_time.isoformat(),
+                "studio_id": str(contract.studio_id),
+                "instructor_id": str(contract.instructor_id),
+            }
+            contract.content_hash = hashlib.sha256(
+                json.dumps(contract_content, sort_keys=True).encode()
+            ).hexdigest()
+
             # Both signed - move to IN_PROGRESS
             from_status = contract.status
             contract.status = ContractStatus.IN_PROGRESS

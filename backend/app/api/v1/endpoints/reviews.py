@@ -47,6 +47,39 @@ async def get_my_review(
     db: AsyncSession = Depends(get_db),
 ):
     """Get current user's review for a specific contract."""
+    from sqlalchemy import select
+    from app.models import Contract, InstructorProfile, StudioProfile
+
+    # Verify current user is a party to the contract (IDOR protection)
+    contract = await db.execute(
+        select(Contract).where(Contract.id == contract_id)
+    )
+    contract = contract.scalar_one_or_none()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "Contract not found"},
+        )
+
+    # Check if user owns the studio or instructor profile on this contract
+    user_profile_ids = set()
+    for ProfileModel in (InstructorProfile, StudioProfile):
+        result = await db.execute(
+            select(ProfileModel.id).where(ProfileModel.user_id == current_user.id)
+        )
+        pid = result.scalar_one_or_none()
+        if pid:
+            user_profile_ids.add(str(pid))
+
+    if (
+        str(contract.studio_id) not in user_profile_ids
+        and str(contract.instructor_id) not in user_profile_ids
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "Not a party to this contract"},
+        )
+
     service = ReviewService(db)
     review = await service.get_user_review_for_contract(contract_id, current_user.id)
     if review:
@@ -195,9 +228,12 @@ async def get_received_reviews(
         review_list.append(review_dict)
 
     return {
-        "reviews": review_list,
+        "items": review_list,
+        "total": len(reviews),
         "average_rating": float(avg_rating) if avg_rating else 0,
-        "total_count": len(reviews)
+        # Legacy keys for Streamlit frontend
+        "reviews": review_list,
+        "total_count": len(reviews),
     }
 
 
@@ -262,6 +298,9 @@ async def get_written_reviews(
         review_list.append(review_dict)
 
     return {
+        "items": review_list,
+        "total": len(reviews),
+        # Legacy keys for Streamlit frontend
         "reviews": review_list,
-        "total_count": len(reviews)
+        "total_count": len(reviews),
     }

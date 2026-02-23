@@ -10,6 +10,95 @@ from utils.helpers import get_client
 from components import render_toss_payment_widget
 
 
+@st.dialog("프리미엄 멤버십 결제")
+def _premium_upgrade_dialog(client, user_role: str):
+    """Dialog modal for premium membership upgrade payment."""
+    st.info("월 9,900원으로 더 빠른 계약 성공을 경험하세요!")
+
+    # Show benefits summary based on role
+    if user_role == "instructor":
+        st.markdown(
+            "- 💰 수수료 40% 할인 (5% → 3%)\n"
+            "- 📈 매칭 점수 30% 부스트\n"
+            "- 🚀 무제한 일일 지원\n"
+            "- 🏆 프리미엄 배지 + Trust Score +10점"
+        )
+    elif user_role == "studio":
+        st.markdown(
+            "- 💰 수수료 40% 할인 (5% → 3%)\n"
+            "- 👀 무제한 강사 프로필 열람\n"
+            "- ⭐ 공고 우선 노출\n"
+            "- 🏆 프리미엄 배지 + Trust Score +10점"
+        )
+    else:
+        st.markdown(
+            "- 💰 수수료 40% 할인\n"
+            "- 🚀 모든 일일 제한 해제\n"
+            "- 🏆 프리미엄 배지 + Trust Score +10점"
+        )
+
+    st.markdown("---")
+
+    # Step 1: Initialize payment if not yet done
+    if "premium_order_data" not in st.session_state:
+        if st.button("결제 진행", type="primary", use_container_width=True):
+            try:
+                with st.spinner("결제를 준비하는 중..."):
+                    result = client.initialize_premium_upgrade()
+                st.session_state.premium_order_data = {
+                    "order_id": result["order_id"],
+                    "amount": int(float(result["amount"])),
+                    "client_key": result.get("client_key", ""),
+                    "subscription_id": result.get("subscription_id", ""),
+                }
+                st.rerun()
+            except APIError as e:
+                st.error(f"결제 준비 실패: {e.message}")
+    else:
+        # Step 2: Show payment widget
+        order_data = st.session_state.premium_order_data
+        order_id = order_data["order_id"]
+
+        # Check if mock payment was completed
+        completed = st.session_state.get(f"payment_completed_{order_id}")
+        if completed:
+            try:
+                with st.spinner("결제를 확인하는 중..."):
+                    client.confirm_subscription_payment(
+                        completed["payment_key"],
+                        completed["order_id"],
+                    )
+                st.success("프리미엄 회원이 되신 것을 축하합니다!")
+                # Clean up session state
+                st.session_state.pop("premium_order_data", None)
+                st.session_state.pop(f"payment_completed_{order_id}", None)
+                time.sleep(1)
+                st.rerun()
+            except APIError as e:
+                st.error(f"결제 확인 실패: {e.message}")
+                st.session_state.pop(f"payment_completed_{order_id}", None)
+
+        # Check if cancelled
+        elif st.session_state.get(f"payment_cancelled_{order_id}"):
+            st.session_state.pop("premium_order_data", None)
+            st.session_state.pop(f"payment_cancelled_{order_id}", None)
+            st.rerun()
+        else:
+            # Render payment widget
+            user = st.session_state.user
+            render_toss_payment_widget(
+                client_key=order_data["client_key"],
+                order_id=order_id,
+                order_name="StudioBridge 프리미엄 멤버십 (월)",
+                amount=order_data["amount"],
+                customer_key=str(user.get("id", "guest")),
+                payment_type="subscription",
+            )
+            if st.button("결제 취소", key="cancel_premium_pay"):
+                st.session_state.pop("premium_order_data", None)
+                st.rerun()
+
+
 def render_profile_step():
     """Render the profile completion step for instructors and studios."""
     st.header("1단계: 프로필 완성")
@@ -178,9 +267,6 @@ def _render_instructor_profile_form(client):
                 # Update user display name in session
                 if "user" in st.session_state and st.session_state.user:
                     st.session_state.user["display_name"] = display_name
-                time.sleep(1)
-                # Auto-navigate to next step (find jobs)
-                st.session_state.page = "find_jobs"
                 st.rerun()
             except APIError as e:
                 st.session_state["profile_save_error"] = e.message
@@ -227,9 +313,6 @@ def _render_studio_profile_form(client):
                 # Update studio business name in session
                 if "user" in st.session_state and st.session_state.user:
                     st.session_state.user["business_name"] = business_name
-                time.sleep(1)
-                # Auto-navigate to next step (create job)
-                st.session_state.page = "create_job"
                 st.rerun()
             except APIError as e:
                 st.session_state["profile_save_error"] = e.message
@@ -394,81 +477,11 @@ def _render_membership_section(client):
                     type="primary",
                     use_container_width=True,
                 ):
-                    st.session_state.show_upgrade_modal = True
+                    _premium_upgrade_dialog(client, user_role)
 
-            # Upgrade modal
-            if st.session_state.get("show_upgrade_modal"):
-                with st.container():
-                    st.markdown("### 프리미엄 멤버십 결제")
-                    st.info("월 9,900원으로 더 빠른 계약 성공을 경험하세요!")
-
-                    # Step 1: Initialize payment if not yet done
-                    if "premium_order_data" not in st.session_state:
-                        col_pay1, col_pay2 = st.columns(2)
-                        with col_pay1:
-                            if st.button("결제 진행", type="primary", use_container_width=True):
-                                try:
-                                    with st.spinner("결제를 준비하는 중..."):
-                                        result = client.initialize_premium_upgrade()
-                                    st.session_state.premium_order_data = {
-                                        "order_id": result["order_id"],
-                                        "amount": int(float(result["amount"])),
-                                        "client_key": result.get("client_key", ""),
-                                        "subscription_id": result.get("subscription_id", ""),
-                                    }
-                                    st.rerun()
-                                except APIError as e:
-                                    st.error(f"결제 준비 실패: {e.message}")
-                        with col_pay2:
-                            if st.button("취소", type="secondary", use_container_width=True):
-                                st.session_state.pop("show_upgrade_modal", None)
-                                st.rerun()
-                    else:
-                        # Step 2: Show payment widget
-                        order_data = st.session_state.premium_order_data
-                        order_id = order_data["order_id"]
-
-                        # Check if mock payment was completed
-                        completed = st.session_state.get(f"payment_completed_{order_id}")
-                        if completed:
-                            try:
-                                with st.spinner("결제를 확인하는 중..."):
-                                    client.confirm_subscription_payment(
-                                        completed["payment_key"],
-                                        completed["order_id"],
-                                    )
-                                st.success("프리미엄 회원이 되신 것을 축하합니다!")
-                                # Clean up session state
-                                st.session_state.pop("premium_order_data", None)
-                                st.session_state.pop("show_upgrade_modal", None)
-                                st.session_state.pop(f"payment_completed_{order_id}", None)
-                                time.sleep(1)
-                                st.rerun()
-                            except APIError as e:
-                                st.error(f"결제 확인 실패: {e.message}")
-                                st.session_state.pop(f"payment_completed_{order_id}", None)
-
-                        # Check if cancelled
-                        elif st.session_state.get(f"payment_cancelled_{order_id}"):
-                            st.session_state.pop("premium_order_data", None)
-                            st.session_state.pop("show_upgrade_modal", None)
-                            st.session_state.pop(f"payment_cancelled_{order_id}", None)
-                            st.rerun()
-                        else:
-                            # Render payment widget
-                            user = st.session_state.user
-                            render_toss_payment_widget(
-                                client_key=order_data["client_key"],
-                                order_id=order_id,
-                                order_name="StudioBridge 프리미엄 멤버십 (월)",
-                                amount=order_data["amount"],
-                                customer_key=str(user.get("id", "guest")),
-                                payment_type="subscription",
-                            )
-                            if st.button("결제 취소", key="cancel_premium_pay"):
-                                st.session_state.pop("premium_order_data", None)
-                                st.session_state.pop("show_upgrade_modal", None)
-                                st.rerun()
+            # Auto-open dialog when redirected from other pages (e.g. application limit)
+            if st.session_state.pop("show_upgrade_modal", False):
+                _premium_upgrade_dialog(client, user_role)
     except APIError:
         st.warning("멤버십 정보를 불러올 수 없습니다")
 

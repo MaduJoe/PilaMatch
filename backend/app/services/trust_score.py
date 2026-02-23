@@ -134,7 +134,7 @@ async def calculate_trust_score(
             )
             profile = result.scalar_one_or_none()
             if profile:
-                completeness = await calculate_instructor_completeness(profile)
+                completeness = await calculate_instructor_completeness(profile, user=user)
                 profile_score = int((completeness["percentage"] / 100) * 15)
                 if completeness["percentage"] < 100:
                     recommendations.append(f"프로필을 100% 완성하세요 (+{15 - profile_score}점)")
@@ -146,7 +146,7 @@ async def calculate_trust_score(
             )
             profile = result.scalar_one_or_none()
             if profile:
-                completeness = await calculate_studio_completeness(profile)
+                completeness = await calculate_studio_completeness(profile, user=user)
                 profile_score = int((completeness["percentage"] / 100) * 15)
                 if completeness["percentage"] < 100:
                     recommendations.append(f"프로필을 100% 완성하세요 (+{15 - profile_score}점)")
