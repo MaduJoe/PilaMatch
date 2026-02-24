@@ -218,7 +218,7 @@ export const applications = {
     post<ApplicationResponse>(`/applications/${id}/withdraw`),
 
   getForJobPost: (jobPostId: string) =>
-    get<ApplicationWithInstructorResponse[]>(`/job-posts/${jobPostId}/applications`),
+    get<{ items: ApplicationWithInstructorResponse[]; total: number }>(`/job-posts/${jobPostId}/applications`),
 };
 
 // --- Offers ----------------------------------------------

@@ -187,7 +187,7 @@ export function ApplicantList() {
             다시 시도
           </Button>
         </div>
-      ) : !applicationsQuery.data || applicationsQuery.data.length === 0 ? (
+      ) : !applicationsQuery.data?.items || applicationsQuery.data.items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-12">
           <p className="text-sm text-muted-foreground">아직 지원자가 없습니다.</p>
           <p className="text-xs text-muted-foreground">
@@ -197,10 +197,10 @@ export function ApplicantList() {
       ) : (
         <>
           <p className="text-sm font-medium">
-            지원자 ({applicationsQuery.data.length}명)
+            지원자 ({applicationsQuery.data.total}명)
           </p>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {applicationsQuery.data.map((app) => (
+            {applicationsQuery.data.items.map((app) => (
               <ApplicantCard
                 key={app.id}
                 application={app}

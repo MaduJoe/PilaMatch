@@ -121,89 +121,6 @@ async def list_job_posts(
     )
 
 
-@router.get("/{job_post_id}", response_model=JobPostResponse)
-async def get_job_post(
-    job_post_id: UUID,
-    db: AsyncSession = Depends(get_db),
-):
-    """Get a job post by ID."""
-    service = JobPostService(db)
-    job_post = await service.get_by_id(job_post_id)
-
-    if not job_post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
-        )
-
-    return JobPostResponse.model_validate(job_post)
-
-
-@router.put("/{job_post_id}", response_model=JobPostResponse)
-async def update_job_post(
-    job_post_id: UUID,
-    data: JobPostUpdate,
-    current_user: User = Depends(require_role(UserRole.STUDIO)),
-    db: AsyncSession = Depends(get_db),
-):
-    """Update a job post (owner studio only)."""
-    service = JobPostService(db)
-    studio_id = await service.get_studio_profile_id(current_user.id)
-
-    if not studio_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
-        )
-
-    try:
-        job_post = await service.update(job_post_id, studio_id, data)
-    except PermissionError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to update this job post"},
-        )
-
-    if not job_post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
-        )
-
-    return JobPostResponse.model_validate(job_post)
-
-
-@router.delete("/{job_post_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_job_post(
-    job_post_id: UUID,
-    current_user: User = Depends(require_role(UserRole.STUDIO)),
-    db: AsyncSession = Depends(get_db),
-):
-    """Delete a job post (owner studio only)."""
-    service = JobPostService(db)
-    studio_id = await service.get_studio_profile_id(current_user.id)
-
-    if not studio_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
-        )
-
-    try:
-        success = await service.delete(job_post_id, studio_id)
-    except PermissionError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to delete this job post"},
-        )
-
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
-        )
-
-
 @router.get("/for-me/with-matching", response_model=JobPostWithMatchingListResponse)
 async def list_job_posts_with_matching(
     category: Optional[Category] = None,
@@ -324,3 +241,86 @@ async def list_job_posts_with_matching(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/{job_post_id}", response_model=JobPostResponse)
+async def get_job_post(
+    job_post_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a job post by ID."""
+    service = JobPostService(db)
+    job_post = await service.get_by_id(job_post_id)
+
+    if not job_post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
+        )
+
+    return JobPostResponse.model_validate(job_post)
+
+
+@router.put("/{job_post_id}", response_model=JobPostResponse)
+async def update_job_post(
+    job_post_id: UUID,
+    data: JobPostUpdate,
+    current_user: User = Depends(require_role(UserRole.STUDIO)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a job post (owner studio only)."""
+    service = JobPostService(db)
+    studio_id = await service.get_studio_profile_id(current_user.id)
+
+    if not studio_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
+        )
+
+    try:
+        job_post = await service.update(job_post_id, studio_id, data)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to update this job post"},
+        )
+
+    if not job_post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
+        )
+
+    return JobPostResponse.model_validate(job_post)
+
+
+@router.delete("/{job_post_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_job_post(
+    job_post_id: UUID,
+    current_user: User = Depends(require_role(UserRole.STUDIO)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a job post (owner studio only)."""
+    service = JobPostService(db)
+    studio_id = await service.get_studio_profile_id(current_user.id)
+
+    if not studio_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
+        )
+
+    try:
+        success = await service.delete(job_post_id, studio_id)
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to delete this job post"},
+        )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
+        )
