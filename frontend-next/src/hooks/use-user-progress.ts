@@ -16,6 +16,12 @@ export function useUserProgress() {
     enabled: !!user,
   });
 
+  const { data: offers } = useQuery({
+    queryKey: ['offers', 'me'],
+    queryFn: () => api.offers.getMyOffers(),
+    enabled: !!user && (profileCompleteness?.percentage ?? 0) >= 70,
+  });
+
   const { data: contracts } = useQuery({
     queryKey: ['contracts', 'me'],
     queryFn: () => api.contracts.getMyContracts(),
@@ -23,7 +29,12 @@ export function useUserProgress() {
   });
 
   // Calculate current step based on progress
-  let currentStep = 0; // 0-indexed
+  // Step 0: Profile incomplete
+  // Step 1: Profile >= 70% -> find jobs / post jobs
+  // Step 2: Has offers (instructor) or profile complete (studio) -> offers / applicants
+  // Step 3: Has active contract -> contract in progress
+  // Step 4: Has completed contract -> complete / review
+  let currentStep = 0;
 
   if (profileCompleteness) {
     if (profileCompleteness.percentage >= 70) {
@@ -31,6 +42,22 @@ export function useUserProgress() {
     }
   }
 
+  // Step 2: Offers / Applicants
+  const offerItems = offers?.items ?? [];
+  if (currentStep >= 1) {
+    if (isInstructor) {
+      // Instructor: advance to Step 2 when they have received at least one offer
+      if (offerItems.length > 0) {
+        currentStep = 2;
+      }
+    } else {
+      // Studio: advance to Step 2 once profile is complete
+      // (they can check applicants as soon as they post a job)
+      currentStep = 2;
+    }
+  }
+
+  // Step 3-4: Contracts
   const contractItems = contracts?.items ?? [];
   if (contractItems.length > 0) {
     const hasActive = contractItems.some((c) =>
