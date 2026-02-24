@@ -123,7 +123,14 @@ async def request_phone_verification(
     user.phone = phone
     await db.commit()
 
-    # TODO: Send SMS via provider (NHN Cloud, AWS SNS, etc.)
+    # Send SMS
+    from app.services.sms import send_verification_sms
+    sms_sent = await send_verification_sms(phone, otp)
+    if not sms_sent:
+        # Clean up OTP if SMS failed
+        await _delete_otp(f"{user_id}:{phone}")
+        raise ValueError("SMS 발송에 실패했습니다. 잠시 후 다시 시도해주세요.")
+
     result = {
         "message": "Verification code sent",
         "expires_in": OTP_EXPIRY_MINUTES * 60,
@@ -202,12 +209,17 @@ async def verify_business(
     if not user:
         raise ValueError("User not found")
 
-    # TODO: In production, verify with 국세청 API
-    # For MVP, we'll do basic format validation and mark as pending
-    # Admin can manually verify
+    # Verify with 국세청 API (or dev checksum mock)
+    from app.services.nts_client import check_business_status
+    nts_result = await check_business_status(clean_number)
+
+    if not nts_result.is_operating:
+        raise ValueError(
+            f"사업자번호가 현재 '{nts_result.status_label}' 상태입니다. "
+            "영업 중인 사업자만 인증할 수 있습니다."
+        )
 
     user.business_number = clean_number
-    # For MVP demo, auto-verify if format is correct
     user.business_verified = True
     await db.commit()
 
@@ -215,6 +227,8 @@ async def verify_business(
         "verified": True,
         "message": "Business number verified",
         "business_number": f"{clean_number[:3]}-{clean_number[3:5]}-{clean_number[5:]}",
+        "business_status": nts_result.status_label,
+        "tax_type": nts_result.tax_type_label,
     }
 
 
