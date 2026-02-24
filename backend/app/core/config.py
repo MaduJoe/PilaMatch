@@ -34,6 +34,24 @@ class Settings(BaseSettings):
     TOSS_SECRET_KEY: Optional[str] = None
     TOSS_WEBHOOK_SECRET: Optional[str] = None
 
+    # SMS Provider (CoolSMS)
+    SMS_PROVIDER: str = "mock"              # mock | coolsms
+    SMS_API_KEY: Optional[str] = None
+    SMS_API_SECRET: Optional[str] = None
+    SMS_SENDER_NUMBER: Optional[str] = None
+
+    # 국세청 사업자등록정보 조회
+    NTS_SERVICE_KEY: Optional[str] = None
+    NTS_API_BASE_URL: str = "https://api.odcloud.kr/api/nts-businessman/v1"
+
+    # Subscription auto-renewal
+    CRON_SECRET: Optional[str] = None
+
+    # Bank transfer (무통장입금)
+    BANK_ACCOUNT_NUMBER: str = ""
+    BANK_ACCOUNT_HOLDER: str = ""
+    BANK_NAME: str = ""
+
     # CORS
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:8501",
