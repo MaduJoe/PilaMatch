@@ -6,7 +6,7 @@ import { StudioProfileForm } from '@/components/profile/studio-profile-form';
 import { VerificationSection } from '@/components/profile/verification-section';
 import { MembershipSection } from '@/components/profile/membership-section';
 import { TrustScoreDetail } from '@/components/profile/trust-score-detail';
-import { ProfileCompleteness } from '@/components/profile/profile-completeness';
+import { ProfileCompletenessHeader } from '@/components/profile/profile-completeness-header';
 
 export default function ProfilePage() {
   const { user } = useAuthStore();
@@ -14,21 +14,15 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">1단계: 프로필 완성</h2>
+      <ProfileCompletenessHeader />
 
-      {/* Score Row */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <ProfileCompleteness />
-        <TrustScoreDetail />
-      </div>
-
-      {/* Main Content */}
       <div className="grid gap-6 md:grid-cols-2">
-        <div>
+        <div className="space-y-6">
           {isInstructor ? <InstructorProfileForm /> : <StudioProfileForm />}
+          <VerificationSection />
         </div>
         <div className="space-y-6">
-          <VerificationSection />
+          <TrustScoreDetail />
           <MembershipSection />
         </div>
       </div>

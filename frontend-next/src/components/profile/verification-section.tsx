@@ -47,6 +47,8 @@ export function VerificationSection() {
       const me = await api.auth.me();
       setUser(me.user, me.profile_id ?? null);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
+      queryClient.invalidateQueries({ queryKey: ['profile', 'completeness'] });
     },
     onError: (error: Error) => {
       toast.error(error instanceof APIError ? error.message : '인증 실패');
@@ -60,6 +62,8 @@ export function VerificationSection() {
       const me = await api.auth.me();
       setUser(me.user, me.profile_id ?? null);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
+      queryClient.invalidateQueries({ queryKey: ['profile', 'completeness'] });
     },
     onError: (error: Error) => {
       toast.error(error instanceof APIError ? error.message : '사업자 인증 실패');

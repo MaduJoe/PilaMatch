@@ -63,6 +63,7 @@ export function InstructorProfileForm() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
       if (user) {
         setUser({ ...user, display_name: variables.display_name }, useAuthStore.getState().profileId);
       }
