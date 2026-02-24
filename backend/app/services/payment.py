@@ -56,8 +56,8 @@ class PaymentService:
         if not contract:
             raise ValueError("Contract not found")
 
-        if contract.status != ContractStatus.CONFIRMED:
-            raise ValueError("Contract must be in CONFIRMED status")
+        if contract.status not in (ContractStatus.CONFIRMED, ContractStatus.IN_PROGRESS):
+            raise ValueError("Contract must be in CONFIRMED or IN_PROGRESS status")
 
         # Check for existing payment
         existing = await self.db.execute(

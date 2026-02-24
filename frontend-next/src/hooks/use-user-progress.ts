@@ -17,13 +17,13 @@ export function useUserProgress() {
   });
 
   const { data: offers } = useQuery({
-    queryKey: ['offers', 'me'],
+    queryKey: ['my-offers'],
     queryFn: () => api.offers.getMyOffers(),
     enabled: !!user && (profileCompleteness?.percentage ?? 0) >= 70,
   });
 
   const { data: contracts } = useQuery({
-    queryKey: ['contracts', 'me'],
+    queryKey: ['my-contracts'],
     queryFn: () => api.contracts.getMyContracts(),
     enabled: !!user,
   });
