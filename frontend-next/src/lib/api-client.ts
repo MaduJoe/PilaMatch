@@ -27,6 +27,9 @@ import type {
   ReviewListResponse,
   SubscriptionStatusResponse,
   UpgradeInitializeResponse,
+  BillingKeyRegisterResponse,
+  BillingMethodResponse,
+  BankTransferUpgradeResponse,
   TrustScoreResponse,
   VerificationStatusResponse,
   ProfileCompletenessResponse,
@@ -308,6 +311,18 @@ export const subscriptions = {
 
   getHistory: () =>
     get<unknown[]>('/subscriptions/history'),
+
+  registerBillingKey: (data: { auth_key: string; customer_key: string }) =>
+    post<BillingKeyRegisterResponse>('/subscriptions/billing/register', data),
+
+  getBillingMethod: () =>
+    get<BillingMethodResponse>('/subscriptions/billing'),
+
+  removeBillingKey: () =>
+    del<void>('/subscriptions/billing'),
+
+  initBankTransfer: (data: { depositor_name: string }) =>
+    post<BankTransferUpgradeResponse>('/subscriptions/upgrade/bank-transfer', data),
 };
 
 // --- Trust Score -----------------------------------------

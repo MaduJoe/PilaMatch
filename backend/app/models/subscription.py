@@ -77,6 +77,9 @@ class Subscription(Base, UUIDMixin, TimestampMixin):
     # Payment method (for auto-renewal)
     toss_billing_key = Column(String(200), nullable=True)  # For recurring payments
     payment_method_type = Column(String(50), nullable=True)  # card, transfer, etc.
+    toss_customer_key = Column(String(200), nullable=True)  # TossPayments customer key for billing
+    card_last_four = Column(String(4), nullable=True)  # Last 4 digits of registered card
+    card_company = Column(String(50), nullable=True)  # Card issuer name (e.g. 삼성카드, 현대카드)
 
     # Relationships
     payments = relationship("SubscriptionPayment", back_populates="subscription", cascade="all, delete-orphan")
@@ -117,6 +120,11 @@ class SubscriptionPayment(Base, UUIDMixin, TimestampMixin):
 
     # Receipt
     receipt_url = Column(String(500), nullable=True)
+
+    # Payment type and bank transfer
+    payment_type = Column(String(20), default="initial")  # initial | renewal | bank_transfer
+    bank_transfer_confirmed_by = Column(GUID(), ForeignKey("users.id"), nullable=True)
+    bank_transfer_confirmed_at = Column(DateTime, nullable=True)
 
     # Indexes
     __table_args__ = (

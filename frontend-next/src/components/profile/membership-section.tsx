@@ -18,17 +18,30 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { PaymentMethodSelector } from '@/components/payment/payment-method-selector';
+import { BankTransferInfo } from '@/components/payment/bank-transfer-info';
 import { Crown, Star } from 'lucide-react';
 
 export function MembershipSection() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showBankTransfer, setShowBankTransfer] = useState(false);
   const [orderData, setOrderData] = useState<{
     order_id: string;
     amount: number;
     client_key: string;
     subscription_id: string;
+  } | null>(null);
+  const [bankTransferData, setBankTransferData] = useState<{
+    order_id: string;
+    amount: number;
+    bank_name: string;
+    account_number: string;
+    account_holder: string;
+    depositor_name: string;
+    expires_at: string;
   } | null>(null);
 
   const { data: subscription, isLoading } = useQuery({
@@ -58,6 +71,7 @@ export function MembershipSection() {
     onSuccess: () => {
       toast.success('구독이 취소되었습니다');
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
+      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
     },
     onError: (error: Error) => {
       toast.error(
@@ -75,10 +89,24 @@ export function MembershipSection() {
       setOrderData(null);
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
     },
     onError: (error: Error) => {
       toast.error(
         error instanceof APIError ? error.message : '결제 확인 실패',
+      );
+    },
+  });
+
+  const initBankTransfer = useMutation({
+    mutationFn: (depositorName: string) =>
+      api.subscriptions.initBankTransfer({ depositor_name: depositorName }),
+    onSuccess: (data) => {
+      setBankTransferData(data);
+    },
+    onError: (error: Error) => {
+      toast.error(
+        error instanceof APIError ? error.message : '무통장입금 초기화 실패',
       );
     },
   });
@@ -195,15 +223,19 @@ export function MembershipSection() {
             ))}
           </div>
 
-          {!orderData ? (
-            <Button
-              className="min-h-[44px] w-full"
-              onClick={() => initUpgrade.mutate()}
-              disabled={initUpgrade.isPending}
-            >
-              {initUpgrade.isPending ? '결제를 준비하는 중...' : '결제 진행'}
-            </Button>
-          ) : (
+          <PaymentMethodSelector
+            isLoading={initUpgrade.isPending}
+            onSelect={(method) => {
+              if (method === 'card') {
+                initUpgrade.mutate();
+              } else {
+                setShowUpgrade(false);
+                setShowBankTransfer(true);
+              }
+            }}
+          />
+
+          {orderData && (
             <div className="space-y-3">
               <div className="rounded-lg border bg-muted/50 p-4 text-center">
                 <p className="text-sm text-muted-foreground">결제 금액</p>
@@ -214,7 +246,6 @@ export function MembershipSection() {
                   주문번호: {orderData.order_id}
                 </p>
               </div>
-              {/* Mock Payment for development */}
               <div className="space-y-2">
                 <Button
                   className="min-h-[44px] w-full"
@@ -228,7 +259,7 @@ export function MembershipSection() {
                 >
                   {confirmPayment.isPending
                     ? '결제 확인 중...'
-                    : '결제 완료 (Mock)'}
+                    : '결제 완료'}
                 </Button>
                 <Button
                   variant="outline"
@@ -238,10 +269,58 @@ export function MembershipSection() {
                     setShowUpgrade(false);
                   }}
                 >
-                  결제 취소
+                  취소
                 </Button>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bank Transfer Dialog */}
+      <Dialog open={showBankTransfer} onOpenChange={setShowBankTransfer}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>무통장입금</DialogTitle>
+            <DialogDescription>
+              아래 계좌로 입금해주시면 관리자 확인 후 프리미엄이 활성화됩니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!bankTransferData ? (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">입금자명</label>
+                <Input
+                  placeholder="홍길동"
+                  id="depositor-name"
+                  aria-label="입금자명"
+                  className="min-h-[44px]"
+                />
+              </div>
+              <Button
+                className="min-h-[44px] w-full"
+                onClick={() => {
+                  const input = document.getElementById('depositor-name') as HTMLInputElement;
+                  if (input?.value) {
+                    initBankTransfer.mutate(input.value);
+                  }
+                }}
+                disabled={initBankTransfer.isPending}
+              >
+                {initBankTransfer.isPending ? '처리 중...' : '입금 안내 받기'}
+              </Button>
+            </div>
+          ) : (
+            <BankTransferInfo
+              bankName={bankTransferData.bank_name}
+              accountNumber={bankTransferData.account_number}
+              accountHolder={bankTransferData.account_holder}
+              amount={bankTransferData.amount}
+              depositorName={bankTransferData.depositor_name}
+              expiresAt={bankTransferData.expires_at}
+              orderId={bankTransferData.order_id}
+            />
           )}
         </DialogContent>
       </Dialog>

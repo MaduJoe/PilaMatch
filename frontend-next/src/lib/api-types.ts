@@ -417,6 +417,9 @@ export interface SubscriptionResponse {
   cancelled_at?: string | null;
   created_at: string;
   updated_at: string;
+  card_last_four?: string | null;
+  card_company?: string | null;
+  has_billing_key?: boolean;
 }
 
 export interface SubscriptionStatusResponse {
@@ -430,6 +433,31 @@ export interface UpgradeInitializeResponse {
   amount: number;
   subscription_id: string;
   client_key: string;
+  customer_key?: string | null;
+}
+
+export interface BillingKeyRegisterResponse {
+  success: boolean;
+  card_last_four?: string | null;
+  card_company?: string | null;
+  message: string;
+}
+
+export interface BillingMethodResponse {
+  has_billing_key: boolean;
+  card_last_four?: string | null;
+  card_company?: string | null;
+}
+
+export interface BankTransferUpgradeResponse {
+  order_id: string;
+  amount: number;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+  depositor_name: string;
+  expires_at: string;
+  message: string;
 }
 
 // ---------------------------------------------------------------------------

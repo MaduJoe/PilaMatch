@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import time
 
 import structlog
@@ -79,11 +81,40 @@ async def health_check(db: AsyncSession = Depends(get_db)):
     return checks
 
 
+_renewal_task = None
+
+
+async def _renewal_scheduler():
+    """Background task: check and process auto-renewals every hour."""
+    renewal_logger = logging.getLogger("renewal_scheduler")
+    while True:
+        await asyncio.sleep(3600)  # Check every hour
+        try:
+            from app.db.session import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                from app.services.subscription import SubscriptionService
+                service = SubscriptionService(db)
+                due = await service.check_renewals_due()
+                if due:
+                    renewal_logger.info(f"Processing {len(due)} subscription renewals")
+                    for sub in due:
+                        try:
+                            await service.process_auto_renewal(sub.id)
+                        except Exception as e:
+                            renewal_logger.error(f"Renewal failed for {sub.id}: {e}")
+        except Exception as e:
+            renewal_logger.error(f"Renewal scheduler error: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
+    global _renewal_task
     setup_logging()
+    _renewal_task = asyncio.create_task(_renewal_scheduler())
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    pass
+    global _renewal_task
+    if _renewal_task:
+        _renewal_task.cancel()

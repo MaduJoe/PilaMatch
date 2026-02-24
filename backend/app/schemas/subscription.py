@@ -28,14 +28,18 @@ class SubscriptionResponse(BaseModel):
     user_id: UUID4
     tier: str
     status: str
-    start_date: Optional[datetime]
-    end_date: Optional[datetime]
-    next_billing_date: Optional[datetime]
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    next_billing_date: Optional[datetime] = None
     monthly_amount: float
     auto_renew: bool
-    cancelled_at: Optional[datetime]
+    cancelled_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    # Billing info
+    card_last_four: Optional[str] = None
+    card_company: Optional[str] = None
+    has_billing_key: bool = False
 
     class Config:
         from_attributes = True
@@ -52,7 +56,7 @@ class SubscriptionStatusResponse(BaseModel):
 class UpgradeInitializeRequest(BaseModel):
     """Request to initialize premium upgrade."""
 
-    pass  # No parameters needed, uses current user
+    payment_method: str = "card"  # "billing" | "card" | "bank_transfer"
 
 
 class UpgradeInitializeResponse(BaseModel):
@@ -62,6 +66,7 @@ class UpgradeInitializeResponse(BaseModel):
     amount: float
     subscription_id: UUID4
     client_key: str  # TossPayments client key
+    customer_key: Optional[str] = None  # For billing key registration
 
 
 class PaymentConfirmRequest(BaseModel):
@@ -121,3 +126,58 @@ class SubscriptionWebhookRequest(BaseModel):
 
     event_type: str
     data: dict
+
+
+# --- Billing Key ---
+
+class BillingKeyRegisterRequest(BaseModel):
+    """Request to register a billing key from Toss auth."""
+
+    auth_key: str
+    customer_key: str
+
+
+class BillingKeyRegisterResponse(BaseModel):
+    """Response after billing key registration."""
+
+    success: bool
+    card_last_four: Optional[str] = None
+    card_company: Optional[str] = None
+    message: str
+
+
+class BillingMethodResponse(BaseModel):
+    """Registered billing method info."""
+
+    has_billing_key: bool
+    card_last_four: Optional[str] = None
+    card_company: Optional[str] = None
+
+
+# --- Bank Transfer ---
+
+class BankTransferUpgradeRequest(BaseModel):
+    """Request to initiate bank transfer upgrade."""
+
+    depositor_name: str
+
+
+class BankTransferUpgradeResponse(BaseModel):
+    """Response with bank transfer info."""
+
+    order_id: str
+    amount: float
+    bank_name: str
+    account_number: str
+    account_holder: str
+    depositor_name: str
+    expires_at: datetime
+    message: str
+
+
+# --- Renew All ---
+
+class RenewAllRequest(BaseModel):
+    """Request to trigger renewal (protected by CRON_SECRET)."""
+
+    cron_secret: str

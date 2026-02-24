@@ -21,6 +21,12 @@ from app.schemas.subscription import (
     SubscriptionHistoryItem,
     SubscriptionWebhookRequest,
     SubscriptionResponse,
+    BillingKeyRegisterRequest,
+    BillingKeyRegisterResponse,
+    BillingMethodResponse,
+    BankTransferUpgradeRequest,
+    BankTransferUpgradeResponse,
+    RenewAllRequest,
 )
 from app.services.subscription import SubscriptionService
 
@@ -37,24 +43,27 @@ async def get_my_subscription(
     service = SubscriptionService(db)
     subscription = await service.get_user_subscription(str(current_user.id))
 
+    sub_response = None
+    if subscription:
+        sub_response = SubscriptionResponse.model_validate(subscription)
+        sub_response.has_billing_key = bool(subscription.toss_billing_key)
+
     return SubscriptionStatusResponse(
         has_subscription=subscription is not None,
         membership_tier=current_user.membership_tier,
-        subscription=(
-            SubscriptionResponse.model_validate(subscription)
-            if subscription
-            else None
-        ),
+        subscription=sub_response,
     )
 
 
 @router.post("/upgrade", response_model=UpgradeInitializeResponse)
 async def initialize_premium_upgrade(
-    _: UpgradeInitializeRequest = UpgradeInitializeRequest(),
+    req: UpgradeInitializeRequest = UpgradeInitializeRequest(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Initialize premium subscription upgrade."""
+    import uuid as _uuid
+
     if current_user.membership_tier == "premium":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -72,11 +81,17 @@ async def initialize_premium_upgrade(
             subscription.id
         )
 
+        # Generate customer_key for billing registration
+        customer_key = None
+        if req.payment_method == "billing":
+            customer_key = f"cust_{_uuid.uuid4().hex[:16]}"
+
         return UpgradeInitializeResponse(
             order_id=order_id,
             amount=float(amount),
             subscription_id=subscription.id,
             client_key=settings.TOSS_CLIENT_KEY or "test_ck_mock",
+            customer_key=customer_key,
         )
     except ValueError as e:
         raise HTTPException(
@@ -229,3 +244,126 @@ async def handle_subscription_webhook(
         logger.error(f"Webhook processing failed: {e}")
         # Return success to prevent retries for malformed webhooks
         return {"success": True, "error": str(e)}
+
+
+# --- Billing Key Endpoints ---
+
+
+@router.post("/billing/register", response_model=BillingKeyRegisterResponse)
+async def register_billing_key(
+    request: BillingKeyRegisterRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Register billing key from Toss auth and optionally charge first month."""
+    service = SubscriptionService(db)
+
+    try:
+        result = await service.register_billing_key(
+            user_id=str(current_user.id),
+            auth_key=request.auth_key,
+            customer_key=request.customer_key,
+        )
+        return BillingKeyRegisterResponse(
+            success=True,
+            card_last_four=result["card_last_four"],
+            card_company=result["card_company"],
+            message="카드가 등록되고 첫 달 결제가 완료되었습니다.",
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "BILLING_ERROR", "message": str(e)},
+        )
+
+
+@router.get("/billing", response_model=BillingMethodResponse)
+async def get_billing_method(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get registered billing method info."""
+    service = SubscriptionService(db)
+    result = await service.get_billing_method(str(current_user.id))
+    return BillingMethodResponse(**result)
+
+
+@router.delete("/billing")
+async def remove_billing_key(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove billing key (disables auto-renewal)."""
+    service = SubscriptionService(db)
+    try:
+        await service.remove_billing_key(str(current_user.id))
+        return {"success": True, "message": "결제수단이 삭제되었습니다. 자동갱신이 해제됩니다."}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "BILLING_ERROR", "message": str(e)},
+        )
+
+
+# --- Bank Transfer Endpoints ---
+
+
+@router.post("/upgrade/bank-transfer", response_model=BankTransferUpgradeResponse)
+async def initialize_bank_transfer_upgrade(
+    request: BankTransferUpgradeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Initialize bank transfer for premium upgrade."""
+    if current_user.membership_tier == "premium":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "ALREADY_PREMIUM", "message": "이미 프리미엄 회원입니다"},
+        )
+
+    service = SubscriptionService(db)
+    try:
+        result = await service.initialize_bank_transfer(
+            user_id=str(current_user.id),
+            depositor_name=request.depositor_name,
+        )
+        return BankTransferUpgradeResponse(**result)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "BANK_TRANSFER_ERROR", "message": str(e)},
+        )
+
+
+# --- Auto-Renewal Endpoint ---
+
+
+@router.post("/renew-all")
+async def trigger_renewal(
+    request: RenewAllRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger auto-renewal for all due subscriptions (CRON_SECRET protected)."""
+    if not settings.CRON_SECRET or request.cron_secret != settings.CRON_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "Invalid cron secret"},
+        )
+
+    service = SubscriptionService(db)
+    due = await service.check_renewals_due()
+
+    results = {"processed": 0, "success": 0, "failed": 0}
+    for sub in due:
+        results["processed"] += 1
+        try:
+            payment = await service.process_auto_renewal(sub.id)
+            if payment:
+                results["success"] += 1
+            else:
+                results["failed"] += 1
+        except Exception as e:
+            logger.error(f"Renewal failed for {sub.id}: {e}")
+            results["failed"] += 1
+
+    return results
