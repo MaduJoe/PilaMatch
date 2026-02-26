@@ -8,6 +8,7 @@ import { useSignup } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Card,
   CardContent,
@@ -33,10 +34,21 @@ export default function SignupPage() {
     resolver: zodResolver(signupSchema),
     defaultValues: {
       role: 'instructor',
+      terms_agreed: false as unknown as true,
+      privacy_agreed: false as unknown as true,
     },
   });
 
   const role = watch('role');
+  const termsAgreed = watch('terms_agreed');
+  const privacyAgreed = watch('privacy_agreed');
+
+  const allAgreed = termsAgreed === true && privacyAgreed === true;
+
+  const handleAllAgree = (checked: boolean) => {
+    setValue('terms_agreed', checked as unknown as true, { shouldValidate: true });
+    setValue('privacy_agreed', checked as unknown as true, { shouldValidate: true });
+  };
 
   const onSubmit = (data: SignupFormData) => {
     signup.mutate(data);
@@ -125,12 +137,70 @@ export default function SignupPage() {
               )}
             </div>
           )}
+
+          {/* 약관 동의 */}
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="agree-all"
+                checked={allAgreed}
+                onCheckedChange={(checked) => handleAllAgree(checked === true)}
+              />
+              <Label htmlFor="agree-all" className="font-medium">
+                전체 동의
+              </Label>
+            </div>
+            <div className="ml-1 space-y-2 border-t pt-3">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="terms_agreed"
+                  checked={termsAgreed === true}
+                  onCheckedChange={(checked) =>
+                    setValue('terms_agreed', checked as unknown as true, { shouldValidate: true })
+                  }
+                />
+                <div>
+                  <Label htmlFor="terms_agreed" className="text-sm">
+                    [필수]{' '}
+                    <Link href="/terms" target="_blank" className="text-primary underline">
+                      이용약관
+                    </Link>
+                    에 동의합니다
+                  </Label>
+                  {errors.terms_agreed && (
+                    <p className="text-xs text-red-500">{errors.terms_agreed.message}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="privacy_agreed"
+                  checked={privacyAgreed === true}
+                  onCheckedChange={(checked) =>
+                    setValue('privacy_agreed', checked as unknown as true, { shouldValidate: true })
+                  }
+                />
+                <div>
+                  <Label htmlFor="privacy_agreed" className="text-sm">
+                    [필수]{' '}
+                    <Link href="/privacy" target="_blank" className="text-primary underline">
+                      개인정보 처리방침
+                    </Link>
+                    에 동의합니다
+                  </Label>
+                  {errors.privacy_agreed && (
+                    <p className="text-xs text-red-500">{errors.privacy_agreed.message}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button
             type="submit"
             className="w-full"
-            disabled={signup.isPending}
+            disabled={signup.isPending || !allAgreed}
           >
             {signup.isPending ? '가입 중...' : '회원가입'}
           </Button>
