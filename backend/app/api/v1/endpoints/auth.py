@@ -10,6 +10,7 @@ from app.models import User
 from app.schemas.auth import (
     SignupRequest, LoginRequest, TokenResponse, UserResponse, MeResponse, RefreshRequest,
     AccountDeletionRequest, AccountDeletionResponse,
+    ForgotPasswordRequest, ResetPasswordRequest,
 )
 from app.services.auth import AuthService
 
@@ -265,3 +266,103 @@ async def cancel_account_deletion(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "CANCEL_FAILED", "message": error_msg},
         )
+
+
+# In-memory rate limit tracking for password reset
+_password_reset_attempts: dict[str, list] = {}  # email -> [timestamps]
+
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+@limiter.limit("5/minute")
+async def forgot_password(
+    request: Request,
+    data: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Send password reset email.
+
+    Always returns 200 regardless of whether the email exists (prevents email enumeration).
+    Rate limited: 3 attempts per hour per email.
+    """
+    from datetime import datetime, timedelta
+    from app.core.security import create_password_reset_token
+    from app.services.email import EmailService
+
+    success_msg = {"message": "비밀번호 재설정 이메일이 발송되었습니다. 이메일을 확인해주세요."}
+
+    # Rate limit: 3 per hour per email
+    now = datetime.utcnow()
+    hour_ago = now - timedelta(hours=1)
+    attempts = _password_reset_attempts.get(data.email, [])
+    recent = [t for t in attempts if t > hour_ago]
+    if len(recent) >= 3:
+        return success_msg  # Silent rate limit, still 200
+
+    # Look up user
+    service = AuthService(db)
+    user = await service.get_user_by_email(data.email)
+
+    if not user or not user.is_active:
+        return success_msg  # Don't reveal user existence
+
+    # Generate reset token and send email
+    token = create_password_reset_token(str(user.id))
+    email_service = EmailService()
+    await email_service.send_password_reset(data.email, token)
+
+    # Track attempt
+    recent.append(now)
+    _password_reset_attempts[data.email] = recent
+
+    return success_msg
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(
+    data: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset password using the token from forgot-password email.
+
+    Token is single-use: blacklisted after successful reset.
+    All existing sessions are invalidated.
+    """
+    from app.core.security import decode_password_reset_token, get_password_hash
+    from sqlalchemy import select
+    from uuid import UUID
+
+    # Decode token
+    token_data = decode_password_reset_token(data.token)
+    if not token_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "INVALID_TOKEN", "message": "유효하지 않거나 만료된 토큰입니다"},
+        )
+
+    # Check if token was already used (via jti blacklist)
+    jti = token_data["jti"]
+    if is_token_blacklisted(f"reset:{jti}"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "TOKEN_USED", "message": "이미 사용된 토큰입니다"},
+        )
+
+    # Find user
+    user_id = token_data["sub"]
+    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "USER_NOT_FOUND", "message": "사용자를 찾을 수 없습니다"},
+        )
+
+    # Update password
+    user.hashed_password = get_password_hash(data.new_password)
+    await db.commit()
+
+    # Blacklist the reset token jti (single-use)
+    blacklist_token(f"reset:{jti}", expire_seconds=3600)
+
+    return {"message": "비밀번호가 성공적으로 변경되었습니다. 다시 로그인해주세요."}

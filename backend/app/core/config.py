@@ -52,6 +52,14 @@ class Settings(BaseSettings):
     BANK_ACCOUNT_HOLDER: str = ""
     BANK_NAME: str = ""
 
+    # Email
+    EMAIL_PROVIDER: str = "mock"  # mock / smtp / sendgrid
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    PASSWORD_RESET_EXPIRE_MINUTES: int = 60
+
     # CORS
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:8501",

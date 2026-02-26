@@ -55,3 +55,27 @@ def decode_refresh_token(token: str) -> Optional[str]:
         return payload.get("sub")
     except JWTError:
         return None
+
+
+def create_password_reset_token(user_id: str) -> str:
+    """Create a JWT token for password reset (1-hour expiry)."""
+    import uuid
+    expire = datetime.utcnow() + timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES)
+    to_encode = {
+        "exp": expire,
+        "sub": user_id,
+        "type": "password_reset",
+        "jti": uuid.uuid4().hex,
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> Optional[dict]:
+    """Decode password reset token. Returns {"sub": user_id, "jti": token_id} or None."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "password_reset":
+            return None
+        return {"sub": payload["sub"], "jti": payload.get("jti", "")}
+    except JWTError:
+        return None

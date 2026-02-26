@@ -70,3 +70,14 @@ class AccountDeletionRequest(BaseModel):
 class AccountDeletionResponse(BaseModel):
     message: str
     deletion_scheduled_at: datetime
+
+
+# --- Password Reset ---
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)
