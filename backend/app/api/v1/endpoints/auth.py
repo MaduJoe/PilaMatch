@@ -7,7 +7,10 @@ from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.core.security import decode_refresh_token, create_access_token, create_refresh_token
 from app.models import User
-from app.schemas.auth import SignupRequest, LoginRequest, TokenResponse, UserResponse, MeResponse, RefreshRequest
+from app.schemas.auth import (
+    SignupRequest, LoginRequest, TokenResponse, UserResponse, MeResponse, RefreshRequest,
+    AccountDeletionRequest, AccountDeletionResponse,
+)
 from app.services.auth import AuthService
 
 limiter = Limiter(key_func=get_remote_address)
@@ -181,3 +184,84 @@ async def get_me(
         user=user_response,
         profile_id=profile_id,
     )
+
+
+@router.delete("/users/me", response_model=AccountDeletionResponse)
+async def delete_account(
+    request: Request,
+    data: AccountDeletionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Request account deletion with 30-day grace period.
+
+    Immediately deactivates the account, cancels contracts, refunds escrows, and cancels subscriptions.
+    The account can be recovered within 30 days via POST /users/me/cancel-deletion.
+    """
+    from app.services.account_deletion import AccountDeletionService
+
+    service = AccountDeletionService(db)
+    try:
+        deletion_scheduled_at = await service.request_deletion(
+            str(current_user.id), data.password
+        )
+
+        # Blacklist current token
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            blacklist_token(token)
+
+        return AccountDeletionResponse(
+            message="계정 삭제가 예약되었습니다. 30일 이내에 취소할 수 있습니다.",
+            deletion_scheduled_at=deletion_scheduled_at,
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if error_msg == "INVALID_PASSWORD":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "INVALID_PASSWORD", "message": "비밀번호가 일치하지 않습니다"},
+            )
+        if error_msg == "ALREADY_DELETED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "ALREADY_DELETED", "message": "이미 삭제 요청된 계정입니다"},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "DELETION_FAILED", "message": error_msg},
+        )
+
+
+@router.post("/users/me/cancel-deletion", status_code=status.HTTP_200_OK)
+async def cancel_account_deletion(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel pending account deletion and restore the account.
+
+    Only works if the 30-day grace period has not expired.
+    """
+    from app.services.account_deletion import AccountDeletionService
+
+    service = AccountDeletionService(db)
+    try:
+        await service.cancel_deletion(str(current_user.id))
+        return {"message": "계정 삭제가 취소되었습니다. 정상적으로 복구되었습니다."}
+    except ValueError as e:
+        error_msg = str(e)
+        if error_msg == "NO_PENDING_DELETION":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "NO_PENDING_DELETION", "message": "삭제 대기 중인 계정이 아닙니다"},
+            )
+        if error_msg == "DELETION_ALREADY_PROCESSED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "DELETION_ALREADY_PROCESSED", "message": "이미 삭제가 처리된 계정입니다"},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "CANCEL_FAILED", "message": error_msg},
+        )
