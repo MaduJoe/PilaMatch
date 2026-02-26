@@ -11,6 +11,7 @@ from app.services.verification import (
     verify_phone,
     verify_business,
     get_verification_status,
+    VerificationError,
 )
 
 router = APIRouter()
@@ -52,6 +53,11 @@ async def request_phone_otp(
             phone=data.phone,
         )
         return result
+    except VerificationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": e.code, "message": e.message},
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -74,6 +80,14 @@ async def verify_phone_otp(
             otp=data.otp,
         )
         return result
+    except VerificationError as e:
+        status_code = status.HTTP_429_TOO_MANY_REQUESTS
+        if e.code in ("OTP_EXPIRED", "OTP_INVALID"):
+            status_code = status.HTTP_400_BAD_REQUEST
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": e.code, "message": e.message},
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

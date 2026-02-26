@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     TOSS_SECRET_KEY: Optional[str] = None
     TOSS_WEBHOOK_SECRET: Optional[str] = None
 
-    # SMS Provider (CoolSMS)
-    SMS_PROVIDER: str = "mock"              # mock | coolsms
+    # SMS Provider (CoolSMS / Solapi)
+    SMS_PROVIDER: str = "mock"                         # mock | coolsms | solapi
     SMS_API_KEY: Optional[str] = None
     SMS_API_SECRET: Optional[str] = None
     SMS_SENDER_NUMBER: Optional[str] = None
@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     PASSWORD_RESET_EXPIRE_MINUTES: int = 60
+
+    # SMS OTP Settings
+    SMS_OTP_EXPIRY_SECONDS: int = 180       # 3분
+    SMS_OTP_MAX_ATTEMPTS: int = 5           # 최대 시도 횟수
+    SMS_OTP_COOLDOWN_SECONDS: int = 60      # 재발송 쿨타임
+    SMS_OTP_LOCK_SECONDS: int = 600         # 잠금 시간 (10분)
 
     # CORS
     ALLOWED_ORIGINS: list[str] = [

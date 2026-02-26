@@ -121,3 +121,7 @@ class PayoutResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Resolve forward references
+PaymentDetailResponse.model_rebuild()

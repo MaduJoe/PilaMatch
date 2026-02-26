@@ -28,14 +28,15 @@ class MockSMSProvider(SMSProvider):
     """Mock SMS for development."""
 
     async def send_sms(self, to: str, text: str) -> bool:
-        logger.info(f"[MockSMS] To: {to}, Text: {text}")
+        masked = to[:3] + "****" + to[-4:] if len(to) >= 7 else "****"
+        logger.info(f"[MockSMS] SMS sent to {masked}")
         return True
 
 
 class CoolSMSProvider(SMSProvider):
     """CoolSMS v4 API provider."""
 
-    BASE_URL = "https://api.coolsms.co.kr"
+    BASE_URL = "https://api.solapi.com"
 
     def __init__(self, api_key: str, api_secret: str, sender: str):
         self.api_key = api_key
@@ -83,7 +84,7 @@ class CoolSMSProvider(SMSProvider):
 def get_sms_provider() -> SMSProvider:
     """Factory: returns appropriate SMS provider based on config."""
     if (
-        settings.SMS_PROVIDER == "coolsms"
+        settings.SMS_PROVIDER in ("coolsms", "solapi", "solapi(coolsms)")
         and settings.SMS_API_KEY
         and settings.SMS_API_SECRET
         and settings.SMS_SENDER_NUMBER
