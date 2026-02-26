@@ -14,10 +14,18 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: 'StudioBridge',
+  title: 'PilaMatch - 필라테스/요가 강사 매칭',
   description: '신뢰 기반 필라테스/요가 강사-스튜디오 매칭 플랫폼',
-  icons: {
-    icon: '/favicon.ico',
+  manifest: '/manifest.json',
+  openGraph: {
+    title: 'PilaMatch',
+    description: '신뢰 기반 필라테스/요가 강사-스튜디오 매칭',
+    type: 'website',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'PilaMatch',
   },
 };
 
