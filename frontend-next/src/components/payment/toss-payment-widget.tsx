@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, isTossPaymentsMockMode } from '@/lib/utils';
 import { MockPaymentWidget } from './mock-payment-widget';
 import { CreditCard, Loader2 } from 'lucide-react';
+import { loadTossPayments } from '@tosspayments/payment-sdk';
 
 interface TossPaymentWidgetProps {
   clientKey: string;
@@ -32,6 +33,7 @@ export function TossPaymentWidget({
   const [error, setError] = useState<string | null>(null);
   const paymentWidgetRef = useRef<any>(null);
   const paymentMethodsRef = useRef<HTMLDivElement>(null);
+  const agreementRef = useRef<HTMLDivElement>(null);
 
   // Check if we should use mock mode
   const isMock = isTossPaymentsMockMode() || !clientKey || clientKey.length < 20 || clientKey.includes('xxxx');
@@ -39,41 +41,56 @@ export function TossPaymentWidget({
   useEffect(() => {
     if (isMock) return;
 
-    // Load TossPayments SDK
-    const script = document.createElement('script');
-    script.src = 'https://js.tosspayments.com/v2/standard';
-    script.async = true;
-    script.onload = () => setSdkLoaded(true);
-    script.onerror = () => setError('결제 SDK를 불러올 수 없습니다');
-    document.head.appendChild(script);
+    let cancelled = false;
 
-    return () => {
-      document.head.removeChild(script);
-    };
-  }, [isMock]);
-
-  useEffect(() => {
-    if (!sdkLoaded || isMock || !paymentMethodsRef.current) return;
-
-    async function initWidget() {
+    async function initSDK() {
       try {
-        const tossPayments = (window as any).TossPayments(clientKey);
+        const tossPayments = await loadTossPayments(clientKey);
+        if (cancelled) return;
+
         const widgets = tossPayments.widgets({ customerKey: customerKey || 'guest' });
         paymentWidgetRef.current = widgets;
+        setSdkLoaded(true);
+      } catch (err) {
+        if (!cancelled) {
+          setError('결제 SDK를 불러올 수 없습니다');
+          console.error('TossPayments SDK load error:', err);
+        }
+      }
+    }
 
+    initSDK();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isMock, clientKey, customerKey]);
+
+  useEffect(() => {
+    if (!sdkLoaded || isMock || !paymentWidgetRef.current) return;
+
+    async function renderWidgets() {
+      try {
+        const widgets = paymentWidgetRef.current;
         await widgets.setAmount({ currency: 'KRW', value: amount });
+
         await widgets.renderPaymentMethods({
           selector: '#payment-methods',
           variantKey: 'DEFAULT',
         });
+
+        await widgets.renderAgreement({
+          selector: '#payment-agreement',
+          variantKey: 'AGREEMENT',
+        });
       } catch (err) {
         setError('결제 위젯을 초기화할 수 없습니다');
-        console.error('TossPayments init error:', err);
+        console.error('TossPayments widget render error:', err);
       }
     }
 
-    initWidget();
-  }, [sdkLoaded, isMock, clientKey, customerKey, amount]);
+    renderWidgets();
+  }, [sdkLoaded, isMock, amount]);
 
   // Mock mode
   if (isMock) {
@@ -143,7 +160,10 @@ export function TossPaymentWidget({
             <span className="ml-2 text-sm text-gray-500">결제 위젯 로딩 중...</span>
           </div>
         ) : (
-          <div id="payment-methods" ref={paymentMethodsRef} />
+          <>
+            <div id="payment-methods" ref={paymentMethodsRef} />
+            <div id="payment-agreement" ref={agreementRef} />
+          </>
         )}
 
         <div className="flex gap-2">

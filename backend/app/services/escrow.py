@@ -1,23 +1,23 @@
 """Escrow payment service.
 
 Payment Flow:
-1. Studio confirms contract → Makes payment → Funds held in ESCROW (status: HELD)
-2. Contract IN_PROGRESS → Funds still held
-3. Contract COMPLETED → Release funds to instructor (status: RELEASED)
+1. Studio confirms contract -> Makes payment -> Funds held in ESCROW (status: HELD)
+2. Contract IN_PROGRESS -> Funds still held
+3. Contract COMPLETED -> Release funds to instructor (status: RELEASED)
 4. Contract CANCELLED:
-   - If no-show by instructor → Partial refund to studio, penalty from instructor deposit
-   - If no-show by studio → Full refund from instructor, penalty from studio deposit
-   - Normal cancel → Full refund to studio (status: REFUNDED)
+   - If no-show by instructor -> Partial refund to studio, penalty from instructor deposit
+   - If no-show by studio -> Full refund from instructor, penalty from studio deposit
+   - Normal cancel -> Full refund to studio (status: REFUNDED)
 """
-import base64
 from decimal import Decimal
+from uuid import UUID
 
-import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.models import Payment, Payout, Contract, User, PaymentStatus, PayoutStatus
-from app.core.config import settings
+from app.models import Payment, Payout, Contract, PaymentStatus, PayoutStatus
+from app.schemas.payment import PaymentCancelRequest
+from app.services.payment import PaymentService
 
 
 PLATFORM_FEE_PERCENT = Decimal("0.05")  # 5% platform fee
@@ -31,8 +31,6 @@ async def release_escrow_to_instructor(
     Release escrowed funds to instructor when contract is completed.
     Creates a payout record for the instructor.
     """
-    from uuid import UUID
-
     # Get payment
     result = await db.execute(
         select(Payment).where(Payment.contract_id == UUID(contract_id))
@@ -109,13 +107,14 @@ async def refund_escrow_to_studio(
     contract_id: str,
     refund_percent: Decimal = Decimal("1.0"),  # 100% by default
     reason: str = None,
+    requested_by_user_id: str = None,
 ) -> dict:
     """
     Refund escrowed funds to studio when contract is cancelled.
+    Delegates to PaymentService.cancel_payment() for proper tracking.
+
     refund_percent: 1.0 = full refund, 0.7 = 70% refund (30% penalty), etc.
     """
-    from uuid import UUID
-
     # Get payment
     result = await db.execute(
         select(Payment).where(Payment.contract_id == UUID(contract_id))
@@ -133,20 +132,23 @@ async def refund_escrow_to_studio(
     refund_amount = total_amount * refund_percent
     penalty_amount = total_amount - refund_amount
 
-    # Call TossPayments cancel API for actual refund
-    pg_refund_result = await _call_toss_cancel(
-        payment_key=payment.payment_key,
-        cancel_amount=int(refund_amount),
-        cancel_reason=reason or "Contract cancelled",
-    )
-
-    # Update payment
-    payment.escrow_status = "REFUNDED"
-    payment.status = PaymentStatus.REFUNDED.value
-    if pg_refund_result:
-        payment.pg_response = pg_refund_result
-
-    await db.commit()
+    # Delegate to PaymentService.cancel_payment for proper tracking
+    if refund_amount > 0:
+        service = PaymentService(db)
+        cancel_req = PaymentCancelRequest(
+            cancel_amount=refund_amount,
+            cancel_reason=reason or "Contract cancelled",
+        )
+        requester_id = UUID(requested_by_user_id) if requested_by_user_id else payment.payer_user_id
+        await service.cancel_payment(
+            payment_id=payment.id,
+            cancel_request=cancel_req,
+            requested_by_user_id=requester_id,
+        )
+    else:
+        # Zero refund (100% penalty) - just update escrow status
+        payment.escrow_status = "REFUNDED"
+        await db.commit()
 
     return {
         "status": "refunded",
@@ -159,8 +161,6 @@ async def refund_escrow_to_studio(
 
 async def get_escrow_status(db: AsyncSession, contract_id: str) -> dict:
     """Get escrow status for a contract."""
-    from uuid import UUID
-
     result = await db.execute(
         select(Payment).where(Payment.contract_id == UUID(contract_id))
     )
@@ -178,46 +178,6 @@ async def get_escrow_status(db: AsyncSession, contract_id: str) -> dict:
         "escrow_status": payment.escrow_status,
         "amount": float(payment.amount),
         "platform_fee": float(payment.platform_fee or 0),
+        "cancelled_amount": float(payment.cancelled_amount or 0),
+        "balance_amount": float(payment.balance_amount or payment.amount),
     }
-
-
-async def _call_toss_cancel(
-    payment_key: str | None,
-    cancel_amount: int,
-    cancel_reason: str,
-) -> dict | None:
-    """Call TossPayments cancel API. Returns PG response or None in dev mode."""
-    if not payment_key:
-        return None
-
-    if not settings.TOSS_SECRET_KEY:
-        # Mock response for development
-        return {
-            "paymentKey": payment_key,
-            "status": "CANCELED",
-            "cancels": [{"cancelAmount": cancel_amount, "cancelReason": cancel_reason}],
-        }
-
-    secret_key = settings.TOSS_SECRET_KEY + ":"
-    encoded_key = base64.b64encode(secret_key.encode()).decode()
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"https://api.tosspayments.com/v1/payments/{payment_key}/cancel",
-            headers={
-                "Authorization": f"Basic {encoded_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "cancelReason": cancel_reason,
-                "cancelAmount": cancel_amount,
-            },
-        )
-
-        if response.status_code != 200:
-            error_data = response.json()
-            raise ValueError(
-                f"Toss refund failed: {error_data.get('message', 'Unknown error')}"
-            )
-
-        return response.json()

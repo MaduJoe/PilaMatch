@@ -26,7 +26,7 @@ export type ContractStatus =
   | 'completed'
   | 'disputed'
   | 'cancelled';
-export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'partially_cancelled' | 'refunded';
 export type SubscriptionStatus =
   | 'inactive'
   | 'active'
@@ -369,6 +369,53 @@ export interface PaymentResponse {
   payment_method?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface PaymentCancellationResponse {
+  id: string;
+  cancel_amount: number;
+  cancel_reason: string;
+  cancel_status: string;
+  tax_free_amount: number;
+  created_at: string;
+}
+
+export interface PaymentDetailResponse {
+  id: string;
+  contract_id: string;
+  payer_user_id: string;
+  amount: number;
+  platform_fee: number;
+  status: PaymentStatus;
+  payment_key?: string | null;
+  order_id: string;
+  payment_method?: string | null;
+  cancelled_amount: number;
+  balance_amount?: number | null;
+  escrow_status: string;
+  cancellations: PaymentCancellationResponse[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentCancelRequest {
+  cancel_amount: number;
+  cancel_reason: string;
+  idempotency_key?: string | null;
+  tax_free_amount?: number;
+}
+
+export interface PaymentCancelResponse {
+  id: string;
+  payment_id: string;
+  cancel_amount: number;
+  cancel_reason: string;
+  cancel_status: string;
+  idempotency_key?: string | null;
+  tax_free_amount: number;
+  failure_reason?: string | null;
+  transaction_key?: string | null;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------

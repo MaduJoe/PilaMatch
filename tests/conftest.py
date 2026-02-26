@@ -54,9 +54,11 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     # Reset slowapi rate limiter storage to avoid 429 across tests
     try:
-        from app.api.v1.endpoints.auth import limiter
-        if hasattr(limiter, "_storage") and hasattr(limiter._storage, "storage"):
-            limiter._storage.storage.clear()
+        from app.api.v1.endpoints import auth, payments
+        for mod in [auth, payments]:
+            lim = getattr(mod, "limiter", None)
+            if lim and hasattr(lim, "_storage") and hasattr(lim._storage, "storage"):
+                lim._storage.storage.clear()
     except Exception:
         pass
 

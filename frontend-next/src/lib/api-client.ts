@@ -22,6 +22,9 @@ import type {
   PaymentInitResponse,
   PaymentConfirmRequest,
   PaymentResponse,
+  PaymentCancelRequest,
+  PaymentCancelResponse,
+  PaymentDetailResponse,
   ReviewCreate,
   ReviewResponse,
   ReviewListResponse,
@@ -270,6 +273,12 @@ export const payments = {
 
   confirm: (data: PaymentConfirmRequest) =>
     post<PaymentResponse>('/payments/confirm', data),
+
+  getDetail: (paymentId: string) =>
+    get<PaymentDetailResponse>(`/payments/${paymentId}`),
+
+  cancel: (paymentId: string, data: PaymentCancelRequest) =>
+    post<PaymentCancelResponse>(`/payments/${paymentId}/cancel`, data),
 };
 
 // --- Reviews ---------------------------------------------

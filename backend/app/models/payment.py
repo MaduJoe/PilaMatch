@@ -20,11 +20,19 @@ class Payment(Base, UUIDMixin, TimestampMixin):
     pg_response = Column(JSON)  # Full PG response
     failure_reason = Column(Text)
 
+    # Cancellation tracking
+    cancelled_amount = Column(Numeric(10, 2), default=0)
+    balance_amount = Column(Numeric(10, 2))  # amount - cancelled_amount
+
     # Escrow status: HELD (결제완료, 보관중), RELEASED (강사 지급완료), REFUNDED (스튜디오 환불)
     escrow_status = Column(String(20), default="HELD", nullable=False)
 
     # Relationships
     contract = relationship("Contract", back_populates="payment")
+    cancellations = relationship(
+        "PaymentCancellation", back_populates="payment",
+        order_by="PaymentCancellation.created_at",
+    )
 
 
 class Payout(Base, UUIDMixin, TimestampMixin):
