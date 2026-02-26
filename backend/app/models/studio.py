@@ -16,6 +16,7 @@ class StudioProfile(Base, UUIDMixin, TimestampMixin):
     region = Column(String(100))
     logo_url = Column(String(500))
     categories = Column(JSON, default=[])
+    photo_url = Column(String(500), nullable=True)
     is_verified = Column(Boolean, default=False, nullable=False)
     rating_average = Column(Numeric(3, 2), default=0)
     review_count = Column(Integer, default=0)
