@@ -46,6 +46,19 @@ class ContractService:
         )
         return result.scalar_one_or_none()
 
+    async def _get_user_id_from_profile(self, profile_id: UUID) -> Optional[UUID]:
+        """Get user_id from instructor or studio profile ID."""
+        result = await self.db.execute(
+            select(InstructorProfile.user_id).where(InstructorProfile.id == profile_id)
+        )
+        uid = result.scalar_one_or_none()
+        if uid:
+            return uid
+        result = await self.db.execute(
+            select(StudioProfile.user_id).where(StudioProfile.id == profile_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_id(self, contract_id: UUID) -> Optional[Contract]:
         result = await self.db.execute(
             select(Contract).where(Contract.id == contract_id)
@@ -288,6 +301,18 @@ class ContractService:
                 to_status=ContractStatus.IN_PROGRESS,
                 note="Contract signed by both parties - now in progress",
             )
+
+            # Notify both parties
+            try:
+                from app.services.notification import notify_contract_status
+                for pid in [contract.instructor_id, contract.studio_id]:
+                    profile_uid = await self._get_user_id_from_profile(pid)
+                    if profile_uid:
+                        await notify_contract_status(
+                            self.db, str(profile_uid), "in_progress", str(contract_id)
+                        )
+            except Exception:
+                pass
         else:
             # First signature - remain in CONFIRMED status
             await self._log_event(
@@ -357,6 +382,18 @@ class ContractService:
                 await release_escrow_to_instructor(self.db, str(contract_id))
             except ValueError:
                 pass  # Payment may not exist yet
+
+            # Notify both parties of completion
+            try:
+                from app.services.notification import notify_contract_status
+                for pid in [contract.instructor_id, contract.studio_id]:
+                    profile_uid = await self._get_user_id_from_profile(pid)
+                    if profile_uid:
+                        await notify_contract_status(
+                            self.db, str(profile_uid), "completed", str(contract_id)
+                        )
+            except Exception:
+                pass
         else:
             # First confirmation - move to PENDING_COMPLETION
             if contract.status == ContractStatus.IN_PROGRESS:
