@@ -2,13 +2,30 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/*]
   pull_request:
     branches: [main]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: cd backend && uv sync
+
+      - name: Run ruff linter
+        run: cd backend && uv run ruff check .
+
   test:
     runs-on: ubuntu-latest
+    needs: lint
 
     services:
       postgres:
@@ -27,44 +44,30 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+asyncpg://postgres:test@localhost:5432/test_pilamatch
+      DATABASE_URL_SYNC: postgresql://postgres:test@localhost:5432/test_pilamatch
       SECRET_KEY: test-secret-key
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
 
       - name: Install dependencies
-        run: pip install uv && uv pip install --system -r backend/requirements.txt
+        run: cd backend && uv sync
 
       - name: Run tests with coverage
-        run: cd backend && python -m pytest --cov=app --cov-report=xml -v
+        run: cd backend && uv run pytest --cov=app --cov-report=xml -q
 
-  lint:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
         with:
-          python-version: "3.11"
+          file: backend/coverage.xml
 
-      - name: Install ruff
-        run: pip install ruff
-
-      - name: Run ruff linter
-        run: ruff check backend/
-
-  docker:
-    needs: [test, lint]
+  build:
     runs-on: ubuntu-latest
+    needs: test
 
     steps:
       - name: Checkout code
@@ -75,7 +78,6 @@ jobs:
           printf '%s\n' \
             'POSTGRES_PASSWORD=ci-build-password' \
             'SECRET_KEY=ci-build-secret-key' \
-            'ADMIN_PASSWORD=ci-build-admin-password' \
             > .env
 
       - name: Build docker compose services
