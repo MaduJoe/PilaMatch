@@ -37,6 +37,14 @@ class User(Base, UUIDMixin, TimestampMixin):
     trust_score = Column(Integer, default=40, nullable=False)  # 0-100, default 40 for new users
     trust_level = Column(String(20), default="신진", nullable=False)  # 신진/인증/전문/마스터
 
+    # 약관 동의
+    terms_agreed_at = Column(DateTime, nullable=True)       # 이용약관 동의 일시
+    privacy_agreed_at = Column(DateTime, nullable=True)      # 개인정보 동의 일시
+
+    # 계정 삭제 (soft-delete)
+    deleted_at = Column(DateTime, nullable=True)             # soft-delete 일시
+    deletion_scheduled_at = Column(DateTime, nullable=True)  # 영구 삭제 예정일 (deleted_at + 30일)
+
     # Premium membership (v2.1)
     membership_tier = Column(String(20), default="free", nullable=False)  # free, premium
     has_premium_badge = Column(Boolean, default=False, nullable=False)  # Visual badge indicator
