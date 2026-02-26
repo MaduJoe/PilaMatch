@@ -423,7 +423,7 @@ async def test_create_subscription_reuses_inactive_subscription(
     service = SubscriptionService(db_session)
     result = await service.create_subscription(str(user.id))
 
-    assert result.id == existing_sub.id
+    assert str(result.id) == str(existing_sub.id)
 
 
 # ---------------------------------------------------------------------------

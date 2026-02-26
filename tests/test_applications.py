@@ -44,7 +44,24 @@ async def create_instructor_user(client: AsyncClient, suffix: str = "") -> str:
             "display_name": "Test Instructor",
         },
     )
-    return response.json()["access_token"]
+    token = response.json()["access_token"]
+
+    # Fill profile to pass 70% completeness check
+    await client.put(
+        "/api/v1/instructors/me",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "display_name": "Test Instructor",
+            "bio": "Experienced pilates instructor with 5 years of teaching.",
+            "categories": ["pilates"],
+            "available_regions": ["seoul"],
+            "experience_years": 5,
+            "hourly_rate_min": 30000,
+            "hourly_rate_max": 60000,
+        },
+    )
+
+    return token
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,7 @@ from typing import AsyncGenerator
 
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
 
 import sys
 import os
@@ -13,12 +14,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 from app.main import app
 from app.db.session import Base, get_db
 
-# Test database URL (using SQLite for testing)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+# Use in-memory SQLite with StaticPool for test isolation and reliability
+TEST_DATABASE_URL = "sqlite+aiosqlite://"
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
     echo=False,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 
 TestSessionLocal = async_sessionmaker(

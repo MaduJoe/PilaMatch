@@ -45,6 +45,21 @@ async def setup_application(client: AsyncClient) -> dict:
     )
     instructor_token = instructor_response.json()["access_token"]
 
+    # Fill profile to pass 70% completeness check
+    await client.put(
+        "/api/v1/instructors/me",
+        headers={"Authorization": f"Bearer {instructor_token}"},
+        json={
+            "display_name": "Test Instructor",
+            "bio": "Experienced pilates instructor with 5 years of teaching.",
+            "categories": ["pilates"],
+            "available_regions": ["seoul"],
+            "experience_years": 5,
+            "hourly_rate_min": 30000,
+            "hourly_rate_max": 60000,
+        },
+    )
+
     # Get instructor profile ID
     me_response = await client.get(
         "/api/v1/auth/me",
@@ -170,7 +185,8 @@ async def test_create_contract_from_offer(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_contract_cannot_skip_payment_to_in_progress(client: AsyncClient):
+async def test_single_signature_keeps_confirmed_status(client: AsyncClient):
+    """Dual-signature flow: a single party signing keeps contract in confirmed status."""
     setup = await setup_application(client)
 
     # Create and accept offer, then contract
@@ -195,13 +211,14 @@ async def test_contract_cannot_skip_payment_to_in_progress(client: AsyncClient):
     )
     contract_id = contract_response.json()["id"]
 
-    # Try to set in progress without payment
+    # Studio signs - contract should remain in confirmed (needs both signatures)
     response = await client.post(
         f"/api/v1/contracts/{contract_id}/set-in-progress",
         headers={"Authorization": f"Bearer {setup['studio_token']}"},
     )
-    assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "PAYMENT_REQUIRED"
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "confirmed"  # Still confirmed - waiting for instructor signature
 
 
 @pytest.mark.asyncio

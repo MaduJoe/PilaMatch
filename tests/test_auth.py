@@ -127,4 +127,4 @@ async def test_get_me(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_get_me_unauthorized(client: AsyncClient):
     response = await client.get("/api/v1/auth/me")
-    assert response.status_code == 403  # No auth header
+    assert response.status_code == 401  # No auth header

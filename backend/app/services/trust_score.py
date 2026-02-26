@@ -15,6 +15,10 @@ from app.models import (
     Contract, ContractStatus, Review, Application,
     MembershipTier
 )
+from app.services.profile_completeness import (
+    calculate_instructor_completeness,
+    calculate_studio_completeness,
+)
 
 # Module-level constants for Trust Score factor metadata and level thresholds.
 # Defined once here to avoid recreating on each call.
@@ -81,10 +85,6 @@ async def calculate_trust_score(
         Dict with score, level, breakdown, and recommendations
     """
     from uuid import UUID
-    from app.services.profile_completeness import (
-        calculate_instructor_completeness,
-        calculate_studio_completeness
-    )
 
     # Get user
     result = await db.execute(

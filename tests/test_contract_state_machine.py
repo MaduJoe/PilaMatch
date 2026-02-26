@@ -1437,7 +1437,7 @@ async def test_get_by_user_as_instructor(db_session: AsyncSession):
     await db_session.commit()
 
     service = ContractService(db_session)
-    contracts = await service.get_by_user(data["instructor_user_id"], "instructor")
+    contracts, total = await service.get_by_user(data["instructor_user_id"], "instructor")
 
     assert len(contracts) == 1
     assert contracts[0].id == contract.id
@@ -1451,7 +1451,7 @@ async def test_get_by_user_as_studio(db_session: AsyncSession):
     await db_session.commit()
 
     service = ContractService(db_session)
-    contracts = await service.get_by_user(data["studio_user_id"], "studio")
+    contracts, total = await service.get_by_user(data["studio_user_id"], "studio")
 
     assert len(contracts) == 1
     assert contracts[0].id == contract.id

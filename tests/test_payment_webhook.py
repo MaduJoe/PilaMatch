@@ -45,6 +45,21 @@ async def setup_contract(client: AsyncClient) -> dict:
     )
     instructor_token = instructor_response.json()["access_token"]
 
+    # Fill profile to pass 70% completeness check
+    await client.put(
+        "/api/v1/instructors/me",
+        headers={"Authorization": f"Bearer {instructor_token}"},
+        json={
+            "display_name": "Test Instructor",
+            "bio": "Experienced pilates instructor with 5 years of teaching.",
+            "categories": ["pilates"],
+            "available_regions": ["seoul"],
+            "experience_years": 5,
+            "hourly_rate_min": 30000,
+            "hourly_rate_max": 60000,
+        },
+    )
+
     # Apply
     apply_response = await client.post(
         f"/api/v1/job-posts/{job_id}/applications",
