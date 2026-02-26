@@ -34,6 +34,8 @@ from app.models.dispute import Dispute, DisputeType, DisputeStatus, DisputeResol
 from app.models.subscription import Subscription, SubscriptionPayment, SubscriptionHistory
 from app.models.application_template import ApplicationTemplate  # v3.0 Phase 2
 from app.models.daily_usage import DailyUsageLimit  # v3.0 Daily usage tracking
+from app.models.notification import Notification, NotificationType
+from app.models.device_token import DeviceToken
 
 __all__ = [
     # Enums
@@ -81,4 +83,7 @@ __all__ = [
     "SubscriptionHistory",
     "ApplicationTemplate",  # v3.0 Phase 2
     "DailyUsageLimit",  # v3.0 Daily usage tracking
+    "Notification",
+    "NotificationType",
+    "DeviceToken",
 ]

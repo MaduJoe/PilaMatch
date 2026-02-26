@@ -20,6 +20,7 @@ class InstructorProfile(Base, UUIDMixin, TimestampMixin):
     hourly_rate_min = Column(Numeric(10, 2))
     hourly_rate_max = Column(Numeric(10, 2))
     available_regions = Column(JSON, default=[])
+    photo_url = Column(String(500), nullable=True)
     is_public = Column(Boolean, default=True, nullable=False)
     rating_average = Column(Numeric(3, 2), default=0)
     review_count = Column(Integer, default=0)
