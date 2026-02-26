@@ -1,0 +1,7 @@
+# 개발 환경 전용 설정 (docker-compose up 시 자동 적용)
+services:
+  backend:
+    volumes:
+      - ./backend:/app  # 핫 리로드용
+    environment:
+      - APP_ENV=development
