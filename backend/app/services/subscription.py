@@ -654,6 +654,13 @@ class SubscriptionService:
         await self.db.commit()
         logger.info(f"Removed billing key for user {user_id}")
 
+    async def get_subscription_by_billing_key(self, billing_key: str) -> Optional[Subscription]:
+        """Reverse lookup: find subscription by Toss billing key."""
+        result = await self.db.execute(
+            select(Subscription).where(Subscription.toss_billing_key == billing_key)
+        )
+        return result.scalar_one_or_none()
+
     # --- Bank Transfer Methods ---
 
     async def initialize_bank_transfer(
