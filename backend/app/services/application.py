@@ -90,6 +90,28 @@ class ApplicationService:
 
         await self.db.commit()
         await self.db.refresh(application)
+
+        # Send notification to studio
+        try:
+            from app.services.notification import notify_new_application
+            studio_profile = await self.db.execute(
+                select(StudioProfile).where(StudioProfile.id == job_post.studio_id)
+            )
+            studio = studio_profile.scalar_one_or_none()
+            instructor_profile = await self.db.execute(
+                select(InstructorProfile).where(InstructorProfile.id == instructor_id)
+            )
+            inst = instructor_profile.scalar_one_or_none()
+            if studio and inst:
+                await notify_new_application(
+                    self.db,
+                    str(studio.user_id),
+                    inst.display_name or "강사",
+                    job_post.title,
+                )
+        except Exception:
+            pass  # Notification failure should not block the application
+
         return application
 
     async def get_by_instructor(

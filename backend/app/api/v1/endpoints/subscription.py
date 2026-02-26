@@ -232,11 +232,17 @@ async def handle_subscription_webhook(
 
         elif event_type == "BILLING.SUBSCRIPTION.CANCELLED":
             # Subscription cancelled from TossPayments side
-            subscription_id = event_data.get("subscriptionId")
-            if subscription_id:
-                # Find user and cancel subscription
-                logger.info(f"Processing cancellation webhook for {subscription_id}")
-                # TODO: Implement reverse lookup from toss_billing_key
+            billing_key = event_data.get("billingKey")
+            if billing_key:
+                subscription = await service.get_subscription_by_billing_key(billing_key)
+                if subscription:
+                    logger.info(f"Processing cancellation webhook for billing_key {billing_key}")
+                    await service.cancel_subscription(
+                        str(subscription.user_id),
+                        reason="Cancelled via TossPayments webhook",
+                    )
+                else:
+                    logger.warning(f"No subscription found for billing_key {billing_key}")
 
         return {"success": True}
 

@@ -1,19 +1,21 @@
 from datetime import datetime, timedelta
 from typing import Optional, Any
 from jose import jwt, JWTError
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return _bcrypt.checkpw(
+        plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+    )
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return _bcrypt.hashpw(
+        password.encode("utf-8"), _bcrypt.gensalt()
+    ).decode("utf-8")
 
 
 def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:
@@ -51,5 +53,29 @@ def decode_refresh_token(token: str) -> Optional[str]:
         if payload.get("type") != "refresh":
             return None
         return payload.get("sub")
+    except JWTError:
+        return None
+
+
+def create_password_reset_token(user_id: str) -> str:
+    """Create a JWT token for password reset (1-hour expiry)."""
+    import uuid
+    expire = datetime.utcnow() + timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES)
+    to_encode = {
+        "exp": expire,
+        "sub": user_id,
+        "type": "password_reset",
+        "jti": uuid.uuid4().hex,
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> Optional[dict]:
+    """Decode password reset token. Returns {"sub": user_id, "jti": token_id} or None."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "password_reset":
+            return None
+        return {"sub": payload["sub"], "jti": payload.get("jti", "")}
     except JWTError:
         return None

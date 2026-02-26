@@ -49,6 +49,14 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     app.dependency_overrides[get_db] = override_get_db
 
+    # Reset slowapi rate limiter storage to avoid 429 across tests
+    try:
+        from app.api.v1.endpoints.auth import limiter
+        if hasattr(limiter, "_storage") and hasattr(limiter._storage, "storage"):
+            limiter._storage.storage.clear()
+    except Exception:
+        pass
+
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test"

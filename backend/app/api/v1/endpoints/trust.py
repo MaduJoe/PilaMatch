@@ -1,4 +1,6 @@
 """Trust Score endpoints (v3.0)."""
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +14,10 @@ from app.services.trust_score import (
 )
 
 router = APIRouter()
+
+# Rate limit tracking: user_id -> last refresh timestamp
+_trust_refresh_timestamps: dict[str, datetime] = {}
+_TRUST_REFRESH_INTERVAL = timedelta(hours=1)
 
 
 @router.get("/trust-score")
@@ -46,21 +52,44 @@ async def refresh_my_trust_score(
     """Recalculate and update user's Trust Score.
 
     This is called automatically on certain actions but can be
-    manually triggered once per hour.
+    manually triggered once per hour. Returns cached value if called
+    within the 1-hour cooldown.
     """
-    # TODO: Add rate limiting (once per hour)
+    user_id = str(current_user.id)
+    now = datetime.utcnow()
+
+    # Check rate limit: 1 refresh per hour
+    last_refresh = _trust_refresh_timestamps.get(user_id)
+    if last_refresh and (now - last_refresh) < _TRUST_REFRESH_INTERVAL:
+        # Return cached display data without recalculating
+        display_data = await get_trust_score_display(
+            db, user_id, current_user.role
+        )
+        remaining = int((_TRUST_REFRESH_INTERVAL - (now - last_refresh)).total_seconds())
+        return {
+            "message": "Trust Score was recently updated. Showing cached value.",
+            "new_score": current_user.trust_score,
+            "rate_limited": True,
+            "retry_after_seconds": remaining,
+            **display_data
+        }
+
     new_score = await update_user_trust_score(
-        db, str(current_user.id), current_user.role
+        db, user_id, current_user.role
     )
+
+    # Update rate limit timestamp
+    _trust_refresh_timestamps[user_id] = now
 
     # Get updated display data
     display_data = await get_trust_score_display(
-        db, str(current_user.id), current_user.role
+        db, user_id, current_user.role
     )
 
     return {
         "message": "Trust Score updated",
         "new_score": new_score,
+        "rate_limited": False,
         **display_data
     }
 

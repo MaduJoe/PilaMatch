@@ -1,0 +1,180 @@
+"""Push notification service with FCM/APNs support (mock mode by default).
+
+In mock mode, notifications are stored in memory.
+When a Notification model is added (DATA worktree), this will persist to DB.
+"""
+
+import logging
+import uuid
+from collections import defaultdict
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
+
+
+# Notification types
+class NotificationType:
+    NEW_APPLICATION = "NEW_APPLICATION"
+    OFFER_RECEIVED = "OFFER_RECEIVED"
+    CONTRACT_STATUS = "CONTRACT_STATUS"
+    PAYMENT_COMPLETED = "PAYMENT_COMPLETED"
+    NO_SHOW_REPORTED = "NO_SHOW_REPORTED"
+    CHAT_MESSAGE = "CHAT_MESSAGE"
+
+
+# In-memory notification store (mock mode)
+_notifications: dict[str, list[dict]] = defaultdict(list)
+# Device token store: user_id -> [tokens]
+_device_tokens: dict[str, list[str]] = defaultdict(list)
+
+
+class NotificationService:
+    """FCM + APNs integrated notification service. Mock mode stores in memory."""
+
+    def __init__(self, db: Optional[AsyncSession] = None):
+        self.db = db
+
+    async def send(
+        self,
+        user_id: str,
+        type: str,
+        title: str,
+        body: str,
+        data: Optional[dict] = None,
+    ) -> str:
+        """Send a notification to a user. Returns notification ID."""
+        notification_id = str(uuid.uuid4())
+        notification = {
+            "id": notification_id,
+            "user_id": user_id,
+            "type": type,
+            "title": title,
+            "body": body,
+            "data": data or {},
+            "is_read": False,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+
+        _notifications[user_id].append(notification)
+
+        # In production, send to FCM/APNs
+        tokens = _device_tokens.get(user_id, [])
+        if tokens:
+            await self._send_push(tokens, title, body, data)
+
+        logger.info(
+            f"[NOTIFICATION] user={user_id} type={type} title={title}"
+        )
+        return notification_id
+
+    async def send_bulk(
+        self,
+        user_ids: list[str],
+        type: str,
+        title: str,
+        body: str,
+        data: Optional[dict] = None,
+    ) -> list[str]:
+        """Send notification to multiple users."""
+        ids = []
+        for user_id in user_ids:
+            nid = await self.send(user_id, type, title, body, data)
+            ids.append(nid)
+        return ids
+
+    async def mark_read(self, notification_id: str, user_id: str) -> bool:
+        """Mark a notification as read."""
+        for n in _notifications.get(user_id, []):
+            if n["id"] == notification_id:
+                n["is_read"] = True
+                return True
+        return False
+
+    async def get_notifications(
+        self, user_id: str, skip: int = 0, limit: int = 20
+    ) -> list[dict]:
+        """Get paginated notifications for a user."""
+        all_notifs = _notifications.get(user_id, [])
+        # Sort by created_at desc
+        sorted_notifs = sorted(all_notifs, key=lambda x: x["created_at"], reverse=True)
+        return sorted_notifs[skip : skip + limit]
+
+    async def get_unread_count(self, user_id: str) -> int:
+        """Get unread notification count for a user."""
+        return sum(
+            1 for n in _notifications.get(user_id, []) if not n["is_read"]
+        )
+
+    async def register_device_token(
+        self, user_id: str, token: str, platform: str = "fcm"
+    ) -> None:
+        """Register a device token for push notifications."""
+        tokens = _device_tokens[user_id]
+        if token not in tokens:
+            tokens.append(token)
+        logger.info(f"Registered device token for user {user_id}: {platform}")
+
+    async def _send_push(
+        self,
+        tokens: list[str],
+        title: str,
+        body: str,
+        data: Optional[dict] = None,
+    ) -> None:
+        """Send push via FCM/APNs. Currently mock implementation."""
+        logger.info(
+            f"[MOCK PUSH] tokens={len(tokens)} title={title}"
+        )
+
+
+# --- Convenience functions for notification triggers ---
+
+async def notify_new_application(
+    db: AsyncSession, studio_user_id: str, instructor_name: str, job_title: str
+) -> None:
+    """Notify studio about a new application."""
+    service = NotificationService(db)
+    await service.send(
+        user_id=studio_user_id,
+        type=NotificationType.NEW_APPLICATION,
+        title="새로운 지원",
+        body=f"{instructor_name}님이 '{job_title}' 공고에 지원했습니다.",
+        data={"type": "application"},
+    )
+
+
+async def notify_offer_received(
+    db: AsyncSession, instructor_user_id: str, studio_name: str
+) -> None:
+    """Notify instructor about a received offer."""
+    service = NotificationService(db)
+    await service.send(
+        user_id=instructor_user_id,
+        type=NotificationType.OFFER_RECEIVED,
+        title="새로운 오퍼",
+        body=f"{studio_name}에서 오퍼를 보냈습니다.",
+        data={"type": "offer"},
+    )
+
+
+async def notify_contract_status(
+    db: AsyncSession, user_id: str, status: str, contract_id: str
+) -> None:
+    """Notify user about contract status change."""
+    status_messages = {
+        "in_progress": "계약이 시작되었습니다.",
+        "completed": "계약이 완료되었습니다.",
+        "cancelled": "계약이 취소되었습니다.",
+        "pending_completion": "상대방이 완료를 확인했습니다. 확인해주세요.",
+    }
+    service = NotificationService(db)
+    await service.send(
+        user_id=user_id,
+        type=NotificationType.CONTRACT_STATUS,
+        title="계약 상태 변경",
+        body=status_messages.get(status, f"계약 상태가 '{status}'로 변경되었습니다."),
+        data={"type": "contract", "contract_id": contract_id},
+    )

@@ -83,6 +83,27 @@ class OfferService:
         self.db.add(offer)
         await self.db.commit()
         await self.db.refresh(offer)
+
+        # Send notification to instructor
+        try:
+            from app.services.notification import notify_offer_received
+            instructor_profile = await self.db.execute(
+                select(InstructorProfile).where(InstructorProfile.id == instructor_id)
+            )
+            inst = instructor_profile.scalar_one_or_none()
+            studio_profile = await self.db.execute(
+                select(StudioProfile).where(StudioProfile.id == studio_id)
+            )
+            studio = studio_profile.scalar_one_or_none()
+            if inst and studio:
+                await notify_offer_received(
+                    self.db,
+                    str(inst.user_id),
+                    studio.business_name or "스튜디오",
+                )
+        except Exception:
+            pass  # Notification failure should not block the offer
+
         return offer
 
     async def get_by_user(self, user_id: UUID, role: str) -> List[Offer]:

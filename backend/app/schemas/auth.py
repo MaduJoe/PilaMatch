@@ -59,3 +59,25 @@ class RefreshRequest(BaseModel):
 class MeResponse(BaseModel):
     user: UserResponse
     profile_id: Optional[UUID] = None
+
+
+# --- Account Deletion ---
+
+class AccountDeletionRequest(BaseModel):
+    password: str  # 비밀번호 재확인
+
+
+class AccountDeletionResponse(BaseModel):
+    message: str
+    deletion_scheduled_at: datetime
+
+
+# --- Password Reset ---
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)
