@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useLogout } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export function Header() {
   const { user } = useAuthStore();
@@ -16,7 +17,7 @@ export function Header() {
   const userName = isInstructor ? user.display_name : user.business_name;
 
   return (
-    <header className="border-b bg-white">
+    <header className="border-b bg-background">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <div>
           <h1 className="text-lg font-bold text-gray-900 sm:text-xl">
@@ -30,6 +31,7 @@ export function Header() {
               {userName || '프로필을 완성해주세요'}
             </p>
           </div>
+          <ThemeToggle />
           <Button
             variant="ghost"
             size="sm"

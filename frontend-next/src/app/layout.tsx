@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Noto_Sans_KR } from 'next/font/google';
+import { ThemeProvider } from 'next-themes';
 import './globals.css';
 import { QueryProvider } from '@/providers/query-provider';
 import { ToastProvider } from '@/providers/toast-provider';
@@ -26,14 +27,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko" className={notoSansKR.variable}>
+    <html lang="ko" className={notoSansKR.variable} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <QueryProvider>
-          <AuthProvider>
-            {children}
-            <ToastProvider />
-          </AuthProvider>
-        </QueryProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <QueryProvider>
+            <AuthProvider>
+              {children}
+              <ToastProvider />
+            </AuthProvider>
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
