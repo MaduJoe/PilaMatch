@@ -5,6 +5,7 @@ import { useLogout } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { NotificationBell } from '@/components/notification/notification-bell';
 
 export function Header() {
   const { user } = useAuthStore();
@@ -31,6 +32,7 @@ export function Header() {
               {userName || '프로필을 완성해주세요'}
             </p>
           </div>
+          <NotificationBell />
           <ThemeToggle />
           <Button
             variant="ghost"
