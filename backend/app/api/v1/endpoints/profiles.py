@@ -1,5 +1,5 @@
-"""Profile completeness endpoints (v3.0)."""
-from fastapi import APIRouter, Depends, HTTPException, status
+"""Profile completeness + photo upload endpoints (v3.0)."""
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -76,3 +76,88 @@ async def check_completeness_for_action(
         db, str(current_user.id), action
     )
     return result
+
+
+@router.post("/profile/photo")
+async def upload_profile_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload profile photo. Generates original, thumbnail (200x200), and medium (600x600) versions.
+
+    Accepts: JPEG, PNG, WebP. Max size: 10MB.
+    """
+    from app.services.file_upload import FileUploadService
+
+    service = FileUploadService()
+    try:
+        urls = await service.upload_profile_photo(str(current_user.id), file)
+
+        # Update profile with photo URL
+        if current_user.role == "instructor":
+            svc = InstructorService(db)
+            profile = await svc.get_profile_by_user_id(current_user.id)
+            if profile and hasattr(profile, "photo_url"):
+                profile.photo_url = urls.get("original", "")
+                if hasattr(profile, "photo_thumbnail_url"):
+                    profile.photo_thumbnail_url = urls.get("thumbnail", "")
+                await db.commit()
+        elif current_user.role == "studio":
+            svc = StudioService(db)
+            profile = await svc.get_profile_by_user_id(current_user.id)
+            if profile and hasattr(profile, "photo_url"):
+                profile.photo_url = urls.get("original", "")
+                if hasattr(profile, "photo_thumbnail_url"):
+                    profile.photo_thumbnail_url = urls.get("thumbnail", "")
+                await db.commit()
+
+        return {
+            "message": "프로필 사진이 업로드되었습니다",
+            "urls": urls,
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "UPLOAD_ERROR", "message": str(e)},
+        )
+
+
+@router.delete("/profile/photo")
+async def delete_profile_photo(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete current user's profile photo."""
+    from app.services.file_upload import FileUploadService
+
+    # Get current photo URL from profile
+    photo_url = None
+    if current_user.role == "instructor":
+        svc = InstructorService(db)
+        profile = await svc.get_profile_by_user_id(current_user.id)
+        if profile and hasattr(profile, "photo_url"):
+            photo_url = profile.photo_url
+    elif current_user.role == "studio":
+        svc = StudioService(db)
+        profile = await svc.get_profile_by_user_id(current_user.id)
+        if profile and hasattr(profile, "photo_url"):
+            photo_url = profile.photo_url
+
+    if not photo_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NO_PHOTO", "message": "프로필 사진이 없습니다"},
+        )
+
+    service = FileUploadService()
+    await service.delete_profile_photo(str(current_user.id), photo_url)
+
+    # Clear profile photo URL
+    if profile and hasattr(profile, "photo_url"):
+        profile.photo_url = None
+        if hasattr(profile, "photo_thumbnail_url"):
+            profile.photo_thumbnail_url = None
+        await db.commit()
+
+    return {"message": "프로필 사진이 삭제되었습니다"}
