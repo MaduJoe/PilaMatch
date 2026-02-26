@@ -73,6 +73,12 @@ export default function LoginPage() {
           >
             {login.isPending ? '로그인 중...' : '로그인'}
           </Button>
+          <Link
+            href="/forgot-password"
+            className="text-center text-sm text-muted-foreground hover:text-foreground"
+          >
+            비밀번호를 잊으셨나요?
+          </Link>
           <p className="text-center text-sm text-gray-500">
             계정이 없으신가요?{' '}
             <Link href="/signup" className="font-medium text-primary hover:underline">

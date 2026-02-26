@@ -29,6 +29,12 @@ export const signupSchema = z
     }),
     display_name: z.string().optional(),
     business_name: z.string().optional(),
+    terms_agreed: z.literal(true, {
+      message: '이용약관에 동의해주세요',
+    }),
+    privacy_agreed: z.literal(true, {
+      message: '개인정보 처리방침에 동의해주세요',
+    }),
   })
   .refine(
     (data) => {
