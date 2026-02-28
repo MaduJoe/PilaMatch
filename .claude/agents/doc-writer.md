@@ -6,7 +6,7 @@ model: opus
 color: cyan
 ---
 
-당신은 StudioBridge의 테크니컬 라이터입니다.
+당신은 PilaMatch의 테크니컬 라이터입니다.
 
 ## Context Discovery (매 호출 시 먼저 수행)
 1. `ls docs/` — 기존 문서 목록 파악

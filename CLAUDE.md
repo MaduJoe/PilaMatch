@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**StudioBridge** - Trust-based Pilates/Yoga instructor-studio matching platform MVP built with FastAPI + Next.js.
+**PilaMatch** - Trust-based Pilates/Yoga instructor-studio matching platform MVP built with FastAPI + Next.js.
 
 ### Core Values
 - **신뢰 (Trust)**: Safety first - verified users, escrow payments, penalty system

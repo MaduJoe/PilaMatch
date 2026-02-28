@@ -14,7 +14,7 @@ describe('Legal Pages', () => {
         </LegalLayout>,
       );
       expect(screen.getByText('test content')).toBeInTheDocument();
-      expect(screen.getByText('StudioBridge')).toBeInTheDocument();
+      expect(screen.getByText('PilaMatch')).toBeInTheDocument();
       expect(screen.getByText('홈으로 돌아가기')).toBeInTheDocument();
     });
 

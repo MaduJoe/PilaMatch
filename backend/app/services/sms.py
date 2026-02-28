@@ -100,5 +100,5 @@ def get_sms_provider() -> SMSProvider:
 async def send_verification_sms(phone: str, otp: str) -> bool:
     """Send verification SMS with OTP code."""
     provider = get_sms_provider()
-    text = f"[StudioBridge] 인증번호: {otp}"
+    text = f"[PilaMatch] 인증번호: {otp}"
     return await provider.send_sms(phone, text)

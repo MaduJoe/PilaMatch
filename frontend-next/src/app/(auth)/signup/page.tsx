@@ -58,7 +58,7 @@ export default function SignupPage() {
     <Card>
       <CardHeader>
         <CardTitle>회원가입</CardTitle>
-        <CardDescription>StudioBridge에 가입하고 시작하세요</CardDescription>
+        <CardDescription>PilaMatch에 가입하고 시작하세요</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">

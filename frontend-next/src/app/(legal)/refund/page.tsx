@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '환불정책 - StudioBridge',
+  title: '환불정책 - PilaMatch',
 };
 
 export default function RefundPage() {
@@ -11,7 +11,7 @@ export default function RefundPage() {
       <p className="text-muted-foreground">시행일: 2026년 2월 26일</p>
 
       <p>
-        StudioBridge(이하 &quot;회사&quot;)는 이용자의 권익 보호를 위해 다음과
+        PilaMatch(이하 &quot;회사&quot;)는 이용자의 권익 보호를 위해 다음과
         같은 환불정책을 운영합니다.
       </p>
 
@@ -128,7 +128,7 @@ export default function RefundPage() {
       <h2>제6조 (환불 신청 방법)</h2>
       <ul>
         <li>서비스 내 설정 &gt; 환불 신청</li>
-        <li>이메일: support@studiobridge.kr</li>
+        <li>이메일: support@pilamatch.kr</li>
       </ul>
 
       <p>

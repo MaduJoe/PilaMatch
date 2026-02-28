@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '개인정보처리방침 - StudioBridge',
+  title: '개인정보처리방침 - PilaMatch',
 };
 
 export default function PrivacyPage() {
@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       <p className="text-muted-foreground">시행일: 2026년 2월 26일</p>
 
       <p>
-        StudioBridge(이하 &quot;회사&quot;)는 개인정보보호법 등 관련 법령에 따라
+        PilaMatch(이하 &quot;회사&quot;)는 개인정보보호법 등 관련 법령에 따라
         이용자의 개인정보를 보호하고 이와 관련한 고충을 신속하고 원활하게
         처리하기 위해 다음과 같이 개인정보처리방침을 수립·공개합니다.
       </p>
@@ -103,8 +103,8 @@ export default function PrivacyPage() {
 
       <h2>제7조 (개인정보 보호책임자)</h2>
       <ul>
-        <li>책임자: StudioBridge 개인정보 보호팀</li>
-        <li>이메일: privacy@studiobridge.kr</li>
+        <li>책임자: PilaMatch 개인정보 보호팀</li>
+        <li>이메일: privacy@pilamatch.kr</li>
       </ul>
 
       <h2>제8조 (개인정보처리방침의 변경)</h2>

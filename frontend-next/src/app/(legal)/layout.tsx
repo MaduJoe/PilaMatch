@@ -17,7 +17,7 @@ export default function LegalLayout({
               <span className="sr-only">뒤로가기</span>
             </Link>
           </Button>
-          <span className="text-lg font-semibold">StudioBridge</span>
+          <span className="text-lg font-semibold">PilaMatch</span>
         </div>
       </header>
 

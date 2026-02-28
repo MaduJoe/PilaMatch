@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '이용약관 - StudioBridge',
+  title: '이용약관 - PilaMatch',
 };
 
 export default function TermsPage() {
@@ -12,7 +12,7 @@ export default function TermsPage() {
 
       <h2>제1조 (목적)</h2>
       <p>
-        이 약관은 StudioBridge(이하 &quot;회사&quot;)가 제공하는
+        이 약관은 PilaMatch(이하 &quot;회사&quot;)가 제공하는
         필라테스/요가 강사-스튜디오 매칭 서비스(이하 &quot;서비스&quot;)의
         이용 조건 및 절차, 회원과 회사의 권리·의무 및 책임 사항을 규정함을
         목적으로 합니다.

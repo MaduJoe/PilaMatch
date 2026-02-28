@@ -1510,7 +1510,7 @@ CI/CD Pipeline:
 - 온보딩 플로우: 보증금 안내 → 프로필 완성도 게이트 (PRD §6.1.5)
 - 매칭 리스트 정렬: Premium 공고/지원서 우선, 동일 그룹 내 점수 순 (PRD §6.3.2)
 - `api_client.py`: 보증금 관련 메서드 주석 처리, Trust Score/템플릿 메서드 추가
-- 서비스 Base URL: `StudioBridge.com` → `pilamatch.com` (브랜딩 통일)
+- 서비스 Base URL: `pilamatch.com` (브랜딩 통일)
 
 #### Fixed (수정)
 - Trust Score 레벨 정의 불일치 수정 (v2.1: 90/70/50 기준 → v2.2: 80/60/40 기준)

@@ -4,15 +4,15 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Application
-    APP_NAME: str = "StudioBridge API"
+    APP_NAME: str = "PilaMatch API"
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "development"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/StudioBridge"
-    DATABASE_URL_SYNC: str = "postgresql://postgres:password@localhost:5432/StudioBridge"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/pilamatch"
+    DATABASE_URL_SYNC: str = "postgresql://postgres:password@localhost:5432/pilamatch"
 
     # DB Connection Pool
     DB_POOL_SIZE: int = 10

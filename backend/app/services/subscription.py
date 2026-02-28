@@ -301,7 +301,7 @@ class SubscriptionService:
 
         # Charge using billing key
         order_id = f"RENEW-{uuid.uuid4().hex[:16].upper()}"
-        order_name = f"StudioBridge 프리미엄 자동갱신"
+        order_name = f"PilaMatch 프리미엄 자동갱신"
 
         try:
             charge_result = await self._call_toss_billing_charge(
@@ -575,7 +575,7 @@ class SubscriptionService:
                 customer_key=customer_key,
                 amount=int(self.monthly_price),
                 order_id=order_id,
-                order_name="StudioBridge 프리미엄 첫 결제",
+                order_name="PilaMatch 프리미엄 첫 결제",
             )
 
             # Create payment record and activate

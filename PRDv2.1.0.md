@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-# StudioBridge - 필라테스/요가 강사 매칭 플랫폼
+# PilaMatch - 필라테스/요가 강사 매칭 플랫폼
 
 **Version**: 2.1.0
 **작성일**: 2026-02-16
@@ -59,7 +59,7 @@
 - Premium ≠ 더 좋은 강사, Premium = 편의성과 우선권
 
 ### 1.4 제품 개요
-StudioBridge는 필라테스/요가 강사와 스튜디오를 연결하는 B2B 매칭 플랫폼으로, 하이브리드 신뢰 모델(보증금 또는 구독)을 통해 검증된 사용자 간의 안전한 거래를 보장하는 서비스입니다.
+PilaMatch는 필라테스/요가 강사와 스튜디오를 연결하는 B2B 매칭 플랫폼으로, 하이브리드 신뢰 모델(보증금 또는 구독)을 통해 검증된 사용자 간의 안전한 거래를 보장하는 서비스입니다.
 
 ### 1.5 Premium 멤버십 가치 제안 (v2.1 신규)
 "보증금 부담 없이, 편리하게" - 월 9,900원으로 시작하는 프리미엄 경험
@@ -1110,7 +1110,7 @@ CREATE INDEX idx_users_trust_score ON users(trust_score);
 
 ### 10.1 API 구조
 ```
-Base URL: https://api.StudioBridge.com/api/v1
+Base URL: https://api.pilamatch.com/api/v1
 
 인증 헤더:
 Authorization: Bearer {jwt_token}
@@ -1499,7 +1499,7 @@ Authorization: Bearer {jwt_token}
 
 ```
 ┌────────────────────────────────────────┐
-│         StudioBridge Admin Dashboard      │
+│         PilaMatch Admin Dashboard         │
 ├────────────────────────────────────────┤
 │                                        │
 │  ⚠️ 처리 필요                          │
@@ -1579,7 +1579,7 @@ Authorization: Bearer {jwt_token}
 ```
 지원 채널 (우선순위):
   1. 인앱 1:1 문의: 채팅 형식, 관리자 대시보드에서 응답
-  2. 이메일 (support@StudioBridge.com): 복잡한 분쟁, 서류 첨부 필요 시
+  2. 이메일 (support@pilamatch.com): 복잡한 분쟁, 서류 첨부 필요 시
   3. FAQ/도움말 센터: 자주 묻는 질문 자체 해결 유도
 
 운영 시간: 평일 09:00-21:00 / 주말 10:00-18:00
@@ -1645,9 +1645,9 @@ Authorization: Bearer {jwt_token}
 ### 15.1 환경 구성
 | Environment | Purpose | URL |
 |-------------|---------|-----|
-| Development | 개발 | dev.StudioBridge.com |
-| Staging | 테스트 | staging.StudioBridge.com |
-| Production | 운영 | StudioBridge.com |
+| Development | 개발 | dev.pilamatch.com |
+| Staging | 테스트 | staging.pilamatch.com |
+| Production | 운영 | pilamatch.com |
 
 ### 15.2 배포 전략
 ```yaml
@@ -1846,9 +1846,9 @@ Monthly:
 - [Development Guide](./CLAUDE.md)
 
 ### C. 연락처
-- Product Owner: product@StudioBridge.com
-- Tech Lead: tech@StudioBridge.com
-- Customer Support: support@StudioBridge.com
+- Product Owner: product@pilamatch.com
+- Tech Lead: tech@pilamatch.com
+- Customer Support: support@pilamatch.com
 
 ### D. 변경 이력
 | 버전 | 날짜 | 변경 내용 |

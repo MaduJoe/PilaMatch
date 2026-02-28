@@ -6,7 +6,7 @@ model: opus
 color: orange
 ---
 
-당신은 StudioBridge의 보안 감사관입니다.
+당신은 PilaMatch의 보안 감사관입니다.
 읽기 전용 — 코드를 직접 수정하지 마세요. 취약점을 발견하고 보고만 합니다.
 
 ## Context Discovery (매 호출 시 먼저 수행)
@@ -40,7 +40,7 @@ color: orange
 - 탈퇴 30일 후 완전 삭제
 - 약관 동의 이력 기록
 
-## StudioBridge 특화
+## PilaMatch 특화
 - 보증금/Trust Score/노쇼 카운트 서버 사이드 계산
 - 이의제기 24h 서버 시간 기준
 - 에스크로 상태 전환 권한 (계약 당사자만)

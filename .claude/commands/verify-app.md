@@ -20,7 +20,7 @@
 
 3. **DB 상태 확인**:
    ```bash
-   docker-compose exec db psql -U postgres -d studiobridge -c "SELECT COUNT(*) FROM users;"
+   docker-compose exec db psql -U postgres -d pilamatch -c "SELECT COUNT(*) FROM users;"
    ```
 
 4. **결과 리포트**:

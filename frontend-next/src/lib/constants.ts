@@ -1,5 +1,5 @@
 /**
- * Constants and configuration for StudioBridge frontend
+ * Constants and configuration for PilaMatch frontend
  * Ported from frontend/utils/constants.py with Next.js adaptations
  */
 

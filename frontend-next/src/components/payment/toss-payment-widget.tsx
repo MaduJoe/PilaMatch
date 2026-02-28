@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { formatCurrency, isTossPaymentsMockMode } from '@/lib/utils';
 import { MockPaymentWidget } from './mock-payment-widget';
 import { CreditCard, Loader2 } from 'lucide-react';
-import { loadTossPayments } from '@tosspayments/payment-sdk';
+import { loadTossPayments } from '@tosspayments/tosspayments-sdk';
 
 interface TossPaymentWidgetProps {
   clientKey: string;

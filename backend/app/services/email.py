@@ -16,7 +16,7 @@ class EmailService:
     async def send_password_reset(self, email: str, token: str) -> None:
         """Send password reset email with reset link."""
         reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-        subject = "[StudioBridge] 비밀번호 재설정"
+        subject = "[PilaMatch] 비밀번호 재설정"
         body = (
             f"안녕하세요,\n\n"
             f"비밀번호 재설정을 요청하셨습니다.\n"
@@ -24,18 +24,18 @@ class EmailService:
             f"{reset_url}\n\n"
             f"이 링크는 {settings.PASSWORD_RESET_EXPIRE_MINUTES}분 동안 유효합니다.\n"
             f"비밀번호 재설정을 요청하지 않으셨다면 이 이메일을 무시해주세요.\n\n"
-            f"감사합니다,\nStudioBridge 팀"
+            f"감사합니다,\nPilaMatch 팀"
         )
         await self._send(email, subject, body)
 
     async def send_account_deletion_notice(self, email: str) -> None:
         """Send account deletion confirmation email."""
-        subject = "[StudioBridge] 계정 삭제 예약 안내"
+        subject = "[PilaMatch] 계정 삭제 예약 안내"
         body = (
             f"안녕하세요,\n\n"
             f"계정 삭제가 예약되었습니다.\n"
             f"30일 이내에 로그인하시면 삭제를 취소할 수 있습니다.\n\n"
-            f"감사합니다,\nStudioBridge 팀"
+            f"감사합니다,\nPilaMatch 팀"
         )
         await self._send(email, subject, body)
 

@@ -1,7 +1,7 @@
-# StudioBridge Admin Dashboard Guide
+# PilaMatch Admin Dashboard Guide
 
 ## 개요
-StudioBridge Admin Dashboard는 개발자 전용 데이터베이스 관리 인터페이스입니다.
+PilaMatch Admin Dashboard는 개발자 전용 데이터베이스 관리 인터페이스입니다.
 모든 테이블의 데이터를 조회, 수정, 삭제할 수 있는 강력한 도구입니다.
 
 ## 접속 방법

@@ -22,7 +22,7 @@ export function Header() {
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <div>
           <h1 className="text-lg font-bold text-gray-900 sm:text-xl">
-            StudioBridge - {roleText}
+            PilaMatch - {roleText}
           </h1>
         </div>
         <div className="flex items-center gap-3">

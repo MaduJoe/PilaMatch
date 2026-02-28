@@ -1,4 +1,4 @@
-# StudioBridge Deployment Guide
+# PilaMatch Deployment Guide
 
 ## Docker Deployment (Recommended)
 
@@ -11,7 +11,7 @@
 ```bash
 # Clone repository
 git clone <repository-url>
-cd StudioBridge
+cd PilaMatch
 
 # Copy environment file
 cp .env.example .env
@@ -32,7 +32,7 @@ Edit `.env` file with your production values:
 
 ```bash
 # Database (automatically configured by docker-compose)
-DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/StudioBridge
+DATABASE_URL=postgresql+asyncpg://postgres:password@db:5432/pilamatch
 
 # JWT - CHANGE THIS IN PRODUCTION!
 SECRET_KEY=your-super-secret-key-change-me
@@ -78,7 +78,7 @@ docker-compose exec backend alembic upgrade head
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`
 4. Add environment variables:
-   - `API_BASE_URL`: Your backend URL (e.g., `https://StudioBridge-api.onrender.com`)
+   - `API_BASE_URL`: Your backend URL (e.g., `https://pilamatch-api.onrender.com`)
 
 ### Database
 
@@ -130,7 +130,7 @@ Create `frontend/static/sw.js`:
 ```javascript
 self.addEventListener('install', function(e) {
   e.waitUntil(
-    caches.open('StudioBridge-v1').then(function(cache) {
+    caches.open('pilamatch-v1').then(function(cache) {
       return cache.addAll([
         '/',
       ]);
@@ -194,10 +194,10 @@ Configure auto-scaling in dashboard
 ### Database Backup
 ```bash
 # Docker
-docker-compose exec db pg_dump -U postgres StudioBridge > backup.sql
+docker-compose exec db pg_dump -U postgres pilamatch > backup.sql
 
 # Restore
-docker-compose exec -T db psql -U postgres StudioBridge < backup.sql
+docker-compose exec -T db psql -U postgres pilamatch < backup.sql
 ```
 
 ## Security Checklist

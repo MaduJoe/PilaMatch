@@ -1,7 +1,7 @@
 # Frontend Code Refactoring Documentation
 
 ## Overview
-The StudioBridge frontend has been refactored from a single 2000+ line `app.py` file into a modular structure for better maintainability and organization.
+The PilaMatch frontend has been refactored from a single 2000+ line `app.py` file into a modular structure for better maintainability and organization.
 
 ## New Directory Structure
 
