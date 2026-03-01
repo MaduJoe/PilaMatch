@@ -80,6 +80,10 @@ class EventLogService:
             )
             return event
         except Exception:
+            # Rollback to clear the failed flush and restore a usable session.
+            # Without this, subsequent operations on the same session would fail
+            # with "Can't reconnect until invalid transaction is rolled back".
+            await self.db.rollback()
             logger.exception(
                 "Failed to log event: type=%s target=%s/%s",
                 event_type,
