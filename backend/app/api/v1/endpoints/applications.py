@@ -1,11 +1,13 @@
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.db.session import get_db
 from app.core.deps import require_role
-from app.models import User, UserRole
+from app.models import User, UserRole, InstructorProfile, StudioProfile, JobPost, ApplicationStatus
 from app.schemas.application import (
     ApplicationCreate,
     ApplicationResponse,
@@ -13,9 +15,9 @@ from app.schemas.application import (
     ApplicationListResponse,
     ApplicationWithInstructorResponse,
     ApplicationWithInstructorListResponse,
+    ContactRevealResponse,
 )
 from app.services.application import ApplicationService
-from app.services.subscription import SubscriptionService
 from app.utils.masking import mask_phone
 
 router = APIRouter()
@@ -96,12 +98,18 @@ async def get_job_post_applications(
             detail={"code": "PERMISSION_DENIED", "message": "Not authorized to view applications for this job post"},
         )
 
-    subscription_service = SubscriptionService(db)
     items = []
 
     for application, instructor, has_offer in results:
-        # Check if instructor has premium membership
-        is_premium = await subscription_service.is_premium_user(instructor.user_id)
+        # Get no-show count from user model
+        user_result = await db.execute(
+            select(User).where(User.id == instructor.user_id)
+        )
+        inst_user = user_result.scalar_one_or_none()
+
+        # Show full phone if contact is revealed, masked otherwise
+        revealed = getattr(application, "contact_revealed", False)
+        phone_display = instructor.phone if revealed else mask_phone(instructor.phone)
 
         item = ApplicationWithInstructorResponse(
             id=application.id,
@@ -112,17 +120,19 @@ async def get_job_post_applications(
             created_at=application.created_at,
             updated_at=application.updated_at,
             instructor_name=instructor.display_name,
-            instructor_phone=mask_phone(instructor.phone),
+            instructor_phone=phone_display,
             instructor_experience_years=instructor.experience_years,
             instructor_categories=instructor.categories,
             instructor_rating=float(instructor.rating_average) if instructor.rating_average else None,
             has_offer=has_offer,
-            is_premium=is_premium,
+            is_premium=False,  # PMF pivot: premium hidden
+            contact_revealed=revealed,
+            # Trust-tech profile data
+            instructor_completed_substitutes=getattr(instructor, "completed_substitute_count", 0) or 0,
+            instructor_no_show_count=inst_user.no_show_count if inst_user else 0,
+            instructor_review_count=instructor.review_count or 0,
         )
         items.append(item)
-
-    # Sort items: Premium instructors first, then by creation date
-    items.sort(key=lambda x: (x.is_premium, x.created_at), reverse=True)
 
     return ApplicationWithInstructorListResponse(items=items, total=total)
 
@@ -202,3 +212,134 @@ async def withdraw_application(
         )
 
     return ApplicationResponse.model_validate(application)
+
+
+@router.post(
+    "/applications/{application_id}/accept",
+    response_model=ContactRevealResponse,
+)
+async def accept_application(
+    application_id: UUID,
+    current_user: User = Depends(require_role(UserRole.STUDIO)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Accept an application and reveal contact info to both parties.
+
+    PMF pivot: Replaces the offer→contract flow with direct contact reveal.
+    Studio accepts → both parties' phone numbers are immediately shared.
+    """
+    service = ApplicationService(db)
+    studio_id = await service.get_studio_profile_id(current_user.id)
+
+    if not studio_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
+        )
+
+    # Get the application
+    application = await service.get_by_id(application_id)
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "APPLICATION_NOT_FOUND", "message": "Application not found"},
+        )
+
+    # Verify job post belongs to this studio
+    job_result = await db.execute(
+        select(JobPost).where(
+            JobPost.id == application.job_post_id,
+            JobPost.studio_id == studio_id,
+        )
+    )
+    job_post = job_result.scalar_one_or_none()
+    if not job_post:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to accept this application"},
+        )
+
+    if application.status != ApplicationStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "INVALID_STATUS", "message": f"Cannot accept application with status '{application.status}'"},
+        )
+
+    # Accept the application and reveal contact info
+    application.status = ApplicationStatus.ACCEPTED
+    application.contact_revealed = True
+    application.contact_revealed_at = datetime.utcnow()
+
+    # Reject other pending applications for this job
+    from app.models import Application
+    other_result = await db.execute(
+        select(Application).where(
+            Application.job_post_id == application.job_post_id,
+            Application.id != application.id,
+            Application.status == ApplicationStatus.PENDING,
+        )
+    )
+    for other_app in other_result.scalars().all():
+        other_app.status = ApplicationStatus.REJECTED
+
+    # Mark job as filled
+    job_post.status = "filled"
+
+    await db.commit()
+    await db.refresh(application)
+
+    # Get full contact info for both parties
+    instructor_result = await db.execute(
+        select(InstructorProfile).where(InstructorProfile.id == application.instructor_id)
+    )
+    instructor = instructor_result.scalar_one_or_none()
+
+    studio_result = await db.execute(
+        select(StudioProfile).where(StudioProfile.id == studio_id)
+    )
+    studio = studio_result.scalar_one_or_none()
+
+    # Send notification to instructor
+    try:
+        from app.services.notification import NotificationService, NotificationType
+        notif_service = NotificationService(db)
+        await notif_service.send(
+            user_id=str(instructor.user_id) if instructor else "",
+            type=NotificationType.NEW_APPLICATION,
+            title="지원이 수락되었습니다!",
+            body=f"{studio.business_name if studio else '스튜디오'}에서 대타 지원을 수락했습니다. 연락처를 확인하세요.",
+            data={
+                "type": "application_accepted",
+                "application_id": str(application_id),
+                "studio_phone": studio.phone if studio else None,
+            },
+        )
+    except Exception:
+        pass  # Notification failure should not block
+
+    # Record event
+    try:
+        from app.services.event_log import EventLogService
+        event_service = EventLogService(db)
+        await event_service.log(
+            event_type="application.accepted_contact_revealed",
+            actor_user_id=str(current_user.id),
+            target_type="application",
+            target_id=str(application_id),
+            data={
+                "job_post_id": str(job_post.id),
+                "instructor_id": str(application.instructor_id),
+            },
+        )
+        await db.commit()
+    except Exception:
+        pass
+
+    return ContactRevealResponse(
+        application_id=application.id,
+        instructor_phone=instructor.phone or "등록된 번호 없음",
+        instructor_name=instructor.display_name if instructor else "강사",
+        studio_phone=studio.phone or "등록된 번호 없음",
+        studio_name=studio.business_name if studio else "스튜디오",
+        studio_address=studio.address if studio else None,
+    )

@@ -45,7 +45,7 @@ interface JobCardProps {
 // ---------------------------------------------------------------------------
 
 export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
-  const { job, matching, is_premium, is_urgent } = item;
+  const { job, matching, is_urgent } = item;
   const score = matching.total;
   const isPast = job.is_past;
   const typeInfo = JOB_TYPE_MAP[job.job_type] ?? { label: job.job_type, emoji: '' };
@@ -56,6 +56,7 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
       className={cn(
         'flex flex-col justify-between transition-shadow hover:shadow-md',
         isPast && 'opacity-60',
+        is_urgent && !isPast && 'border-red-400 ring-1 ring-red-400',
       )}
     >
       <CardContent className="flex flex-col gap-3">
@@ -65,11 +66,7 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
             {typeInfo.emoji} {typeInfo.label}
           </Badge>
 
-          {is_premium && (
-            <Badge variant="default" className="bg-violet-600 text-xs text-white">
-              Premium
-            </Badge>
-          )}
+          {/* PMF pivot: Premium badge hidden */}
 
           {is_urgent && (
             <Badge variant="destructive" className="text-xs">
@@ -108,6 +105,13 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
         <p className="text-sm text-muted-foreground">
           {job.region ?? '-'} | {job.date}
         </p>
+
+        {/* Row 3.5: Distance info */}
+        {job.distance_text && (
+          <span className="text-sm text-blue-600 font-medium">
+            {job.distance_text} ({job.travel_time_min}분)
+          </span>
+        )}
 
         {/* Row 4: Hourly rate */}
         <p className="text-base font-bold">

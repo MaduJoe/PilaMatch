@@ -1,32 +1,116 @@
 """Matching score calculation service."""
 from typing import Optional
 from app.models import InstructorProfile, JobPost
+from app.utils.distance import haversine_distance
+
+
+def _calculate_distance_score(distance_km: float) -> int:
+    """Convert distance in km to a 0-100 score.
+
+    Scoring tiers:
+        0-2km:   100 points
+        2-5km:    80 points
+        5-10km:   60 points
+        10-20km:  40 points
+        20-30km:  20 points
+        >30km:    10 points
+
+    Args:
+        distance_km: Distance in kilometers.
+
+    Returns:
+        Score between 0 and 100.
+    """
+    if distance_km <= 2:
+        return 100
+    elif distance_km <= 5:
+        return 80
+    elif distance_km <= 10:
+        return 60
+    elif distance_km <= 20:
+        return 40
+    elif distance_km <= 30:
+        return 20
+    else:
+        return 10
 
 
 def calculate_matching_score(
     instructor: InstructorProfile,
     job: JobPost,
+    instructor_lat: Optional[float] = None,
+    instructor_lng: Optional[float] = None,
 ) -> dict:
-    """
-    Calculate matching score between instructor and job post.
+    """Calculate matching score between instructor and job post.
 
-    Score is purely skill-based — premium status does not influence the score.
+    Score is purely skill-based -- premium status does not influence the score.
+
+    When both instructor and job location data are available, a 5th distance
+    factor is added and weights are rebalanced to emphasise proximity:
+        distance: 35%, region: 10%, experience: 25%,
+        certifications: 15%, rate: 15%
+
+    When location data is NOT available, the original 4-factor weights are used:
+        region: 30%, experience: 25%, certifications: 25%, rate: 20%
+
+    Args:
+        instructor: InstructorProfile model instance.
+        job: JobPost model instance.
+        instructor_lat: Optional latitude override for the instructor.
+            Falls back to instructor.latitude if not provided.
+        instructor_lng: Optional longitude override for the instructor.
+            Falls back to instructor.longitude if not provided.
 
     Returns:
-        dict with total score (0-100) and breakdown by category
+        dict with total score (0-100), breakdown by category, and
+        optionally distance_km when distance was calculated.
     """
-    scores = {
+    # Resolve instructor coordinates (parameter > model field)
+    i_lat = instructor_lat if instructor_lat is not None else (
+        float(instructor.latitude) if instructor.latitude is not None else None
+    )
+    i_lng = instructor_lng if instructor_lng is not None else (
+        float(instructor.longitude) if instructor.longitude is not None else None
+    )
+
+    # Resolve job coordinates from the model
+    j_lat = float(job.latitude) if job.latitude is not None else None
+    j_lng = float(job.longitude) if job.longitude is not None else None
+
+    # Determine whether distance-aware scoring is possible
+    has_distance = (
+        i_lat is not None and i_lng is not None
+        and j_lat is not None and j_lng is not None
+    )
+
+    distance_km: Optional[float] = None
+
+    if has_distance:
+        distance_km = haversine_distance(i_lat, i_lng, j_lat, j_lng)  # type: ignore[arg-type]
+
+    scores: dict[str, int] = {
         "region": 0,
         "experience": 0,
         "certifications": 0,
         "rate": 0,
     }
-    weights = {
-        "region": 30,
-        "experience": 25,
-        "certifications": 25,
-        "rate": 20,
-    }
+
+    if has_distance:
+        scores["distance"] = _calculate_distance_score(distance_km)  # type: ignore[arg-type]
+        weights: dict[str, int] = {
+            "distance": 35,
+            "region": 10,
+            "experience": 25,
+            "certifications": 15,
+            "rate": 15,
+        }
+    else:
+        weights = {
+            "region": 30,
+            "experience": 25,
+            "certifications": 25,
+            "rate": 20,
+        }
 
     # 1. Region matching (30%)
     instructor_regions = instructor.available_regions or []
@@ -99,15 +183,28 @@ def calculate_matching_score(
     for key, score in scores.items():
         total += score * (weights[key] / 100)
 
-    return {
-        "total": round(total),
-        "breakdown": {
-            "region": {"score": scores["region"], "weight": weights["region"]},
-            "experience": {"score": scores["experience"], "weight": weights["experience"]},
-            "certifications": {"score": scores["certifications"], "weight": weights["certifications"]},
-            "rate": {"score": scores["rate"], "weight": weights["rate"]},
-        }
+    breakdown: dict = {
+        "region": {"score": scores["region"], "weight": weights["region"]},
+        "experience": {"score": scores["experience"], "weight": weights["experience"]},
+        "certifications": {"score": scores["certifications"], "weight": weights["certifications"]},
+        "rate": {"score": scores["rate"], "weight": weights["rate"]},
     }
+
+    if has_distance:
+        breakdown["distance"] = {
+            "score": scores["distance"],
+            "weight": weights["distance"],
+        }
+
+    result: dict = {
+        "total": round(total),
+        "breakdown": breakdown,
+    }
+
+    if distance_km is not None:
+        result["distance_km"] = round(distance_km, 2)
+
+    return result
 
 
 def get_match_label(score: int) -> str:

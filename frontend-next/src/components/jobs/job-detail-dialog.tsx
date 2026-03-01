@@ -72,7 +72,7 @@ export function JobDetailDialog({
           setApplyError('프로필을 먼저 완성해주세요.');
         } else if (error.code === 'APPLICATION_LIMIT') {
           toast.error(error.message);
-          setApplyError('프리미엄으로 업그레이드하면 무제한 지원이 가능합니다.');
+          setApplyError('잠시 후 다시 시도해주세요.');
         } else {
           toast.error(`오류: ${error.message}`);
           setApplyError(error.message);
@@ -98,7 +98,7 @@ export function JobDetailDialog({
     );
   }
 
-  const { job, matching, is_premium, is_urgent } = item;
+  const { job, matching, is_urgent } = item;
   const isPast = job.is_past;
   const typeLabel = JOB_TYPE_LABELS[job.job_type] ?? job.job_type;
   const breakdown = matching.breakdown;
@@ -111,15 +111,21 @@ export function JobDetailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {typeLabel} | {job.region ?? '-'}
-            {is_premium && (
-              <Badge variant="default" className="bg-violet-600 text-xs text-white">
-                Premium
-              </Badge>
-            )}
+            {/* PMF pivot: Premium badge hidden */}
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
+          {/* Urgent banner (prominent, top of content) */}
+          {is_urgent && (
+            <div
+              className="rounded-lg border border-red-400 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-800 dark:border-red-600 dark:bg-red-950 dark:text-red-200"
+              role="alert"
+            >
+              긴급 대타 요청 - 빠른 지원이 필요합니다
+            </div>
+          )}
+
           {/* Hourly rate */}
           <p className="text-lg font-bold">
             {formatCurrency(job.hourly_rate)} / 시간
@@ -130,6 +136,13 @@ export function JobDetailDialog({
             {job.date} | {job.start_time?.slice(0, 5) ?? '-'} ~{' '}
             {job.end_time?.slice(0, 5) ?? '-'}
           </p>
+
+          {/* Distance info */}
+          {job.distance_text && (
+            <p className="text-sm font-medium text-blue-600">
+              {job.distance_text} ({job.travel_time_min}분)
+            </p>
+          )}
 
           {/* Studio info */}
           {job.studio_name && (
@@ -171,12 +184,7 @@ export function JobDetailDialog({
             </div>
           </div>
 
-          {/* Urgent badge info */}
-          {is_urgent && (
-            <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-              긴급 매칭 - 24시간 내 수업
-            </div>
-          )}
+          {/* PMF pivot: urgent banner moved to top of dialog */}
 
           {/* Error message */}
           {applyError && (

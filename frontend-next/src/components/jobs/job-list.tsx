@@ -6,9 +6,11 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import api, { APIError } from '@/lib/api-client';
 import type { JobPostWithMatchingItem, ApplicationResponse } from '@/lib/api-types';
-import { FREE_DAILY_APPLICATION_LIMIT } from '@/lib/constants';
+// PMF pivot: FREE_DAILY_APPLICATION_LIMIT no longer used
+// import { FREE_DAILY_APPLICATION_LIMIT } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+// PMF pivot: Badge no longer used for subscription status
+// import { Badge } from '@/components/ui/badge';
 import { JobFiltersBar, type JobFilters } from './job-filters';
 import { JobCard } from './job-card';
 import { JobDetailDialog } from './job-detail-dialog';
@@ -31,6 +33,7 @@ export function JobList() {
     category: 'all',
     region: 'all',
     sortByScore: true,
+    urgentOnly: false,
   });
 
   const [page, setPage] = useState(1);
@@ -61,10 +64,11 @@ export function JobList() {
     queryFn: () => api.applications.getMyApplications(),
   });
 
-  const subscriptionQuery = useQuery({
-    queryKey: ['subscription-status'],
-    queryFn: () => api.subscriptions.getStatus(),
-  });
+  // PMF pivot: subscription query removed
+  // const subscriptionQuery = useQuery({
+  //   queryKey: ['subscription-status'],
+  //   queryFn: () => api.subscriptions.getStatus(),
+  // });
 
   // ---- Derived data -------------------------------------------------------
   const appliedJobIds = useMemo(() => {
@@ -73,17 +77,15 @@ export function JobList() {
     return new Set(apps.map((app) => app.job_post_id));
   }, [applicationsQuery.data]);
 
-  const isPremium = subscriptionQuery.data?.membership_tier === 'premium';
-
-  const activeApplicationCount = useMemo(() => {
-    if (!applicationsQuery.data) return 0;
-    const apps = applicationsQuery.data.items ?? [];
-    return apps.filter((app) => app.status === 'pending').length;
-  }, [applicationsQuery.data]);
-
-  // ---- Sort jobs ----------------------------------------------------------
+  // ---- Filter + Sort jobs -------------------------------------------------
   const sortedJobs = useMemo(() => {
-    const items = jobsQuery.data?.items ?? [];
+    let items = jobsQuery.data?.items ?? [];
+
+    // Apply urgent-only filter
+    if (filters.urgentOnly) {
+      items = items.filter((item) => item.is_urgent);
+    }
+
     return [...items].sort((a, b) => {
       // Past jobs always at bottom
       if (a.job.is_past !== b.job.is_past) {
@@ -99,7 +101,7 @@ export function JobList() {
       // Newer first (fallback)
       return b.job.created_at.localeCompare(a.job.created_at);
     });
-  }, [jobsQuery.data?.items, filters.sortByScore]);
+  }, [jobsQuery.data?.items, filters.sortByScore, filters.urgentOnly]);
 
   const total = jobsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -179,27 +181,7 @@ export function JobList() {
   // ---- Render -------------------------------------------------------------
   return (
     <div className="flex flex-col gap-6">
-      {/* Application limit status bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        {isPremium ? (
-          <Badge variant="default" className="bg-violet-600 text-white">
-            Premium - 무제한 지원 가능
-          </Badge>
-        ) : (
-          <Badge
-            variant={
-              activeApplicationCount >= FREE_DAILY_APPLICATION_LIMIT
-                ? 'destructive'
-                : 'secondary'
-            }
-          >
-            지원 현황: {activeApplicationCount}/{FREE_DAILY_APPLICATION_LIMIT}
-            {activeApplicationCount >= FREE_DAILY_APPLICATION_LIMIT
-              ? ' (한도 도달)'
-              : ` (${FREE_DAILY_APPLICATION_LIMIT - activeApplicationCount}개 남음)`}
-          </Badge>
-        )}
-      </div>
+      {/* PMF pivot: subscription/premium status bar removed */}
 
       {/* Filters */}
       <JobFiltersBar filters={filters} onChange={handleFiltersChange} />

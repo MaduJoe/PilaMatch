@@ -6,7 +6,18 @@ import { toast } from 'sonner';
 import api from '@/lib/api-client';
 import { APIError } from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
-import { PREMIUM_BENEFITS, PREMIUM_PRICE } from '@/lib/constants';
+// PMF pivot: Premium disabled -- constants commented out in constants.ts
+// import { PREMIUM_BENEFITS, PREMIUM_PRICE } from '@/lib/constants';
+// Local fallback for compilation; this component should not be rendered during pivot.
+const PREMIUM_PRICE = 9900;
+const PREMIUM_BENEFITS = {
+  instructor: [
+    { icon: 'rocket', title: '무제한 일일 지원', desc: '하루 5회 -> 무제한' },
+  ],
+  studio: [
+    { icon: 'eye', title: '무제한 강사 프로필 열람', desc: '하루 5명 -> 무제한' },
+  ],
+} as const;
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

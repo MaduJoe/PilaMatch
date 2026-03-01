@@ -21,6 +21,9 @@ class JobPostCreate(BaseModel):
     required_certifications: List[str] = []
     region: Optional[str] = Field(None, max_length=100)
     address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    is_urgent: bool = False
 
 
 class JobPostUpdate(BaseModel):
@@ -38,6 +41,9 @@ class JobPostUpdate(BaseModel):
     required_certifications: Optional[List[str]] = None
     region: Optional[str] = Field(None, max_length=100)
     address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    is_urgent: Optional[bool] = None
 
 
 class JobPostResponse(BaseModel):
@@ -57,6 +63,12 @@ class JobPostResponse(BaseModel):
     required_certifications: List[str]
     region: Optional[str] = None
     address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    is_urgent: bool = False
+    distance_km: Optional[float] = None  # Calculated field, not from DB
+    distance_text: Optional[str] = None  # e.g. "2.3km"
+    travel_time_min: Optional[int] = None  # e.g. 15
     is_past: bool = False
     application_count: int = 0
     # Note: is_premium is added at the endpoint level for security reasons
@@ -81,3 +93,8 @@ class JobPostFilter(BaseModel):
     date_to: Optional[date] = None
     min_rate: Optional[Decimal] = None
     max_rate: Optional[Decimal] = None
+    is_urgent: Optional[bool] = None
+    sort_by_distance: bool = False  # If true, sorts by distance when lat/lng provided
+    user_latitude: Optional[float] = None
+    user_longitude: Optional[float] = None
+    max_distance_km: Optional[float] = None  # Filter by max distance

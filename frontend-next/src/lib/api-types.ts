@@ -174,6 +174,9 @@ export interface JobPostCreate {
   required_certifications?: string[];
   region?: string;
   address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_urgent?: boolean;
 }
 
 export interface JobPostResponse {
@@ -193,6 +196,12 @@ export interface JobPostResponse {
   required_certifications: string[];
   region?: string | null;
   address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  is_urgent: boolean;
+  distance_km?: number | null;
+  distance_text?: string | null;
+  travel_time_min?: number | null;
   is_past: boolean;
   application_count: number;
   created_at: string;
@@ -217,6 +226,9 @@ export interface JobPostWithMatchingItem {
   matching: MatchingScore;
   is_premium: boolean;
   is_urgent: boolean;
+  distance_km?: number | null;
+  distance_text?: string | null;
+  travel_time_min?: number | null;
 }
 
 export interface JobPostListResponse {
@@ -247,6 +259,8 @@ export interface ApplicationResponse {
   instructor_id: string;
   status: ApplicationStatus;
   cover_letter?: string | null;
+  contact_revealed: boolean;
+  contact_revealed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -259,6 +273,23 @@ export interface ApplicationWithInstructorResponse extends ApplicationResponse {
   instructor_rating?: number | null;
   has_offer: boolean;
   is_premium: boolean;
+  contact_revealed: boolean;
+  instructor_full_phone?: string | null;
+  studio_phone?: string | null;
+  studio_name?: string | null;
+  instructor_completed_substitutes: number;
+  instructor_no_show_count: number;
+  instructor_review_count: number;
+}
+
+export interface ContactRevealResponse {
+  application_id: string;
+  instructor_phone: string;
+  instructor_name: string;
+  studio_phone: string;
+  studio_name: string;
+  studio_address?: string | null;
+  message: string;
 }
 
 // ---------------------------------------------------------------------------

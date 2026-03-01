@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Text, Integer, ForeignKey, UniqueConstraint, CheckConstraint
+from sqlalchemy import Column, Text, Integer, Boolean, ForeignKey, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -18,6 +18,10 @@ class Review(Base, UUIDMixin, TimestampMixin):
     reviewee_studio_id = Column(GUID(), ForeignKey("studio_profiles.id", ondelete="CASCADE"), index=True)
     rating = Column(Integer, nullable=False)
     comment = Column(Text)
+    # Checklist review fields (PMF pivot - lightweight review)
+    time_punctuality = Column(Boolean, nullable=True)   # 시간 준수
+    professionalism = Column(Boolean, nullable=True)     # 전문성
+    would_rehire = Column(Boolean, nullable=True)        # 재고용 의향
 
     # Relationships
     contract = relationship("Contract", back_populates="reviews")

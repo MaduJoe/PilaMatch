@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Date, Time, ForeignKey, Numeric, Integer, JSON
+from sqlalchemy import Column, String, Text, Date, Time, ForeignKey, Numeric, Integer, JSON, Boolean
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -24,6 +24,9 @@ class JobPost(Base, UUIDMixin, TimestampMixin):
     required_certifications = Column(JSON, default=[])
     region = Column(String(100), index=True)
     address = Column(String(500))
+    latitude = Column(Numeric(10, 7), nullable=True)  # GPS latitude
+    longitude = Column(Numeric(10, 7), nullable=True)  # GPS longitude
+    is_urgent = Column(Boolean, default=False, nullable=False, index=True)  # Urgent substitute flag
     application_count = Column(Integer, default=0)
 
     # Relationships

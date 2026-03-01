@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Text, ForeignKey, UniqueConstraint, Boolean, DateTime
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -16,6 +16,8 @@ class Application(Base, UUIDMixin, TimestampMixin):
     instructor_id = Column(GUID(), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     status = Column(String(20), default=ApplicationStatus.PENDING.value, nullable=False, index=True)
     cover_letter = Column(Text)
+    contact_revealed = Column(Boolean, default=False, nullable=False)  # Contact info revealed to both parties
+    contact_revealed_at = Column(DateTime, nullable=True)  # When contact was revealed
 
     # Relationships
     job_post = relationship("JobPost", back_populates="applications")

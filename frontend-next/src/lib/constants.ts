@@ -9,17 +9,17 @@
 
 export const INSTRUCTOR_STEPS = [
   { key: 'profile', label: '프로필 완성', path: '/steps/profile' },
-  { key: 'find_jobs', label: '일 찾기', path: '/steps/jobs' },
-  { key: 'offers', label: '오퍼 확인', path: '/steps/offers' },
-  { key: 'contracts', label: '계약 진행', path: '/steps/contracts' },
+  { key: 'find_jobs', label: '급구/대행 찾기', path: '/steps/jobs' },
+  { key: 'offers', label: '수락 대기', path: '/steps/offers' },
+  { key: 'contracts', label: '수업 진행', path: '/steps/contracts' },
   { key: 'complete', label: '완료/리뷰', path: '/steps/complete' },
 ] as const;
 
 export const STUDIO_STEPS = [
   { key: 'profile', label: '프로필 완성', path: '/steps/profile' },
-  { key: 'create_job', label: '공고 등록', path: '/steps/jobs' },
-  { key: 'applicants', label: '지원자 선택', path: '/steps/offers' },
-  { key: 'contracts', label: '계약 진행', path: '/steps/contracts' },
+  { key: 'create_job', label: '급구 등록', path: '/steps/jobs' },
+  { key: 'applicants', label: '강사 선택/연락', path: '/steps/offers' },
+  { key: 'contracts', label: '수업 진행', path: '/steps/contracts' },
   { key: 'complete', label: '완료/리뷰', path: '/steps/complete' },
 ] as const;
 
@@ -73,20 +73,37 @@ export const RATE_PRESETS = [
 // Contract terms (Korean)
 // ---------------------------------------------------------------------------
 
+// PMF pivot: Direct settlement, no escrow
+// export const CONTRACT_TERMS = `
+// ## 계약 조건
+//
+// ### 노쇼 패널티
+// - 노쇼 발생 시 30,000원 패널티가 보증금에서 차감됩니다.
+// - 3회 노쇼 시 계정이 정지됩니다.
+//
+// ### 취소 정책
+// - 수업 시작 24시간 전까지 무료 취소 가능
+// - 24시간 이내 취소 시 패널티가 적용될 수 있습니다.
+//
+// ### 결제
+// - 수업 완료 후 에스크로에서 정산됩니다.
+// - 플랫폼 수수료: 무료회원 5%, 프리미엄회원 3%
+// `;
+
 export const CONTRACT_TERMS = `
-## 계약 조건
+## 이용 조건
 
 ### 노쇼 패널티
-- 노쇼 발생 시 30,000원 패널티가 보증금에서 차감됩니다.
 - 3회 노쇼 시 계정이 정지됩니다.
+- Trust Score가 차감됩니다.
 
 ### 취소 정책
 - 수업 시작 24시간 전까지 무료 취소 가능
 - 24시간 이내 취소 시 패널티가 적용될 수 있습니다.
 
-### 결제
-- 수업 완료 후 에스크로에서 정산됩니다.
-- 플랫폼 수수료: 무료회원 5%, 프리미엄회원 3%
+### 정산
+- 수업료는 강사와 스튜디오 간 직접 정산합니다.
+- 플랫폼은 매칭 서비스만 제공하며 결제에 개입하지 않습니다.
 `;
 
 // ---------------------------------------------------------------------------
@@ -120,37 +137,31 @@ export const TRUST_LEVELS = [
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Premium membership
+// PMF pivot: Premium disabled -- free-only model during validation phase
 // ---------------------------------------------------------------------------
 
-export const PREMIUM_PRICE = 9900;
+// export const PREMIUM_PRICE = 9900;
+//
+// export const PREMIUM_BENEFITS = {
+//   instructor: [
+//     { icon: 'percent', title: '수수료 40% 할인', desc: '5% -> 3%' },
+//     { icon: 'rocket', title: '무제한 일일 지원', desc: '하루 5회 -> 무제한' },
+//     { icon: 'trending-up', title: '매칭 점수 30% 부스트', desc: '스튜디오에게 더 높은 점수로 노출' },
+//     { icon: 'trophy', title: 'Trust Score +10점', desc: '신뢰도 레벨 상승' },
+//     { icon: 'file-text', title: '지원서 템플릿 10개', desc: '빠른 지원을 위한 템플릿' },
+//   ],
+//   studio: [
+//     { icon: 'percent', title: '수수료 40% 할인', desc: '5% -> 3%' },
+//     { icon: 'eye', title: '무제한 강사 프로필 열람', desc: '하루 5명 -> 무제한' },
+//     { icon: 'star', title: '공고 우선 노출', desc: '강사들에게 상단 표시' },
+//     { icon: 'trophy', title: 'Trust Score +10점', desc: '신뢰도 레벨 상승' },
+//     { icon: 'bar-chart', title: '프리미엄 강사 우선 매칭', desc: '프리미엄 강사 우선 정렬' },
+//   ],
+// } as const;
 
-export const PREMIUM_BENEFITS = {
-  instructor: [
-    { icon: 'percent', title: '수수료 40% 할인', desc: '5% -> 3%' },
-    { icon: 'rocket', title: '무제한 일일 지원', desc: '하루 5회 -> 무제한' },
-    { icon: 'trending-up', title: '매칭 점수 30% 부스트', desc: '스튜디오에게 더 높은 점수로 노출' },
-    { icon: 'trophy', title: 'Trust Score +10점', desc: '신뢰도 레벨 상승' },
-    { icon: 'file-text', title: '지원서 템플릿 10개', desc: '빠른 지원을 위한 템플릿' },
-  ],
-  studio: [
-    { icon: 'percent', title: '수수료 40% 할인', desc: '5% -> 3%' },
-    { icon: 'eye', title: '무제한 강사 프로필 열람', desc: '하루 5명 -> 무제한' },
-    { icon: 'star', title: '공고 우선 노출', desc: '강사들에게 상단 표시' },
-    { icon: 'trophy', title: 'Trust Score +10점', desc: '신뢰도 레벨 상승' },
-    { icon: 'bar-chart', title: '프리미엄 강사 우선 매칭', desc: '프리미엄 강사 우선 정렬' },
-  ],
-} as const;
+// PMF pivot: Premium disabled
+// export const DEPOSIT_AMOUNT = 50000;
 
-// ---------------------------------------------------------------------------
-// Deposit
-// ---------------------------------------------------------------------------
-
-export const DEPOSIT_AMOUNT = 50000;
-
-// ---------------------------------------------------------------------------
-// Daily limits (free tier)
-// ---------------------------------------------------------------------------
-
-export const FREE_DAILY_APPLICATION_LIMIT = 5;
-export const FREE_DAILY_VIEW_LIMIT = 5;
+// PMF pivot: Premium disabled
+// export const FREE_DAILY_APPLICATION_LIMIT = 5;
+// export const FREE_DAILY_VIEW_LIMIT = 5;

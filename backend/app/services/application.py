@@ -67,18 +67,9 @@ class ApplicationService:
             if not completeness["allowed"]:
                 raise ValueError(f"INCOMPLETE_PROFILE:{completeness['reason']}")
 
-            # v3.0 Phase 2: Check daily application limit
-            from app.services.daily_usage import DailyUsageService
-            from app.models.daily_usage import DailyUsageLimit
-
-            daily_usage_service = DailyUsageService(self.db)
-            usage_result = await daily_usage_service.check_and_increment_usage(
-                instructor.user_id,
-                DailyUsageLimit.UsageType.APPLICATION
-            )
-
-            if not usage_result["allowed"]:
-                raise ValueError(f"APPLICATION_LIMIT:{usage_result['message']}")
+            # PMF pivot: Daily usage limits disabled — all users have unlimited access
+            # to prove value before adding friction.
+            # Original code preserved in daily_usage.py for post-PMF reactivation.
 
         # Create application
         application = Application(

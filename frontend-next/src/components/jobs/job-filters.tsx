@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,6 +21,7 @@ export interface JobFilters {
   category: string;
   region: string;
   sortByScore: boolean;
+  urgentOnly: boolean;
 }
 
 interface JobFiltersProps {
@@ -72,6 +74,18 @@ export function JobFiltersBar({ filters, onChange }: JobFiltersProps) {
           ))}
         </SelectContent>
       </Select>
+
+      {/* Urgent-only toggle */}
+      <Button
+        variant={filters.urgentOnly ? 'destructive' : 'outline'}
+        size="sm"
+        className="min-h-[44px]"
+        onClick={() => onChange({ ...filters, urgentOnly: !filters.urgentOnly })}
+        aria-label={filters.urgentOnly ? '긴급 필터 해제' : '긴급 공고만 보기'}
+        aria-pressed={filters.urgentOnly}
+      >
+        {filters.urgentOnly ? '긴급만 ON' : '긴급만'}
+      </Button>
 
       {/* Sort by matching score */}
       <div className="flex items-center gap-2">

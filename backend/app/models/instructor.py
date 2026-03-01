@@ -20,10 +20,13 @@ class InstructorProfile(Base, UUIDMixin, TimestampMixin):
     hourly_rate_min = Column(Numeric(10, 2))
     hourly_rate_max = Column(Numeric(10, 2))
     available_regions = Column(JSON, default=[])
+    latitude = Column(Numeric(10, 7), nullable=True)  # GPS latitude
+    longitude = Column(Numeric(10, 7), nullable=True)  # GPS longitude
     photo_url = Column(String(500), nullable=True)
     is_public = Column(Boolean, default=True, nullable=False)
     rating_average = Column(Numeric(3, 2), default=0)
     review_count = Column(Integer, default=0)
+    completed_substitute_count = Column(Integer, default=0)  # 완료된 대타 건수
 
     # Relationships
     user = relationship("User", back_populates="instructor_profile")

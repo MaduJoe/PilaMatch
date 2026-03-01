@@ -13,6 +13,7 @@ import type {
   ApplicationCreate,
   ApplicationResponse,
   ApplicationWithInstructorResponse,
+  ContactRevealResponse,
   OfferCreate,
   OfferResponse,
   OfferListResponse,
@@ -30,12 +31,14 @@ import type {
   TrustScoreResponse,
   VerificationStatusResponse,
   ProfileCompletenessResponse,
-  ThreadCreate,
-  ThreadResponse,
-  MessageResponse,
+  // PMF pivot: Chat disabled -- contact reveal replaces in-app chat
+  // ThreadCreate,
+  // ThreadResponse,
+  // MessageResponse,
   SupportTicketCreate,
   SupportTicketResponse,
-  ApplicationTemplateResponse,
+  // PMF pivot: Application templates disabled
+  // ApplicationTemplateResponse,
   DailyUsageResponse,
   APIErrorResponse,
 } from './api-types';
@@ -203,7 +206,11 @@ export const jobPosts = {
     return get<JobPostListResponse>(`/job-posts${query}`);
   },
 
-  listWithMatching: (params?: Record<string, string>) => {
+  listWithMatching: (params?: Record<string, string> & {
+    user_latitude?: string;
+    user_longitude?: string;
+    max_distance_km?: string;
+  }) => {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
     return get<JobPostWithMatchingListResponse>(`/job-posts/for-me/with-matching${query}`);
   },
@@ -232,6 +239,10 @@ export const applications = {
 
   getForJobPost: (jobPostId: string) =>
     get<{ items: ApplicationWithInstructorResponse[]; total: number }>(`/job-posts/${jobPostId}/applications`),
+
+  /** Accept application and reveal contact info (PMF pivot: replaces offer flow for urgent) */
+  accept: (applicationId: string) =>
+    post<ContactRevealResponse>(`/applications/${applicationId}/accept`),
 };
 
 // --- Offers ----------------------------------------------
@@ -365,20 +376,20 @@ export const profileCompleteness = {
 };
 
 // --- Chat ------------------------------------------------
-
-export const chat = {
-  getThreads: () =>
-    get<ThreadResponse[]>('/threads'),
-
-  createThread: (data: ThreadCreate) =>
-    post<ThreadResponse>('/threads', data),
-
-  getMessages: (threadId: string) =>
-    get<MessageResponse[]>(`/threads/${threadId}/messages`),
-
-  sendMessage: (threadId: string, content: string) =>
-    post<MessageResponse>(`/threads/${threadId}/messages`, { content }),
-};
+// PMF pivot: Chat disabled -- contact reveal replaces in-app chat
+// export const chat = {
+//   getThreads: () =>
+//     get<ThreadResponse[]>('/threads'),
+//
+//   createThread: (data: ThreadCreate) =>
+//     post<ThreadResponse>('/threads', data),
+//
+//   getMessages: (threadId: string) =>
+//     get<MessageResponse[]>(`/threads/${threadId}/messages`),
+//
+//   sendMessage: (threadId: string, content: string) =>
+//     post<MessageResponse>(`/threads/${threadId}/messages`, { content }),
+// };
 
 // --- Support ---------------------------------------------
 
@@ -391,28 +402,28 @@ export const support = {
 };
 
 // --- Application Templates -------------------------------
-
-export const applicationTemplates = {
-  list: () =>
-    get<ApplicationTemplateResponse[]>('/application-templates'),
-
-  create: (data: { name: string; content: string; is_default?: boolean }) =>
-    post<ApplicationTemplateResponse>('/application-templates', data),
-
-  update: (id: string, data: { name?: string; content?: string; is_default?: boolean }) =>
-    put<ApplicationTemplateResponse>(`/application-templates/${id}`, data),
-
-  delete: (id: string) =>
-    del<void>(`/application-templates/${id}`),
-
-  use: (id: string) =>
-    post<ApplicationTemplateResponse>(`/application-templates/${id}/use`),
-
-  getSuggestions: (jobType?: string) => {
-    const query = jobType ? `?job_type=${jobType}` : '';
-    return get<ApplicationTemplateResponse[]>(`/application-templates/suggestions${query}`);
-  },
-};
+// PMF pivot: Application templates disabled -- simplifying application flow
+// export const applicationTemplates = {
+//   list: () =>
+//     get<ApplicationTemplateResponse[]>('/application-templates'),
+//
+//   create: (data: { name: string; content: string; is_default?: boolean }) =>
+//     post<ApplicationTemplateResponse>('/application-templates', data),
+//
+//   update: (id: string, data: { name?: string; content?: string; is_default?: boolean }) =>
+//     put<ApplicationTemplateResponse>(`/application-templates/${id}`, data),
+//
+//   delete: (id: string) =>
+//     del<void>(`/application-templates/${id}`),
+//
+//   use: (id: string) =>
+//     post<ApplicationTemplateResponse>(`/application-templates/${id}/use`),
+//
+//   getSuggestions: (jobType?: string) => {
+//     const query = jobType ? `?job_type=${jobType}` : '';
+//     return get<ApplicationTemplateResponse[]>(`/application-templates/suggestions${query}`);
+//   },
+// };
 
 // --- Daily Usage -----------------------------------------
 
@@ -436,9 +447,11 @@ export const api = {
   trustScore,
   verification,
   profileCompleteness,
-  chat,
+  // PMF pivot: chat disabled -- contact reveal replaces in-app chat
+  // chat,
   support,
-  applicationTemplates,
+  // PMF pivot: applicationTemplates disabled
+  // applicationTemplates,
   usage,
 } as const;
 
