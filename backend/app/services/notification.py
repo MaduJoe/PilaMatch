@@ -127,6 +127,27 @@ class NotificationService:
                     return True
             return False
 
+    async def mark_all_read(self, user_id: str) -> int:
+        """Mark all unread notifications as read for a user. Returns count updated."""
+        count = 0
+        r = _get_redis()
+        if r:
+            key = f"notifications:{user_id}"
+            items = r.lrange(key, 0, -1)
+            for i, raw in enumerate(items):
+                n = json.loads(raw)
+                if not n.get("is_read"):
+                    n["is_read"] = True
+                    r.lset(key, i, json.dumps(n))
+                    count += 1
+        else:
+            for n in _notifications.get(user_id, []):
+                if not n.get("is_read"):
+                    n["is_read"] = True
+                    count += 1
+        logger.info(f"[NOTIFICATION] mark_all_read user={user_id} count={count}")
+        return count
+
     async def get_notifications(
         self, user_id: str, skip: int = 0, limit: int = 20
     ) -> list[dict]:

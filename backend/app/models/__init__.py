@@ -41,6 +41,8 @@ from app.models.device_token import DeviceToken
 from app.models.event_log import EventLog
 from app.models.penalty_record import PenaltyRecord
 from app.models.payment_confirmation import PaymentConfirmation
+from app.models.handoff_note import HandoffNote
+from app.models.backup_instructor import BackupInstructor
 
 __all__ = [
     # Enums
@@ -95,4 +97,6 @@ __all__ = [
     "EventLog",
     "PenaltyRecord",
     "PaymentConfirmation",
+    "HandoffNote",
+    "BackupInstructor",
 ]

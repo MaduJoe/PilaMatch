@@ -27,6 +27,7 @@ class InstructorProfile(Base, UUIDMixin, TimestampMixin):
     rating_average = Column(Numeric(3, 2), default=0)
     review_count = Column(Integer, default=0)
     completed_substitute_count = Column(Integer, default=0)  # 완료된 대타 건수
+    teaching_style = Column(JSON, default=dict)  # {correction_style, class_atmosphere, intensity_level, music_preference}
 
     # Relationships
     user = relationship("User", back_populates="instructor_profile")

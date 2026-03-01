@@ -22,8 +22,8 @@ import { Button } from '@/components/ui/button';
 // ---------------------------------------------------------------------------
 
 const JOB_TYPE_LABELS: Record<string, string> = {
-  substitute: '1회 대타',
-  regular: '다건 대타',
+  substitute: '1회성',
+  regular: '여러 회',
   contract: '계약',
 };
 
@@ -181,6 +181,18 @@ export function JobDetailDialog({
                 <span className="text-muted-foreground">시급</span>
                 <span className="ml-2 font-medium">{breakdown.hourly_rate?.score ?? 0}점</span>
               </div>
+              {breakdown.distance && (
+                <div className="rounded-md bg-muted px-3 py-2">
+                  <span className="text-muted-foreground">거리</span>
+                  <span className="ml-2 font-medium">{breakdown.distance.score}점</span>
+                </div>
+              )}
+              {breakdown.style && (
+                <div className="rounded-md bg-muted px-3 py-2">
+                  <span className="text-muted-foreground">스타일</span>
+                  <span className="ml-2 font-medium">{breakdown.style.score}점</span>
+                </div>
+              )}
             </div>
           </div>
 

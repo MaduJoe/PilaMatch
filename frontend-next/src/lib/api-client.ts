@@ -48,6 +48,12 @@ import type {
   // ApplicationTemplateResponse,
   // Daily usage removed with Trust Tier pivot
   // DailyUsageResponse,
+  HandoffNoteCreate,
+  HandoffNotePublicResponse,
+  HandoffNoteFullResponse,
+  BackupInstructorCreate,
+  BackupInstructorUpdate,
+  BackupInstructorResponse,
   APIErrorResponse,
 } from './api-types';
 import { isNativePlatform, getAccessToken } from './token-manager';
@@ -162,6 +168,13 @@ function put<T>(path: string, body?: unknown) {
 
 function del<T>(path: string) {
   return request<T>(path, { method: 'DELETE' });
+}
+
+function patch<T>(path: string, body?: unknown) {
+  return request<T>(path, {
+    method: 'PATCH',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
 }
 
 // --- Auth ------------------------------------------------
@@ -465,6 +478,35 @@ export const support = {
 // --- Daily Usage -----------------------------------------
 // Removed with Trust Tier pivot
 
+// --- Handoff Notes ---------------------------------------
+
+export const handoffNotes = {
+  upsert: (jobPostId: string, data: HandoffNoteCreate) =>
+    put<HandoffNoteFullResponse>(`/job-posts/${jobPostId}/handoff-note`, data),
+
+  get: (jobPostId: string) =>
+    get<HandoffNotePublicResponse | HandoffNoteFullResponse>(`/job-posts/${jobPostId}/handoff-note`),
+
+  delete: (jobPostId: string) =>
+    del<void>(`/job-posts/${jobPostId}/handoff-note`),
+};
+
+// --- Backup Instructors ----------------------------------
+
+export const backupInstructors = {
+  list: () =>
+    get<{ items: BackupInstructorResponse[]; total: number }>('/studios/me/backup-instructors'),
+
+  add: (data: BackupInstructorCreate) =>
+    post<BackupInstructorResponse>('/studios/me/backup-instructors', data),
+
+  update: (instructorId: string, data: BackupInstructorUpdate) =>
+    patch<BackupInstructorResponse>(`/studios/me/backup-instructors/${instructorId}`, data),
+
+  remove: (instructorId: string) =>
+    del<void>(`/studios/me/backup-instructors/${instructorId}`),
+};
+
 // --- Convenience: grouped API ----------------------------
 
 export const api = {
@@ -489,6 +531,8 @@ export const api = {
   // applicationTemplates,
   // Daily usage removed with Trust Tier pivot
   // usage,
+  handoffNotes,
+  backupInstructors,
 } as const;
 
 export default api;

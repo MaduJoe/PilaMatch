@@ -13,93 +13,83 @@ color: purple
 1. `ls backend/tests/` — 기존 테스트 구조 파악
 2. `cat backend/tests/conftest.py | head -50` — 공통 fixture 확인
 3. `grep -rn "def test_" backend/tests/ | wc -l` — 현재 테스트 수 파악
-4. `cat backend/pyproject.toml | grep -A5 "pytest\|coverage"` — 테스트 설정 확인
 
 ## 스택
-pytest + pytest-asyncio / httpx (AsyncClient) / pytest-cov
-testcontainers 또는 pytest-postgresql / unittest.mock, fakeredis
+pytest + pytest-asyncio / httpx (AsyncClient) / pytest-cov / unittest.mock
 
-## 구조
+## 현재 테스트 파일 (434개 테스트)
 ```
-# 현재 (flat structure)
-tests/test_*.py — 단위/통합 테스트 (예: test_masking.py)
-tests/conftest.py — 공통 fixture
-# 향후 확장 시
-tests/e2e/ — E2E 시나리오 (Playwright)
+tests/
+├── conftest.py
+├── test_backup_instructor.py    — 27개 (모델, CRUD, 스키마, 라우터)
+├── test_completed_contracts.py  — 계약 완료 테스트
+├── test_contract_document.py    — 계약 문서
+├── test_event_log.py            — 이벤트 로그
+├── test_handoff_note.py         — 50개 (모델, 스키마, 서비스, 공개규칙, 시나리오)
+├── test_masking.py              — 전화번호 마스킹
+├── test_payment_confirmation.py — 지급/수령 확인
+├── test_penalty_service.py      — 노쇼 패널티, 정지, 등급 강등
+├── test_recurring_schedule.py   — 반복 일정
+├── test_style_matching.py       — 30개 (스타일 점수, 가중치, 하위 호환)
+├── test_tier_evaluation.py      — Tier 등급 평가
+├── test_tier_limits.py          — Tier별 제한
+├── test_trust_score.py          — Trust Score 계산
+└── test_urgent_matching.py      — 긴급 매칭 알고리즘
 ```
 
-## 테스트 파일 네이밍 규칙
-- `tests/test_{대상 서비스명}.py` (단위/통합)
-- `tests/e2e/test_{플로우명}.py` (E2E, 향후)
-- 예: `tests/test_escrow.py`, `tests/test_contract.py`, `tests/test_masking.py`
+## 테스트 실행
+```bash
+cd backend
+SECRET_KEY=test-secret DATABASE_URL=sqlite+aiosqlite:///./test.db DATABASE_URL_SYNC=sqlite:///./test.db uv run pytest tests/ -v
+```
 
 ## 테스트 클래스 구조
 ```python
 import pytest
-from httpx import AsyncClient
+from unittest.mock import AsyncMock, MagicMock, patch
 
 class TestFeatureName:
     """기능명 테스트"""
 
-    async def test_happy_path(self, client: AsyncClient):
+    def test_happy_path(self):
         """정상 케이스"""
         ...
 
-    async def test_edge_case(self, client: AsyncClient):
-        """엣지 케이스 - {설명}"""
+    def test_edge_case(self):
+        """엣지 케이스"""
         ...
 
-    async def test_error_case(self, client: AsyncClient):
-        """에러 케이스 - {설명}"""
+    def test_error_case(self):
+        """에러 케이스"""
         ...
 ```
+
+## Critical 시나리오 — 반드시 커버 (P0)
+- 노쇼 패널티 → Tier 강등 → 3회 정지
+- Tier 등급 판정 (T1/T2/T3, C1/C2 조건 검증)
+- 매칭 알고리즘 (6-factor 가중치, 스타일 호환, 거리 점수)
+- 인수인계 노트 공개 규칙 (스튜디오/수락 강사/미수락 강사)
+- 지원 수락 → 연락처 공개 플로우
+- 지급 확인 (mark-paid → confirm → dispute)
+
+## High 시나리오 (P1)
+- 백업 강사 CRUD + unique 제약조건
+- 일일 사용 제한 (지원 횟수, 프로필 열람)
+- 전화번호 마스킹
+- 이벤트 로그 기록
 
 ## Mock 패턴
 ```python
-# 토스페이먼츠 Mock
-@pytest.fixture
-def mock_toss_payment(mocker):
-    return mocker.patch(
-        "app.services.escrow.TossPaymentClient.confirm",
-        return_value={"status": "DONE", "paymentKey": "test_pk"}
-    )
+# DB 세션 Mock
+mock_db = AsyncMock()
+mock_db.execute.return_value = MagicMock(scalar_one_or_none=MagicMock(return_value=mock_obj))
 
-# SMS Mock
-@pytest.fixture
-def mock_sms(mocker):
-    return mocker.patch(
-        "app.services.verification.send_sms",
-        return_value=True
-    )
+# 외부 서비스 Mock: SMS API, 국세청 API
 ```
-
-## Critical 시나리오 — 반드시 커버
-- 결제: HELD→RELEASED→정산 (수수료 5%/3% 정확성), 실패 롤백, 멱등성
-- 환불: 24h전 100% / 24h이내 70% / 시작후 0%
-- 노쇼: 전액 환불 + 보증금 30,000원 차감
-- Premium: 가입→빌링키→결제→갱신, 실패3회→suspended, 취소→Free전환
-
-## 결제/신뢰 테스트 필수 시나리오
-1. 에스크로 생성 → 금액 검증 → 홀드 → 완료 시 릴리즈
-2. 에스크로 취소 → 환불 처리
-3. 노쇼 신고 → 패널티 30k 차감 → 보증금에서 차감
-4. 패널티 3회 → 계정 정지 → 서비스 이용 불가 확인
-5. 보증금 잔액 부족 → 에러 반환
-6. 중복 웹훅 → 멱등성 확인
-
-## High 시나리오
-- 계약: 유효 전환 성공 / 무효 전환 거부, 48h 자동 완료, 동시성
-- 노쇼/분쟁: 24h 자동 확정, 이의제기→분쟁, 3회→정지, JSONB 증거
-- 매칭: 가중치별 점수, 경계값(0,100), Premium 우선 노출
 
 ## 규칙
 - test_{시나리오}_{기대결과} (한글 허용)
 - Single Assert 원칙
-- fixture로 테스트 데이터 관리
-- 외부 서비스 (TossPayments, SMS) → mock
-- CI 통과 필수
-
-## 실행 후 행동
-- 전체 통과 → 커버리지 리포트 출력
-- 실패 있음 → 원인 분석 → 수정 가능하면 수정 → 재실행 (최대 3회)
-- 수정 불가 → 이슈 정리하여 보고
+- 외부 서비스 → mock
+- 실패 시: 원인 분석 → 수정 → 재실행 (최대 3회)
+- MagicMock 사용 시 auto-attribute 누수 주의: 미사용 필드는 명시적으로 None 설정

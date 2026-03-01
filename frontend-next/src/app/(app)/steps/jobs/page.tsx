@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { JobList } from '@/components/jobs/job-list';
 import { JobCreationForm } from '@/components/jobs/job-creation-form';
+import { HandoffNoteForm } from '@/components/jobs/handoff-note-form';
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -63,8 +64,8 @@ function getJobStatusConfig(status: string): {
 }
 
 const JOB_TYPE_LABELS: Record<string, string> = {
-  substitute: '1회 대타',
-  regular: '다건 대타',
+  substitute: '1회성',
+  regular: '여러 회',
   contract: '계약',
 };
 
@@ -140,6 +141,11 @@ function StudioJobCard({ job }: { job: JobPostResponse }) {
           >
             지원자 보기
           </Button>
+        </div>
+
+        {/* Handoff note */}
+        <div className="mt-3">
+          <HandoffNoteForm jobPostId={job.id} isUrgentSubstitute={job.is_urgent} />
         </div>
       </CardContent>
     </Card>

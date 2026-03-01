@@ -64,6 +64,7 @@ def _make_instructor_profile(
     profile.rating_average = rating_average
     profile.review_count = review_count
     profile.completed_substitute_count = completed_substitute_count
+    profile.teaching_style = None
     profile.categories = ["pilates"]
     return profile
 
@@ -93,6 +94,7 @@ def _make_job_post(
     job.longitude = longitude
     job.is_urgent = is_urgent
     job.status = status
+    job.preferred_style = None
     job.application_count = 0
     return job
 

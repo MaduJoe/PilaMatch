@@ -180,3 +180,18 @@ export const contractCancelSchema = z.object({
 });
 
 export type ContractCancelFormData = z.infer<typeof contractCancelSchema>;
+
+// ---------------------------------------------------------------------------
+// Handoff Notes
+// ---------------------------------------------------------------------------
+
+export const handoffNoteSchema = z.object({
+  class_topic: z.string().max(200).optional(),
+  class_sequence_info: z.string().optional(),
+  atmosphere_preference: z.string().max(50).optional(),
+  additional_notes: z.string().optional(),
+  member_notes: z.string().optional(),
+  equipment_notes: z.string().optional(),
+});
+
+export type HandoffNoteFormData = z.infer<typeof handoffNoteSchema>;

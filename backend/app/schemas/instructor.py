@@ -25,6 +25,7 @@ class InstructorProfileBase(BaseModel):
     hourly_rate_max: Optional[Decimal] = None
     available_regions: List[str] = []
     is_public: bool = True
+    teaching_style: Optional[dict] = None  # {correction_style, class_atmosphere, intensity_level, music_preference}
 
 
 class InstructorProfileUpdate(BaseModel):
@@ -40,6 +41,7 @@ class InstructorProfileUpdate(BaseModel):
     hourly_rate_max: Optional[Decimal] = None
     available_regions: Optional[List[str]] = None
     is_public: Optional[bool] = None
+    teaching_style: Optional[dict] = None
 
 
 class InstructorProfileResponse(BaseModel):
@@ -57,6 +59,7 @@ class InstructorProfileResponse(BaseModel):
     hourly_rate_max: Optional[Decimal] = None
     available_regions: List[str] = []
     is_public: bool = True
+    teaching_style: Optional[dict] = None
     rating_average: Decimal = Decimal("0")
     review_count: int = 0
     verified_cert_count: int = 0  # Number of verified certifications
@@ -94,6 +97,7 @@ class InstructorProfileResponse(BaseModel):
             hourly_rate_max=profile.hourly_rate_max,
             available_regions=profile.available_regions or [],
             is_public=profile.is_public,
+            teaching_style=profile.teaching_style if hasattr(profile, 'teaching_style') else None,
             rating_average=profile.rating_average or Decimal("0"),
             review_count=profile.review_count or 0,
             verified_cert_count=verified_count,
@@ -113,6 +117,7 @@ class InstructorPublicResponse(BaseModel):
     hourly_rate_min: Optional[Decimal] = None
     hourly_rate_max: Optional[Decimal] = None
     available_regions: List[str] = []
+    teaching_style: Optional[dict] = None
     rating_average: Decimal = Decimal("0")
     review_count: int = 0
     verified_cert_count: int = 0

@@ -4,7 +4,7 @@ from app.api.v1.endpoints import (
     auth, instructors, studios, job_posts, applications,
     reviews, reports, support,
     verification, profiles, tier, penalties, payment_confirmation,
-    notifications,
+    notifications, backup_instructors,
 )
 
 # PMF pivot: These imports kept for future reactivation but routes disabled
@@ -25,6 +25,7 @@ api_router.include_router(instructors.router, prefix="/instructors", tags=["inst
 api_router.include_router(studios.router, prefix="/studios", tags=["studios"])
 api_router.include_router(job_posts.router, prefix="/job-posts", tags=["job-posts"])
 api_router.include_router(applications.router, tags=["applications"])
+api_router.include_router(backup_instructors.router, prefix="/studios/me/backup-instructors", tags=["backup-instructors"])
 api_router.include_router(reviews.router, tags=["reviews"])
 api_router.include_router(reports.router, tags=["reports"])
 api_router.include_router(support.router, tags=["support"])

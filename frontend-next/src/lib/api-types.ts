@@ -106,6 +106,7 @@ export interface InstructorProfileUpdate {
   experience_years?: number;
   available_regions?: string[];
   is_public?: boolean;
+  teaching_style?: Record<string, string>;
 }
 
 export interface InstructorProfileResponse {
@@ -124,6 +125,7 @@ export interface InstructorProfileResponse {
   rating_average: number;
   review_count: number;
   verified_cert_count: number;
+  teaching_style?: Record<string, string> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +180,7 @@ export interface JobPostCreate {
   is_urgent?: boolean;
   payment_method?: string;
   terms_agreed?: boolean;
+  preferred_style?: Record<string, string>;
 }
 
 export interface JobPostResponse {
@@ -212,6 +215,8 @@ export interface JobPostResponse {
   // Studio info (populated in list endpoints)
   studio_name?: string | null;
   studio_rating?: number | null;
+  has_handoff_note?: boolean;
+  preferred_style?: Record<string, string> | null;
 }
 
 export interface MatchingBreakdownItem {
@@ -652,6 +657,81 @@ export interface ApplicationTemplateResponse {
 //   view_limit: number;
 //   is_premium: boolean;
 // }
+
+// ---------------------------------------------------------------------------
+// Handoff Notes
+// ---------------------------------------------------------------------------
+
+export interface HandoffNoteCreate {
+  class_topic?: string;
+  class_sequence_info?: string;
+  atmosphere_preference?: string;
+  additional_notes?: string;
+  member_notes?: string;
+  equipment_notes?: string;
+}
+
+export interface HandoffNotePublicResponse {
+  id: string;
+  job_post_id: string;
+  class_topic?: string | null;
+  class_sequence_info?: string | null;
+  atmosphere_preference?: string | null;
+  additional_notes?: string | null;
+  has_sensitive_info: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HandoffNoteFullResponse extends HandoffNotePublicResponse {
+  member_notes?: string | null;
+  equipment_notes?: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Teaching Style
+// ---------------------------------------------------------------------------
+
+export interface TeachingStyle {
+  correction_style?: string;
+  class_atmosphere?: string;
+  intensity_level?: string;
+  music_preference?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Backup Instructors
+// ---------------------------------------------------------------------------
+
+export interface BackupInstructorCreate {
+  instructor_id: string;
+  nickname?: string;
+  note?: string;
+  priority?: number;
+}
+
+export interface BackupInstructorUpdate {
+  nickname?: string;
+  note?: string;
+  priority?: number;
+}
+
+export interface BackupInstructorResponse {
+  id: string;
+  studio_id: string;
+  instructor_id: string;
+  nickname?: string | null;
+  note?: string | null;
+  priority: number;
+  last_worked_at?: string | null;
+  total_completed: number;
+  instructor_name?: string | null;
+  instructor_phone?: string | null;
+  instructor_categories?: string[] | null;
+  instructor_rating?: number | null;
+  created_at: string;
+  updated_at: string;
+}
 
 // ---------------------------------------------------------------------------
 // API Error

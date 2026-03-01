@@ -353,8 +353,9 @@ async def verify_business(
     nts_result = await check_business_status(clean_number)
 
     if not nts_result.is_operating:
+        label = nts_result.status_label or "확인 불가"
         raise ValueError(
-            f"사업자번호가 현재 '{nts_result.status_label}' 상태입니다. "
+            f"사업자번호가 현재 '{label}' 상태입니다. "
             "영업 중인 사업자만 인증할 수 있습니다."
         )
 

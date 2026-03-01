@@ -63,6 +63,7 @@ def _make_instructor_profile(
     profile.hourly_rate_max = hourly_rate_max or Decimal("50000")
     profile.available_regions = available_regions or ["seoul"]
     profile.is_public = is_public
+    profile.teaching_style = None
     profile.rating_average = rating_average
     profile.review_count = review_count
     return profile

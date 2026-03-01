@@ -35,6 +35,33 @@ def _calculate_distance_score(distance_km: float) -> int:
         return 10
 
 
+def _calculate_style_score(instructor_style: dict, job_style: dict) -> int:
+    """Calculate style compatibility score (0-100).
+
+    Compares matching keys between instructor's teaching style and job's preferred style.
+    Returns 50 (neutral) if either side has no style data.
+
+    Args:
+        instructor_style: Instructor's teaching style dict.
+        job_style: Job post's preferred style dict.
+
+    Returns:
+        Score between 0 and 100.
+    """
+    if not instructor_style or not job_style:
+        return 50  # Neutral when no data
+
+    comparable_keys = set(job_style.keys()) & set(instructor_style.keys())
+    if not comparable_keys:
+        return 50
+
+    matches = sum(
+        1 for k in comparable_keys
+        if instructor_style.get(k) == job_style.get(k)
+    )
+    return int((matches / len(comparable_keys)) * 100)
+
+
 def calculate_matching_score(
     instructor: InstructorProfile,
     job: JobPost,
@@ -45,13 +72,14 @@ def calculate_matching_score(
 
     Score is purely skill-based -- premium status does not influence the score.
 
-    When both instructor and job location data are available, a 5th distance
-    factor is added and weights are rebalanced to emphasise proximity:
-        distance: 35%, region: 10%, experience: 25%,
-        certifications: 15%, rate: 15%
-
-    When location data is NOT available, the original 4-factor weights are used:
-        region: 30%, experience: 25%, certifications: 25%, rate: 20%
+    Weight distribution depends on available data:
+        distance + style: distance 25%, style 20%, region 10%, experience 20%,
+                          certifications 15%, rate 10%
+        distance only:    distance 35%, region 10%, experience 25%,
+                          certifications 15%, rate 15%
+        style only:       style 20%, region 25%, experience 20%,
+                          certifications 20%, rate 15%
+        neither:          region 30%, experience 25%, certifications 25%, rate 20%
 
     Args:
         instructor: InstructorProfile model instance.
@@ -83,6 +111,11 @@ def calculate_matching_score(
         and j_lat is not None and j_lng is not None
     )
 
+    # Resolve style data
+    instructor_style = getattr(instructor, 'teaching_style', None) or {}
+    job_style = getattr(job, 'preferred_style', None) or {}
+    has_style = bool(instructor_style) and bool(job_style)
+
     distance_km: Optional[float] = None
 
     if has_distance:
@@ -97,19 +130,29 @@ def calculate_matching_score(
 
     if has_distance:
         scores["distance"] = _calculate_distance_score(distance_km)  # type: ignore[arg-type]
+
+    if has_style:
+        scores["style"] = _calculate_style_score(instructor_style, job_style)
+
+    # Assign weights based on available data dimensions
+    if has_distance and has_style:
         weights: dict[str, int] = {
-            "distance": 35,
-            "region": 10,
-            "experience": 25,
-            "certifications": 15,
-            "rate": 15,
+            "distance": 25, "style": 20, "region": 10,
+            "experience": 20, "certifications": 15, "rate": 10,
+        }
+    elif has_distance:
+        weights = {
+            "distance": 35, "region": 10, "experience": 25,
+            "certifications": 15, "rate": 15,
+        }
+    elif has_style:
+        weights = {
+            "style": 20, "region": 25, "experience": 20,
+            "certifications": 20, "rate": 15,
         }
     else:
         weights = {
-            "region": 30,
-            "experience": 25,
-            "certifications": 25,
-            "rate": 20,
+            "region": 30, "experience": 25, "certifications": 25, "rate": 20,
         }
 
     # 1. Region matching (30%)
@@ -194,6 +237,12 @@ def calculate_matching_score(
         breakdown["distance"] = {
             "score": scores["distance"],
             "weight": weights["distance"],
+        }
+
+    if has_style:
+        breakdown["style"] = {
+            "score": scores["style"],
+            "weight": weights["style"],
         }
 
     result: dict = {

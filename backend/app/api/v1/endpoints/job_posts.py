@@ -19,6 +19,7 @@ from app.schemas.job_post import (
     JobPostListResponse,
     JobPostFilter,
 )
+from app.schemas.handoff_note import HandoffNoteCreate
 from app.services.job_post import JobPostService
 from app.services.matching import calculate_matching_score, get_match_label
 # PMF pivot: Premium sorting disabled
@@ -227,6 +228,7 @@ async def list_my_job_posts(
     )
 
 
+@router.get("/matching", response_model=JobPostWithMatchingListResponse)
 @router.get("/for-me/with-matching", response_model=JobPostWithMatchingListResponse)
 async def list_job_posts_with_matching(
     category: Optional[Category] = None,
@@ -396,7 +398,12 @@ async def get_job_post(
             detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
         )
 
-    return JobPostResponse.model_validate(job_post)
+    from app.services.handoff_note import HandoffNoteService
+    hn_service = HandoffNoteService(db)
+    note = await hn_service.get_by_job_post(job_post_id)
+    response = JobPostResponse.model_validate(job_post)
+    response.has_handoff_note = note is not None
+    return response
 
 
 @router.put("/{job_post_id}", response_model=JobPostResponse)
@@ -461,4 +468,173 @@ async def delete_job_post(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Handoff Note endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.put("/{job_post_id}/handoff-note")
+async def upsert_handoff_note(
+    job_post_id: UUID,
+    data: HandoffNoteCreate,
+    current_user: User = Depends(require_role(UserRole.STUDIO)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create or update a handoff note for a job post (studio owner only).
+
+    Args:
+        job_post_id: The target job post.
+        data: Handoff note payload.
+        current_user: Authenticated studio user.
+        db: Database session.
+
+    Returns:
+        The full handoff note including sensitive fields.
+    """
+    from app.schemas.handoff_note import HandoffNoteFullResponse
+    from app.services.handoff_note import HandoffNoteService
+
+    service = JobPostService(db)
+    studio_id = await service.get_studio_profile_id(current_user.id)
+    if not studio_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
+        )
+
+    job_post = await service.get_by_id(job_post_id)
+    if not job_post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
+        )
+    if job_post.studio_id != studio_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized"},
+        )
+
+    hn_service = HandoffNoteService(db)
+    note = await hn_service.create_or_update(job_post_id, current_user.id, data)
+    return HandoffNoteFullResponse.model_validate(note)
+
+
+@router.get("/{job_post_id}/handoff-note")
+async def get_handoff_note(
+    job_post_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the handoff note for a job post.
+
+    Returns full response (including sensitive fields) for the studio owner
+    or an accepted instructor whose contact has been revealed.
+    Returns a public response (sensitive fields hidden) for everyone else.
+
+    Args:
+        job_post_id: The target job post.
+        current_user: Authenticated user.
+        db: Database session.
+
+    Returns:
+        HandoffNoteFullResponse or HandoffNotePublicResponse depending on
+        the caller's authorization level.
+    """
+    from app.schemas.handoff_note import HandoffNoteFullResponse, HandoffNotePublicResponse
+    from app.services.handoff_note import HandoffNoteService
+    from app.models import Application, ApplicationStatus
+
+    hn_service = HandoffNoteService(db)
+    note = await hn_service.get_by_job_post(job_post_id)
+    if not note:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "HANDOFF_NOTE_NOT_FOUND", "message": "Handoff note not found"},
+        )
+
+    # Check if user is the studio owner
+    job_result = await db.execute(select(JobPost).where(JobPost.id == job_post_id))
+    job_post = job_result.scalar_one_or_none()
+
+    if job_post:
+        studio_result = await db.execute(
+            select(StudioProfile).where(StudioProfile.id == job_post.studio_id)
+        )
+        studio = studio_result.scalar_one_or_none()
+        if studio and studio.user_id == current_user.id:
+            return HandoffNoteFullResponse.model_validate(note)
+
+    # Check if user is an accepted instructor for this job
+    app_result = await db.execute(
+        select(Application)
+        .join(InstructorProfile, InstructorProfile.id == Application.instructor_id)
+        .where(
+            Application.job_post_id == job_post_id,
+            InstructorProfile.user_id == current_user.id,
+            Application.status == ApplicationStatus.ACCEPTED,
+            Application.contact_revealed == True,  # noqa: E712
+        )
+    )
+    accepted_app = app_result.scalar_one_or_none()
+    if accepted_app:
+        return HandoffNoteFullResponse.model_validate(note)
+
+    # Public response for everyone else
+    return HandoffNotePublicResponse(
+        id=note.id,
+        job_post_id=note.job_post_id,
+        class_topic=note.class_topic,
+        class_sequence_info=note.class_sequence_info,
+        atmosphere_preference=note.atmosphere_preference,
+        additional_notes=note.additional_notes,
+        has_sensitive_info=bool(note.member_notes or note.equipment_notes),
+        created_at=note.created_at,
+        updated_at=note.updated_at,
+    )
+
+
+@router.delete("/{job_post_id}/handoff-note", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_handoff_note(
+    job_post_id: UUID,
+    current_user: User = Depends(require_role(UserRole.STUDIO)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a handoff note (studio owner only).
+
+    Args:
+        job_post_id: The target job post.
+        current_user: Authenticated studio user.
+        db: Database session.
+    """
+    from app.services.handoff_note import HandoffNoteService
+
+    service = JobPostService(db)
+    studio_id = await service.get_studio_profile_id(current_user.id)
+    if not studio_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
+        )
+
+    job_post = await service.get_by_id(job_post_id)
+    if not job_post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "JOB_POST_NOT_FOUND", "message": "Job post not found"},
+        )
+    if job_post.studio_id != studio_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized"},
+        )
+
+    hn_service = HandoffNoteService(db)
+    deleted = await hn_service.delete(job_post_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "HANDOFF_NOTE_NOT_FOUND", "message": "Handoff note not found"},
         )

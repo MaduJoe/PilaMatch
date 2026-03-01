@@ -77,6 +77,17 @@ async def mark_notification_read(
     return {"message": "알림이 읽음 처리되었습니다"}
 
 
+@router.post("/read-all")
+async def mark_all_notifications_read(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark all notifications as read for the current user."""
+    service = NotificationService(db)
+    count = await service.mark_all_read(str(current_user.id))
+    return {"message": f"{count}개 알림이 읽음 처리되었습니다", "count": count}
+
+
 @router.get("/unread-count")
 async def get_unread_count(
     current_user: User = Depends(get_current_user),

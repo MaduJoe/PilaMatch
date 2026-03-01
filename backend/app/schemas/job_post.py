@@ -26,6 +26,7 @@ class JobPostCreate(BaseModel):
     is_urgent: bool = False
     payment_method: Optional[str] = None  # bank_transfer/cash/etc
     terms_agreed: bool = False  # Checklist 6+7 agreement
+    preferred_style: Optional[dict] = None  # {correction_style, class_atmosphere, intensity_level}
 
 
 class JobPostUpdate(BaseModel):
@@ -48,6 +49,7 @@ class JobPostUpdate(BaseModel):
     is_urgent: Optional[bool] = None
     payment_method: Optional[str] = None
     terms_agreed: Optional[bool] = None
+    preferred_style: Optional[dict] = None
 
 
 class JobPostResponse(BaseModel):
@@ -72,11 +74,13 @@ class JobPostResponse(BaseModel):
     is_urgent: bool = False
     payment_method: Optional[str] = None
     terms_agreed: bool = False
+    preferred_style: Optional[dict] = None
     distance_km: Optional[float] = None  # Calculated field, not from DB
     distance_text: Optional[str] = None  # e.g. "2.3km"
     travel_time_min: Optional[int] = None  # e.g. 15
     is_past: bool = False
     application_count: int = 0
+    has_handoff_note: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     # Note: is_premium is added at the endpoint level for security reasons

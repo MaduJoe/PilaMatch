@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { KakaoMap } from '@/components/jobs/kakao-map';
+import { TeachingStyleSelector } from '@/components/profile/teaching-style-selector';
 
 /**
  * Form input type: matches what users fill in before Zod applies defaults.
@@ -79,6 +80,9 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   const [rateMin, setRateMin] = useState<number>(0);
   const [rateMax, setRateMax] = useState<number>(0);
 
+  // Preferred teaching style
+  const [preferredStyle, setPreferredStyle] = useState<Record<string, string>>({});
+
   const isUrgent = watch('is_urgent');
   const category = watch('category');
   const jobType = watch('job_type');
@@ -119,6 +123,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         ...data,
         title: titlePreview || data.title,
         description: desc,
+        preferred_style: Object.keys(preferredStyle).length > 0 ? preferredStyle : undefined,
       };
       return api.jobPosts.create(payload);
     },
@@ -447,6 +452,18 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             />
           </div>
         </div>
+      </div>
+
+      {/* Step 7: Preferred Style (optional) */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">
+          7. 원하는 수업 스타일 <span className="text-xs text-muted-foreground">(선택)</span>
+        </label>
+        <TeachingStyleSelector
+          value={preferredStyle}
+          onChange={(style) => setPreferredStyle(style)}
+          keys={['correction_style', 'class_atmosphere', 'intensity_level']}
+        />
       </div>
 
       {/* Submit */}

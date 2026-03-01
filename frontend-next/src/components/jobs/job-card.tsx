@@ -14,8 +14,8 @@ import { MapPin, Clock, Banknote, ChevronDown, ChevronUp } from 'lucide-react';
 // ---------------------------------------------------------------------------
 
 const JOB_TYPE_MAP: Record<string, { label: string; emoji: string }> = {
-  substitute: { label: '1회 대타', emoji: '\u{1F504}' },
-  regular: { label: '다건 대타', emoji: '\u{1F4C5}' },
+  substitute: { label: '1회성', emoji: '\u{1F504}' },
+  regular: { label: '여러 회', emoji: '\u{1F4C5}' },
   contract: { label: '계약', emoji: '\u{1F4DD}' },
 };
 
@@ -72,6 +72,11 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
             {isPast && (
               <Badge variant="outline" className="text-xs text-muted-foreground">
                 마감
+              </Badge>
+            )}
+            {job.has_handoff_note && (
+              <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:border-blue-600 dark:text-blue-300">
+                인수인계
               </Badge>
             )}
           </div>
@@ -152,6 +157,9 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
                 )}
                 {breakdown.hourly_rate && (
                   <span>시급: <strong>{breakdown.hourly_rate.score}점</strong></span>
+                )}
+                {breakdown.style && (
+                  <span>스타일: <strong>{breakdown.style.score}점</strong></span>
                 )}
               </div>
             </div>

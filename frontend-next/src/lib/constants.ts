@@ -125,8 +125,8 @@ export const CATEGORIES = [
 // ---------------------------------------------------------------------------
 
 export const JOB_TYPES = [
-  { value: 'substitute', label: '1회 대타', description: '하루만 필요한 단건 대타' },
-  { value: 'regular', label: '다건 대타', description: '여러 회차가 필요한 대타 (예: 03/10, 03/11 2회)' },
+  { value: 'substitute', label: '1회성', description: '하루만 필요한 단건 대타' },
+  { value: 'regular', label: '여러 회', description: '여러 회차가 필요한 대타 (예: 03/10, 03/11 2회)' },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -169,3 +169,54 @@ export const JOB_TYPES = [
 // PMF pivot: Premium disabled
 // export const FREE_DAILY_APPLICATION_LIMIT = 5;
 // export const FREE_DAILY_VIEW_LIMIT = 5;
+
+// ---------------------------------------------------------------------------
+// Teaching Style Options (Phase 2: Style Matching)
+// ---------------------------------------------------------------------------
+
+export const STYLE_OPTIONS = {
+  correction_style: {
+    label: '교정 방식',
+    options: [
+      { value: 'hands_on', label: '핸즈온 교정' },
+      { value: 'verbal', label: '말로 설명' },
+      { value: 'demonstration', label: '시범 중심' },
+    ],
+  },
+  class_atmosphere: {
+    label: '수업 분위기',
+    options: [
+      { value: 'calm', label: '차분한' },
+      { value: 'energetic', label: '에너지틱' },
+      { value: 'systematic', label: '체계적' },
+    ],
+  },
+  intensity_level: {
+    label: '수업 강도',
+    options: [
+      { value: 'rehab', label: '재활' },
+      { value: 'beginner', label: '초급' },
+      { value: 'intermediate', label: '중급' },
+      { value: 'advanced', label: '상급' },
+    ],
+  },
+  music_preference: {
+    label: '음악',
+    options: [
+      { value: 'no_music', label: '음악 없이' },
+      { value: 'calm_music', label: '잔잔한 음악' },
+      { value: 'upbeat_music', label: '신나는 음악' },
+    ],
+  },
+} as const;
+
+// ---------------------------------------------------------------------------
+// Atmosphere options for Handoff Notes
+// ---------------------------------------------------------------------------
+
+export const ATMOSPHERE_OPTIONS = [
+  { value: '차분한', label: '차분한' },
+  { value: '에너지틱', label: '에너지틱' },
+  { value: '체계적', label: '체계적' },
+  { value: '자유로운', label: '자유로운' },
+] as const;

@@ -90,6 +90,14 @@ async def record_no_show(
 
     await db.commit()
     await db.refresh(record)
+
+    # Recalculate trust score (no-show deducts -20 per incident)
+    try:
+        from app.services.trust_score import update_user_trust_score
+        await update_user_trust_score(db, str(user_id), user.role if user else None)
+    except Exception:
+        logger.exception("Failed to update trust score after no-show penalty")
+
     return record
 
 

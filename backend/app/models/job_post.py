@@ -30,7 +30,9 @@ class JobPost(Base, UUIDMixin, TimestampMixin):
     application_count = Column(Integer, default=0)
     payment_method = Column(String(50), nullable=True)  # bank_transfer/cash/etc
     terms_agreed = Column(Boolean, default=False, nullable=False)  # Checklist agreement
+    preferred_style = Column(JSON, default=dict)  # {correction_style, class_atmosphere, intensity_level}
 
     # Relationships
     studio = relationship("StudioProfile", back_populates="job_posts")
     applications = relationship("Application", back_populates="job_post")
+    handoff_note = relationship("HandoffNote", back_populates="job_post", uselist=False)

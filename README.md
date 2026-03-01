@@ -2,7 +2,7 @@
 
 **긴급 대타 매칭 플랫폼 -- 필라테스/요가 강사 & 스튜디오**
 
-> "실명으로 검증된 강사가, 20분 거리에서, 30분 만에 대타를 확정한다."
+> "회원이 눈치 못 채는 대타" — 실명으로 검증된 강사가, 20분 거리에서, 인수인계 노트를 보고 수업한다.
 
 ---
 
@@ -21,13 +21,14 @@
 
 ### PilaMatch의 답
 
-세 가지 축으로 구조적 차별점을 만든다.
+네 가지 축으로 구조적 차별점을 만든다.
 
 | 축 | 설명 | 구현 |
 |----|------|------|
-| **Trust-Tech** | 실명인증 기반 신뢰 -- 행동 이력이 곧 등급 | SMS 본인인증, 사업자인증, Tier 등급제 (T1/T2/T3, C1/C2), 노쇼 3-strike 정지 |
-| **Hyper-Local** | 거리 기반 매칭 -- GPS Haversine 계산 | 5단계 거리 점수 (2km 이내 100점, 30km+ 10점), 이동 시간 추정 |
-| **Urgent Matching** | 긴급 대타 특화 -- 공고 작성 3분, 지원 원탭 | 수락 즉시 연락처 공개, 직접 전화/카톡으로 확정 |
+| **Trust-Tech** | 실명인증 기반 신뢰 — 행동 이력이 곧 등급 | SMS 본인인증, 사업자인증, Tier 등급제 (T1/T2/T3, C1/C2), 노쇼 3-strike 정지 |
+| **Hyper-Local** | 거리 기반 매칭 — GPS Haversine 계산 | 5단계 거리 점수 (2km 이내 100점, 30km+ 10점), 이동 시간 추정 |
+| **Seamless Handoff** | 인수인계 노트 — 회원이 눈치 못 채는 수업 | 수업 주제/진도/분위기 공개, 회원 주의사항/기구 세팅은 수락 후 공개 |
+| **Urgent Matching** | 긴급 대타 특화 — 공고 작성 3분, 지원 원탭 | 스타일 매칭, 백업 강사 네트워크, 수락 즉시 연락처 공개 |
 
 ---
 
@@ -36,9 +37,12 @@
 ```
 센터: 대타 공고 작성 (3분)
   |  카테고리, 날짜/시간, 시급, 위치(GPS)
+  |  + 인수인계 노트 (수업 주제, 진도, 분위기)
+  |  + 원하는 수업 스타일 (교정/분위기/강도)
   v
 강사: 공고 확인 + 매칭 점수 확인
-  |  거리, 경력, 자격증, 시급 -- 한눈에 판단
+  |  거리, 스타일 호환, 경력, 자격증, 시급 — 한눈에 판단
+  |  인수인계 노트로 수업 내용 파악
   v
 강사: 원탭 지원
   |  커버레터 (선택)
@@ -48,23 +52,65 @@
   v
 센터: 수락 (POST /applications/{id}/accept)
   |  즉시 양측 연락처 공개
+  |  인수인계 노트 민감 정보 공개 (회원 주의사항, 기구 세팅)
   v
 직접 전화/카톡으로 최종 확정
   v
 수업 완료 → 센터 지급 표시 → 강사 수령 확인
   v
 상호 리뷰 → Tier 등급에 반영
+  |  (선택) 백업 강사로 등록
 ```
 
 ```mermaid
 flowchart LR
-    A[대타 공고 작성] --> B[강사 매칭 + 지원]
+    A[대타 공고 + 인수인계] --> B[스타일 매칭 + 지원]
     B --> C[센터 수락]
-    C --> D[연락처 공개]
+    C --> D[연락처 + 민감정보 공개]
     D --> E[직접 연락 → 수업]
     E --> F[지급 확인]
-    F --> G[상호 리뷰 → Tier 갱신]
+    F --> G[리뷰 → Tier 갱신]
+    G --> H[백업 강사 등록]
 ```
+
+---
+
+## 3대 핵심 기능
+
+### 1. 인수인계 노트 (Handoff Note)
+
+"회원이 눈치 못 채는 대타"의 핵심. 스튜디오가 수업 맥락을 대타 강사에게 전달한다.
+
+| 필드 | 공개 시점 | 예시 |
+|------|----------|------|
+| 수업 주제 | 공고 열람 시 | "허리 재활 시퀀스 3주차" |
+| 진도 설명 | 공고 열람 시 | "지난주 브릿지까지 완료, 이번 주 사이드 킥" |
+| 수업 분위기 | 공고 열람 시 | "차분한" / "에너지틱" |
+| 기타 메모 | 공고 열람 시 | 자유 텍스트 |
+| **회원 주의사항** | **수락 후** | "3번 회원 허리 디스크, 과신전 주의" |
+| **기구 세팅** | **수락 후** | "리포머 스프링 빨2+초1, 발바는 1구" |
+
+### 2. 수업 스타일 매칭 (Style-fit Matching)
+
+강사의 수업 스타일과 공고의 원하는 스타일을 매칭하여 "핏"이 맞는 대타를 찾는다.
+
+| 차원 | 옵션 |
+|------|------|
+| 교정 스타일 | 핸즈온 교정 / 말로 설명 / 시범 중심 |
+| 수업 분위기 | 차분한 / 에너지틱 / 체계적 |
+| 수업 강도 | 재활 / 초급 / 중급 / 상급 |
+| 음악 | 음악 없이 / 잔잔한 음악 / 신나는 음악 |
+
+### 3. 백업 강사 네트워크
+
+스튜디오가 신뢰하는 대타 강사 풀을 관리. 급구 시 백업 강사에게 우선 알림.
+
+| 필드 | 설명 |
+|------|------|
+| 우선순위 | 1=주력, 2=보조, 3=일반 |
+| 별칭 | 스튜디오 내부 별칭 ("월수금 오전 선생님") |
+| 메모 | "허리재활 전문, 월수금 오전 가능" |
+| 완료 이력 | 이 스튜디오에서 완료한 대타 수 |
 
 ---
 
@@ -105,7 +151,7 @@ PilaMatch는 "점수"가 아니라 "행동 조건"으로 등급을 판정한다.
 | **Backend** | FastAPI 0.109+, Python 3.11+, async/await | uv 패키지 매니저 |
 | **Database** | PostgreSQL 15 (prod) / SQLite (test) | SQLAlchemy 2.0 async ORM |
 | **Cache** | Redis 7 | OTP 캐싱, in-memory fallback |
-| **Frontend** | Next.js 15, React, TypeScript, Tailwind CSS | shadcn/ui, Zustand |
+| **Frontend** | Next.js 15, React, TypeScript, Tailwind CSS | shadcn/ui, TanStack Query, Zod v4 |
 | **Auth** | JWT (Access + Refresh), httpOnly Cookie | bcrypt, python-jose |
 | **Distance** | Haversine formula | GPS 기반 실시간 거리 계산 |
 | **Infra** | Docker Compose (4 services) | PostgreSQL, Redis, Backend, Frontend |
@@ -175,7 +221,7 @@ pnpm install && pnpm dev
 | Method | Endpoint | 설명 |
 |--------|----------|------|
 | GET | `/profiles/me` | 내 프로필 조회 |
-| PUT | `/profiles/me` | 프로필 수정 |
+| PUT | `/profiles/me` | 프로필 수정 (teaching_style 포함) |
 
 ### Tier (등급)
 | Method | Endpoint | 설명 |
@@ -201,7 +247,7 @@ pnpm install && pnpm dev
 ### Instructors
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| GET | `/instructors/{id}` | 강사 프로필 상세 (경력, 리뷰, 대타 이력) |
+| GET | `/instructors/{id}` | 강사 프로필 상세 (경력, 리뷰, 대타 이력, teaching_style) |
 
 ### Studios
 | Method | Endpoint | 설명 |
@@ -211,10 +257,17 @@ pnpm install && pnpm dev
 ### Job Posts (대타 공고)
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| POST | `/job-posts` | 공고 등록 (스튜디오) |
+| POST | `/job-posts` | 공고 등록 (스튜디오, preferred_style 포함) |
 | GET | `/job-posts` | 공고 목록 (필터링) |
-| GET | `/job-posts/{id}` | 공고 상세 |
+| GET | `/job-posts/{id}` | 공고 상세 (has_handoff_note 포함) |
 | GET | `/job-posts/for-me/with-matching` | 매칭 점수 포함 목록 (강사) |
+
+### Handoff Notes (인수인계 노트)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| PUT | `/job-posts/{id}/handoff-note` | 인수인계 노트 생성/수정 (스튜디오) |
+| GET | `/job-posts/{id}/handoff-note` | 노트 조회 (역할+수락 여부에 따라 공개/전체 응답) |
+| DELETE | `/job-posts/{id}/handoff-note` | 노트 삭제 (스튜디오) |
 
 ### Applications (지원 + 수락)
 | Method | Endpoint | 설명 |
@@ -238,6 +291,14 @@ pnpm install && pnpm dev
 >     "studio_address": "서울시 서초구 ..."
 > }
 > ```
+
+### Backup Instructors (백업 강사)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| GET | `/studios/me/backup-instructors` | 내 백업 강사 목록 |
+| POST | `/studios/me/backup-instructors` | 백업 강사 추가 |
+| PATCH | `/studios/me/backup-instructors/{instructor_id}` | 백업 강사 수정 |
+| DELETE | `/studios/me/backup-instructors/{instructor_id}` | 백업 강사 삭제 |
 
 ### Reviews
 | Method | Endpoint | 설명 |
@@ -267,26 +328,37 @@ pnpm install && pnpm dev
 
 ## Matching Algorithm
 
-GPS 좌표가 있으면 **5-factor** (거리 가중), 없으면 **4-factor** (지역 기반).
+최대 **6-factor** 매칭. GPS/스타일 데이터 유무에 따라 가중치가 동적으로 조정된다.
 
-### 5-Factor (GPS available)
+### 6-Factor (GPS + 스타일 available)
 
 ```mermaid
-pie title 매칭 점수 가중치 (GPS 활성)
-    "거리 (Haversine)" : 35
-    "경력 충족" : 25
+pie title 매칭 점수 가중치 (GPS + 스타일)
+    "거리 (Haversine)" : 25
+    "스타일 호환" : 20
+    "경력 충족" : 20
     "자격증 보유" : 15
-    "희망 시급" : 15
+    "희망 시급" : 10
     "지역 일치" : 10
 ```
 
 | Factor | Weight | 100점 기준 |
 |--------|--------|-----------|
-| **거리** | 35% | 2km 이내 |
-| **경력** | 25% | 요구 경력 충족 |
+| **거리** | 25% | 2km 이내 |
+| **스타일** | 20% | 전체 항목 일치 |
+| **경력** | 20% | 요구 경력 충족 |
 | **자격증** | 15% | 필요 자격증 전부 보유 |
-| **시급** | 15% | 희망 범위 내 |
+| **시급** | 10% | 희망 범위 내 |
 | **지역** | 10% | 활동 지역 일치 |
+
+### 가중치 시나리오
+
+| 시나리오 | 거리 | 스타일 | 경력 | 자격증 | 시급 | 지역 |
+|----------|------|--------|------|--------|------|------|
+| GPS + 스타일 | 25% | 20% | 20% | 15% | 10% | 10% |
+| GPS만 | 35% | — | 25% | 15% | 15% | 10% |
+| 스타일만 | — | 20% | 20% | 20% | 15% | 25% |
+| 둘 다 없음 | — | — | 25% | 25% | 20% | 30% |
 
 ### 거리 점수 기준 (Haversine)
 
@@ -299,9 +371,9 @@ pie title 매칭 점수 가중치 (GPS 활성)
 | 20-30km | 20 | 장거리 |
 | 30km+ | 10 | 현실적으로 어려움 |
 
-### 4-Factor (GPS 없음, fallback)
+### 스타일 점수 기준
 
-지역 30% / 경력 25% / 자격증 25% / 시급 20%
+일치하는 스타일 키의 비율 × 100. 데이터 없으면 중립 50점.
 
 > T3 Pro 강사는 매칭 점수 1.3x 부스트, C2 Verified 센터 공고는 1.15x 부스트가 적용된다.
 
@@ -309,7 +381,7 @@ pie title 매칭 점수 가중치 (GPS 활성)
 
 ## Testing
 
-총 **327개** 테스트 -- Tier 등급, 패널티, 지급 확인, 긴급 매칭, 이벤트 로그 등.
+총 **434개** 테스트 — Tier 등급, 패널티, 지급 확인, 긴급 매칭, 스타일 매칭, 인수인계 노트, 백업 강사 등.
 
 ```bash
 cd backend
@@ -319,6 +391,15 @@ uv run pytest
 
 # 커버리지 포함
 uv run pytest --cov=app --cov-report=html
+
+# 인수인계 노트 테스트
+uv run pytest tests/test_handoff_note.py -v
+
+# 스타일 매칭 테스트
+uv run pytest tests/test_style_matching.py -v
+
+# 백업 강사 테스트
+uv run pytest tests/test_backup_instructor.py -v
 
 # Tier 등급 테스트
 uv run pytest tests/test_tier_evaluation.py tests/test_tier_limits.py -v
@@ -381,6 +462,8 @@ PMF 검증을 위해 추적하는 핵심 지표.
 | **Fill Rate** | 공고 대비 수락 완료 비율 | > 60% |
 | **Repeat Rate** | 재사용률 (2주 내 재공고/재지원) | > 40% |
 | **Tier Upgrade Rate** | T2+ 등급 달성 비율 | > 30% |
+| **Handoff Note Rate** | 공고 중 인수인계 노트 첨부 비율 | > 50% |
+| **Backup Network Size** | 스튜디오당 평균 백업 강사 수 | > 3명 |
 
 ---
 
@@ -409,19 +492,27 @@ PilaMatch는 긴급 대타 매칭 특성상 모바일 사용이 90%+ 예상되�
 |----------|------|------|
 | **Bottom Tab Bar** | `components/layout/bottom-tab-bar.tsx` | 하단 네비게이션 (탭 인디케이터 + 아이콘 하이라이트) |
 | **Applicant Card** | `components/offers/applicant-card.tsx` | 지원자 카드 (Tier 뱃지, 연락처, 전화/문자 버튼) |
-| **Job Creation Form** | `components/jobs/job-creation-form.tsx` | 공고 등록 폼 (6단계, 시급 범위, 핑크 긴급 버튼) |
-| **Job Card** | `components/jobs/job-card.tsx` | 공고 카드 (매칭 점수, D-Day, 거리) |
+| **Job Creation Form** | `components/jobs/job-creation-form.tsx` | 공고 등록 폼 (7단계, 시급 범위, 핑크 긴급 버튼, 스타일 선택) |
+| **Handoff Note Form** | `components/jobs/handoff-note-form.tsx` | 인수인계 노트 입력 (접이식, 긴급 대타 넛지, 민감 필드 자물쇠) |
+| **Job Card** | `components/jobs/job-card.tsx` | 공고 카드 (매칭 점수, D-Day, 거리, 인수인계 배지) |
+| **Job Detail Dialog** | `components/jobs/job-detail-dialog.tsx` | 공고 상세 (거리/스타일 점수 그리드) |
+| **Teaching Style Selector** | `components/profile/teaching-style-selector.tsx` | 수업 스타일 토글 선택기 (4차원) |
 | **Instructor App List** | `components/applications/instructor-application-list.tsx` | 강사 지원 현황 (매칭 완료 시 연락처 표시) |
+| **Backup Instructor List** | `components/backup/backup-instructor-list.tsx` | 백업 강사 목록/관리 (CRUD, 우선순위 배지) |
+| **Backup Suggest Prompt** | `components/backup/backup-suggest-prompt.tsx` | 수락 후 "백업 강사 등록" 프롬프트 |
 | **Tier Badge** | `components/trust/tier-badge.tsx` | 등급 뱃지 (T1 Basic / T2 Verified / T3 Pro) |
 
 ### 핵심 UX 패턴
 
 1. **연락처 즉시 공개**: 스튜디오가 수락하면 양측 전화번호가 즉시 표시되며, 전화/문자 버튼으로 원탭 연락 가능
-2. **시급 범위 선택**: 최소/최대 시급을 버튼으로 선택, "구체적인 금액은 연락 후 조율" 안내
-3. **공고 유형**: "1회 대타" (단건) / "다건 대타" (여러 회차) — 툴팁으로 설명
-4. **긴급 공고**: 소프트 핑크 컬러로 긴급성 표현 (공격적 빨강 지양)
-5. **공고 상태 시각화**: 좌측 컬러 바 (초록=모집중, 파랑=채용완료, 회색=마감)
-6. **활성/지난 공고 분리**: 활성 공고 상단, 지난 공고 하단 (투명도 75%)
+2. **인수인계 노트 넛지**: 긴급 대타 선택 시 "인수인계 노트를 남기면 회원이 눈치 못 채는 수업이 가능합니다" 표시
+3. **민감 정보 보호**: 회원 주의사항/기구 세팅은 자물쇠 아이콘 + "수락 후 공개" 라벨
+4. **인수인계 배지**: 공고 카드에 "인수인계" 배지 → 준비된 스튜디오라는 신뢰 시그널
+5. **시급 범위 선택**: 최소/최대 시급을 버튼으로 선택, "구체적인 금액은 연락 후 조율" 안내
+6. **긴급 공고**: 소프트 핑크 컬러로 긴급성 표현 (공격적 빨강 지양)
+7. **공고 상태 시각화**: 좌측 컬러 바 (초록=모집중, 파랑=채용완료, 회색=마감)
+8. **활성/지난 공고 분리**: 활성 공고 상단, 지난 공고 하단 (투명도 75%)
+9. **백업 강사 제안**: 수락 후 "이 강사를 백업 목록에 추가하시겠습니까?" 프롬프트
 
 ---
 
@@ -469,4 +560,4 @@ Private - All rights reserved
 
 ---
 
-*Last updated: 2026-03-01 (PMF Pivot + Trust Tier System v4.1 — UI/UX 개선)*
+*Last updated: 2026-03-02 (3대 핵심 기능: 인수인계 노트 + 스타일 매칭 + 백업 강사 네트워크)*
