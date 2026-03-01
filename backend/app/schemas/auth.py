@@ -1,9 +1,22 @@
-from pydantic import BaseModel, EmailStr, Field
+import re
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
 
 from app.models.enums import UserRole
+
+
+def _validate_password_complexity(password: str) -> str:
+    """Validate password has at least 1 uppercase, 1 lowercase, and 1 digit."""
+    if not re.search(r'[A-Z]', password):
+        raise ValueError('비밀번호에 대문자가 1개 이상 포함되어야 합니다')
+    if not re.search(r'[a-z]', password):
+        raise ValueError('비밀번호에 소문자가 1개 이상 포함되어야 합니다')
+    if not re.search(r'[0-9]', password):
+        raise ValueError('비밀번호에 숫자가 1개 이상 포함되어야 합니다')
+    return password
 
 
 class SignupRequest(BaseModel):
@@ -12,6 +25,11 @@ class SignupRequest(BaseModel):
     role: UserRole
     display_name: Optional[str] = None  # For instructors
     business_name: Optional[str] = None  # For studios
+
+    @field_validator('password')
+    @classmethod
+    def password_complexity(cls, v: str) -> str:
+        return _validate_password_complexity(v)
 
 
 class LoginRequest(BaseModel):
@@ -81,3 +99,8 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(..., min_length=8)
+
+    @field_validator('new_password')
+    @classmethod
+    def password_complexity(cls, v: str) -> str:
+        return _validate_password_complexity(v)

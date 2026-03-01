@@ -3,7 +3,8 @@ import logging
 import time
 
 import structlog
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -46,6 +47,8 @@ async def add_security_headers(request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if not settings.DEBUG:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -63,6 +66,29 @@ async def log_requests(request, call_next):
         duration_ms=round(duration * 1000),
     )
     return response
+
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions and return safe error response."""
+    logger = structlog.get_logger()
+    logger.error(
+        "unhandled_exception",
+        method=request.method,
+        path=request.url.path,
+        error=str(exc),
+        error_type=type(exc).__name__,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": {
+                "code": "INTERNAL_ERROR",
+                "message": "서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+            }
+        },
+    )
 
 
 # Include API router

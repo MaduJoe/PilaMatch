@@ -29,6 +29,7 @@ class FileUploadService:
         """
         self._validate_image(file)
         data = await file.read()
+        self._validate_magic_bytes(data)
 
         if len(data) > MAX_SIZE_BYTES:
             raise ValueError(
@@ -58,6 +59,37 @@ class FileUploadService:
             await self._delete_s3(photo_url)
         else:
             await self._delete_local(photo_url)
+
+    def _validate_magic_bytes(self, data: bytes) -> None:
+        """Validate file content by checking magic bytes (file signature).
+
+        Prevents Content-Type spoofing attacks where malicious files
+        are uploaded with image extensions/content-types.
+
+        Args:
+            data: Raw file bytes to validate.
+
+        Raises:
+            ValueError: If file signature does not match JPEG, PNG, or WebP.
+        """
+        if len(data) < 12:
+            raise ValueError("파일이 너무 작습니다")
+
+        # JPEG: starts with FF D8 FF
+        if data[:3] == b'\xff\xd8\xff':
+            return
+
+        # PNG: starts with 89 50 4E 47 0D 0A 1A 0A
+        if data[:8] == b'\x89PNG\r\n\x1a\n':
+            return
+
+        # WebP: starts with RIFF....WEBP
+        if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+            return
+
+        raise ValueError(
+            "파일 내용이 허용된 이미지 형식(JPEG, PNG, WebP)과 일치하지 않습니다"
+        )
 
     def _validate_image(self, file: UploadFile) -> None:
         """Validate file type and extension."""

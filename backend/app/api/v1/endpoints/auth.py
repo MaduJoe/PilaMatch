@@ -19,7 +19,7 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 # In-memory token blacklist (Redis fallback)
-_token_blacklist: set = set()
+_token_blacklist: dict[str, float] = {}  # token -> expiry timestamp
 
 
 def _get_redis():
@@ -39,7 +39,24 @@ def is_token_blacklisted(token: str) -> bool:
     r = _get_redis()
     if r:
         return r.exists(f"blacklist:{token}") > 0
-    return token in _token_blacklist
+    # In-memory: check with TTL
+    import time
+    expiry = _token_blacklist.get(token)
+    if expiry is None:
+        return False
+    if time.time() > expiry:
+        del _token_blacklist[token]
+        return False
+    return True
+
+
+def _cleanup_expired_tokens() -> None:
+    """Remove expired tokens from in-memory blacklist."""
+    import time
+    now = time.time()
+    expired = [k for k, v in _token_blacklist.items() if now > v]
+    for k in expired:
+        del _token_blacklist[k]
 
 
 def blacklist_token(token: str, expire_seconds: int = 604800) -> None:
@@ -48,7 +65,10 @@ def blacklist_token(token: str, expire_seconds: int = 604800) -> None:
     if r:
         r.setex(f"blacklist:{token}", expire_seconds, "1")
     else:
-        _token_blacklist.add(token)
+        import time
+        if len(_token_blacklist) > 100:
+            _cleanup_expired_tokens()
+        _token_blacklist[token] = time.time() + expire_seconds
 
 
 @router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -101,7 +121,9 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("20/minute")
 async def refresh_token(
+    request: Request,
     data: RefreshRequest,
     db: AsyncSession = Depends(get_db),
 ):

@@ -9,7 +9,7 @@ async def _signup(client: AsyncClient, email: str = "reset@test.com") -> str:
         "/api/v1/auth/signup",
         json={
             "email": email,
-            "password": "oldpass123",
+            "password": "OldPass123",
             "role": "instructor",
             "display_name": "Reset Test",
         },
@@ -53,7 +53,7 @@ async def test_reset_password_success(client: AsyncClient):
     # Get the user_id via login check
     login_resp = await client.post(
         "/api/v1/auth/login",
-        json={"email": "fullreset@test.com", "password": "oldpass123"},
+        json={"email": "fullreset@test.com", "password": "OldPass123"},
     )
     assert login_resp.status_code == 200
 
@@ -71,7 +71,7 @@ async def test_reset_password_success(client: AsyncClient):
     # Reset password
     response = await client.post(
         "/api/v1/auth/reset-password",
-        json={"token": reset_token, "new_password": "newpass456"},
+        json={"token": reset_token, "new_password": "NewPass456"},
     )
     assert response.status_code == 200
     assert "성공" in response.json()["message"]
@@ -79,14 +79,14 @@ async def test_reset_password_success(client: AsyncClient):
     # Login with new password should work
     new_login = await client.post(
         "/api/v1/auth/login",
-        json={"email": "fullreset@test.com", "password": "newpass456"},
+        json={"email": "fullreset@test.com", "password": "NewPass456"},
     )
     assert new_login.status_code == 200
 
     # Login with old password should fail
     old_login = await client.post(
         "/api/v1/auth/login",
-        json={"email": "fullreset@test.com", "password": "oldpass123"},
+        json={"email": "fullreset@test.com", "password": "OldPass123"},
     )
     assert old_login.status_code == 401
 
@@ -96,7 +96,7 @@ async def test_reset_password_invalid_token(client: AsyncClient):
     """Reset with invalid token should fail."""
     response = await client.post(
         "/api/v1/auth/reset-password",
-        json={"token": "invalid.token.here", "new_password": "newpass456"},
+        json={"token": "invalid.token.here", "new_password": "NewPass456"},
     )
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == "INVALID_TOKEN"
@@ -110,7 +110,7 @@ async def test_reset_password_token_reuse(client: AsyncClient):
     # Get user ID
     login_resp = await client.post(
         "/api/v1/auth/login",
-        json={"email": "reuse@test.com", "password": "oldpass123"},
+        json={"email": "reuse@test.com", "password": "OldPass123"},
     )
     token = login_resp.json()["access_token"]
     me_resp = await client.get(
@@ -126,14 +126,14 @@ async def test_reset_password_token_reuse(client: AsyncClient):
     # First use - should succeed
     resp1 = await client.post(
         "/api/v1/auth/reset-password",
-        json={"token": reset_token, "new_password": "newpass111"},
+        json={"token": reset_token, "new_password": "NewPass111"},
     )
     assert resp1.status_code == 200
 
     # Second use - should fail
     resp2 = await client.post(
         "/api/v1/auth/reset-password",
-        json={"token": reset_token, "new_password": "newpass222"},
+        json={"token": reset_token, "new_password": "NewPass222"},
     )
     assert resp2.status_code == 400
     assert resp2.json()["detail"]["code"] == "TOKEN_USED"

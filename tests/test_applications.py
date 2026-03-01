@@ -9,7 +9,7 @@ async def create_studio_and_job(client: AsyncClient) -> tuple[str, str]:
         "/api/v1/auth/signup",
         json={
             "email": f"studio_app_{id(client)}@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "studio",
             "business_name": "Test Studio",
         },
@@ -39,7 +39,7 @@ async def create_instructor_user(client: AsyncClient, suffix: str = "") -> str:
         "/api/v1/auth/signup",
         json={
             "email": f"instructor_app_{suffix}_{id(client)}@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Test Instructor",
         },

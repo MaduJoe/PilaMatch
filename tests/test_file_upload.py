@@ -10,7 +10,7 @@ async def _signup_and_get_token(client: AsyncClient, email: str) -> str:
         "/api/v1/auth/signup",
         json={
             "email": email,
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Photo Test",
         },

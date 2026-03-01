@@ -327,6 +327,25 @@ async def report_contract_no_show(
             detail={"code": "INVALID_CONTRACT_STATE", "message": "Can only report no-show for active contracts"},
         )
 
+    # Get profile ID for authorization check
+    if current_user.role == UserRole.STUDIO.value:
+        profile_id = await service.get_studio_profile_id(current_user.id)
+    else:
+        profile_id = await service.get_instructor_profile_id(current_user.id)
+
+    if not profile_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROFILE_NOT_FOUND", "message": "Profile not found"},
+        )
+
+    # BOLA check: verify user is a party to this contract
+    if str(profile_id) != str(contract.studio_id) and str(profile_id) != str(contract.instructor_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to report no-show for this contract"},
+        )
+
     try:
         # Create a no-show dispute instead of immediate penalty (v2.0)
         from app.services.dispute import DisputeService
@@ -367,11 +386,7 @@ async def report_contract_no_show(
         )
 
         # Cancel the contract due to no-show report
-        if current_user.role == UserRole.STUDIO.value:
-            profile_id = await service.get_studio_profile_id(current_user.id)
-        else:
-            profile_id = await service.get_instructor_profile_id(current_user.id)
-
+        # profile_id already resolved from the authorization check above
         await service.cancel(
             contract_id, current_user.id, profile_id, current_user.role,
             reason=f"No-show reported by {current_user.role}"

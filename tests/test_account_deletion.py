@@ -9,7 +9,7 @@ async def _signup_and_get_token(client: AsyncClient, email: str = "delete@test.c
         "/api/v1/auth/signup",
         json={
             "email": email,
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Delete Test",
         },
@@ -27,7 +27,7 @@ async def test_delete_account_success(client: AsyncClient):
         "DELETE",
         "/api/v1/auth/users/me",
         headers={"Authorization": f"Bearer {token}"},
-        json={"password": "testpass123"},
+        json={"password": "TestPass123"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -60,7 +60,7 @@ async def test_delete_account_invalidates_token(client: AsyncClient):
         "DELETE",
         "/api/v1/auth/users/me",
         headers={"Authorization": f"Bearer {token}"},
-        json={"password": "testpass123"},
+        json={"password": "TestPass123"},
     )
     assert response.status_code == 200
 

@@ -17,7 +17,7 @@ async def setup_contract_with_payment(client: AsyncClient) -> dict:
         "/api/v1/auth/signup",
         json={
             "email": f"studio_wh_{unique}@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "studio",
             "business_name": "Webhook Test Studio",
         },
@@ -45,7 +45,7 @@ async def setup_contract_with_payment(client: AsyncClient) -> dict:
         "/api/v1/auth/signup",
         json={
             "email": f"instructor_wh_{unique}@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Webhook Test Instructor",
         },

@@ -12,7 +12,7 @@ async def _create_user(client: AsyncClient, email: str = "sms@test.com") -> dict
         "/api/v1/auth/signup",
         json={
             "email": email,
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "SMS Tester",
         },

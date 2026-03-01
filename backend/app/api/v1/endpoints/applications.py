@@ -16,6 +16,7 @@ from app.schemas.application import (
 )
 from app.services.application import ApplicationService
 from app.services.subscription import SubscriptionService
+from app.utils.masking import mask_phone
 
 router = APIRouter()
 
@@ -111,7 +112,7 @@ async def get_job_post_applications(
             created_at=application.created_at,
             updated_at=application.updated_at,
             instructor_name=instructor.display_name,
-            instructor_phone=instructor.phone,
+            instructor_phone=mask_phone(instructor.phone),
             instructor_experience_years=instructor.experience_years,
             instructor_categories=instructor.categories,
             instructor_rating=float(instructor.rating_average) if instructor.rating_average else None,

@@ -8,7 +8,7 @@ async def test_signup_instructor(client: AsyncClient):
         "/api/v1/auth/signup",
         json={
             "email": "instructor@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Test Instructor",
         },
@@ -25,7 +25,7 @@ async def test_signup_studio(client: AsyncClient):
         "/api/v1/auth/signup",
         json={
             "email": "studio@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "studio",
             "business_name": "Test Studio",
         },
@@ -42,7 +42,7 @@ async def test_signup_duplicate_email(client: AsyncClient):
         "/api/v1/auth/signup",
         json={
             "email": "duplicate@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Test",
         },
@@ -53,7 +53,7 @@ async def test_signup_duplicate_email(client: AsyncClient):
         "/api/v1/auth/signup",
         json={
             "email": "duplicate@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Test",
         },
@@ -68,7 +68,7 @@ async def test_login_success(client: AsyncClient):
         "/api/v1/auth/signup",
         json={
             "email": "login@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Test",
         },
@@ -79,7 +79,7 @@ async def test_login_success(client: AsyncClient):
         "/api/v1/auth/login",
         json={
             "email": "login@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
         },
     )
     assert response.status_code == 200
@@ -106,7 +106,7 @@ async def test_get_me(client: AsyncClient):
         "/api/v1/auth/signup",
         json={
             "email": "me@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Me Test",
         },

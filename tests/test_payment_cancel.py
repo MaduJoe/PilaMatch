@@ -13,7 +13,7 @@ async def setup_contract_with_payment(client: AsyncClient) -> dict:
         "/api/v1/auth/signup",
         json={
             "email": f"studio_cancel_{unique}@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "studio",
             "business_name": "Cancel Test Studio",
         },
@@ -41,7 +41,7 @@ async def setup_contract_with_payment(client: AsyncClient) -> dict:
         "/api/v1/auth/signup",
         json={
             "email": f"instructor_cancel_{unique}@test.com",
-            "password": "testpass123",
+            "password": "TestPass123",
             "role": "instructor",
             "display_name": "Cancel Test Instructor",
         },
