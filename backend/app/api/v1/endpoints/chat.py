@@ -1,5 +1,6 @@
 from uuid import UUID
 from typing import Dict, Set
+import asyncio
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
@@ -28,7 +29,6 @@ class ConnectionManager:
         self.active_connections: Dict[UUID, Set[WebSocket]] = {}
 
     async def connect(self, thread_id: UUID, websocket: WebSocket):
-        await websocket.accept()
         if thread_id not in self.active_connections:
             self.active_connections[thread_id] = set()
         self.active_connections[thread_id].add(websocket)
@@ -186,12 +186,32 @@ async def create_message(
 async def websocket_endpoint(
     websocket: WebSocket,
     thread_id: UUID,
-    token: str,
 ):
-    """WebSocket endpoint for real-time chat."""
-    # Authenticate
+    """WebSocket endpoint for real-time chat.
+
+    Authentication: Send {"type": "auth", "token": "<JWT>"} as the first message.
+    The connection will be closed if auth is not provided within 10 seconds.
+    """
+    await websocket.accept()
+
+    # Wait for auth message (10 second timeout)
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+        auth_data = json.loads(raw)
+    except (asyncio.TimeoutError, json.JSONDecodeError):
+        await websocket.send_json({"type": "error", "message": "Authentication required"})
+        await websocket.close(code=4001)
+        return
+
+    if auth_data.get("type") != "auth" or not auth_data.get("token"):
+        await websocket.send_json({"type": "error", "message": "First message must be auth"})
+        await websocket.close(code=4001)
+        return
+
+    token = auth_data["token"]
     user_id = decode_access_token(token)
     if not user_id:
+        await websocket.send_json({"type": "error", "message": "Invalid token"})
         await websocket.close(code=4001)
         return
 
@@ -203,13 +223,18 @@ async def websocket_endpoint(
         user = result.scalar_one_or_none()
 
         if not user:
+            await websocket.send_json({"type": "error", "message": "User not found"})
             await websocket.close(code=4001)
             return
 
         service = ChatService(db)
         if not await service.can_access_thread(thread_id, user.id, user.role):
+            await websocket.send_json({"type": "error", "message": "Access denied"})
             await websocket.close(code=4003)
             return
+
+    # Auth successful - send confirmation
+    await websocket.send_json({"type": "auth_success", "user_id": user_id})
 
     await manager.connect(thread_id, websocket)
 
