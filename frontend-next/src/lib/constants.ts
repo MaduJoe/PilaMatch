@@ -58,11 +58,20 @@ export const REGION_NAMES = Object.keys(SEOUL_REGIONS);
 // ---------------------------------------------------------------------------
 
 export const RATE_PRESETS = [
+  { value: 10000, label: '1만원' },
+  { value: 20000, label: '2만원' },
   { value: 30000, label: '3만원' },
   { value: 40000, label: '4만원' },
-  { value: 50000, label: '5만원' },
-  { value: 60000, label: '6만원' },
-  { value: 70000, label: '7만원+' },
+  { value: 50000, label: '5만원+' },
+] as const;
+
+/** Rate options for range selector (min / max) */
+export const RATE_OPTIONS = [
+  { value: 10000, label: '1만원' },
+  { value: 20000, label: '2만원' },
+  { value: 30000, label: '3만원' },
+  { value: 40000, label: '4만원' },
+  { value: 50000, label: '5만원+' },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -116,9 +125,8 @@ export const CATEGORIES = [
 // ---------------------------------------------------------------------------
 
 export const JOB_TYPES = [
-  { value: 'substitute', label: '대행' },
-  { value: 'regular', label: '정규' },
-  { value: 'contract', label: '계약' },
+  { value: 'substitute', label: '1회 대타', description: '하루만 필요한 단건 대타' },
+  { value: 'regular', label: '다건 대타', description: '여러 회차가 필요한 대타 (예: 03/10, 03/11 2회)' },
 ] as const;
 
 // ---------------------------------------------------------------------------

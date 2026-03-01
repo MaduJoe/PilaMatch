@@ -44,20 +44,30 @@ export function BottomTabBar() {
               key={tab.key}
               href={tab.path}
               className={cn(
-                'flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors',
+                'relative flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors',
                 'min-h-[56px] justify-center',
                 isActive
-                  ? 'text-primary'
+                  ? 'text-foreground'
                   : 'text-muted-foreground hover:text-foreground',
               )}
               aria-current={isActive ? 'page' : undefined}
               aria-label={tab.label}
             >
-              <Icon
-                className={cn('size-5', isActive && 'size-[22px]')}
-                aria-hidden="true"
-              />
-              <span>{tab.label}</span>
+              {isActive && (
+                <span className="absolute inset-x-3 top-0 h-[2.5px] rounded-full bg-foreground" />
+              )}
+              <div
+                className={cn(
+                  'flex size-8 items-center justify-center rounded-full transition-colors',
+                  isActive && 'bg-foreground/10',
+                )}
+              >
+                <Icon
+                  className={cn('size-5', isActive && 'size-[22px]')}
+                  aria-hidden="true"
+                />
+              </div>
+              <span className={cn(isActive && 'font-semibold')}>{tab.label}</span>
             </Link>
           );
         })}

@@ -120,14 +120,16 @@ async def get_job_post_applications(
 
         # Show full phone if contact is revealed, masked otherwise
         revealed = getattr(application, "contact_revealed", False)
-        phone_display = instructor.phone if revealed else mask_phone(instructor.phone)
+        # Prefer profile phone, fallback to user phone (from SMS verification)
+        effective_phone = instructor.phone or (inst_user.phone if inst_user else None) or ""
+        phone_display = effective_phone if revealed else mask_phone(effective_phone)
 
         # When contact is revealed, also populate full phone and studio info
         instructor_full_phone = None
         studio_phone_val = None
         studio_name_val = None
         if revealed:
-            instructor_full_phone = instructor.phone
+            instructor_full_phone = effective_phone or None
             # Fetch studio info for the revealed contact
             studio_result = await db.execute(
                 select(StudioProfile).where(StudioProfile.id == studio_id)
@@ -386,9 +388,16 @@ async def accept_application(
     except Exception:
         pass
 
+    # Prefer profile phone, fallback to user phone (from SMS verification)
+    inst_user_result = await db.execute(
+        select(User).where(User.id == instructor.user_id)
+    ) if instructor else None
+    inst_user_obj = inst_user_result.scalar_one_or_none() if inst_user_result else None
+    effective_inst_phone = (instructor.phone if instructor else None) or (inst_user_obj.phone if inst_user_obj else None) or "등록된 번호 없음"
+
     return ContactRevealResponse(
         application_id=application.id,
-        instructor_phone=instructor.phone or "등록된 번호 없음",
+        instructor_phone=effective_inst_phone,
         instructor_name=instructor.display_name if instructor else "강사",
         studio_phone=studio.phone or "등록된 번호 없음",
         studio_name=studio.business_name if studio else "스튜디오",

@@ -22,8 +22,8 @@ import { Button } from '@/components/ui/button';
 // ---------------------------------------------------------------------------
 
 const JOB_TYPE_LABELS: Record<string, string> = {
-  substitute: '대타',
-  regular: '정규',
+  substitute: '1회 대타',
+  regular: '다건 대타',
   contract: '계약',
 };
 

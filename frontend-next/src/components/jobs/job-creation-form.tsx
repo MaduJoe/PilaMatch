@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,11 +11,12 @@ import type { JobPostCreate } from '@/lib/api-types';
 import {
   CATEGORIES,
   JOB_TYPES,
-  RATE_PRESETS,
+  RATE_OPTIONS,
   REGION_NAMES,
   SEOUL_REGIONS,
 } from '@/lib/constants';
-import { formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
+import { HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -73,6 +75,10 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
     },
   });
 
+  // Rate range state (min/max)
+  const [rateMin, setRateMin] = useState<number>(0);
+  const [rateMax, setRateMax] = useState<number>(0);
+
   const isUrgent = watch('is_urgent');
   const category = watch('category');
   const jobType = watch('job_type');
@@ -94,12 +100,25 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
     .filter(Boolean)
     .join(' ');
 
+  // Build rate range text for title/description
+  const rateRangeText =
+    rateMin > 0 && rateMax > 0
+      ? rateMin === rateMax
+        ? formatCurrency(rateMin)
+        : `${formatCurrency(rateMin)}~${formatCurrency(rateMax)}`
+      : '';
+
   const createJob = useMutation({
     mutationFn: (data: JobFormValues) => {
-      // Set the generated title before sending
+      // Append rate range to description if a range was selected
+      let desc = data.description ?? '';
+      if (rateMax > rateMin && rateMin > 0) {
+        desc = desc ? `${desc} [시급 ${rateRangeText}]` : `시급 ${rateRangeText}`;
+      }
       const payload: JobPostCreate = {
         ...data,
         title: titlePreview || data.title,
+        description: desc,
       };
       return api.jobPosts.create(payload);
     },
@@ -140,7 +159,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             aria-label="긴급 대타"
             className={`min-h-[44px] flex-1 text-base font-semibold ${
               isUrgent
-                ? 'border-destructive bg-destructive/10 text-destructive data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground'
+                ? 'border-pink-300 bg-pink-50 text-pink-600 data-[state=on]:!bg-pink-500 data-[state=on]:!text-white dark:border-pink-700 dark:bg-pink-950/30 dark:text-pink-400 dark:data-[state=on]:!bg-pink-600'
                 : ''
             }`}
           >
@@ -155,7 +174,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
           </ToggleGroupItem>
         </ToggleGroup>
         {isUrgent && (
-          <p className="text-sm text-destructive">
+          <p className="text-sm text-pink-600 dark:text-pink-400">
             급하게 강사가 필요할 때 사용하세요. 강사들에게 우선 노출됩니다.
           </p>
         )}
@@ -226,12 +245,25 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
                   key={t.value}
                   value={t.value}
                   aria-label={t.label}
-                  className="min-h-[44px] flex-1 text-base"
+                  className="min-h-[44px] flex-1 text-base relative group"
                 >
-                  {t.label}
+                  <span>{t.label}</span>
+                  {t.value === 'regular' && (
+                    <span className="relative ml-1 inline-flex">
+                      <HelpCircle className="size-3.5 text-muted-foreground" aria-hidden="true" />
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-foreground px-2.5 py-1.5 text-xs text-background opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                        {t.description}
+                      </span>
+                    </span>
+                  )}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
+            {jobType === 'regular' && (
+              <p className="text-xs text-muted-foreground">
+                여러 날짜에 대타가 필요할 때 선택하세요 (예: 3/10, 3/11 총 2회)
+              </p>
+            )}
             {errors.job_type && (
               <p className="text-sm text-destructive">
                 {errors.job_type.message}
@@ -277,34 +309,63 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
 
         {/* Right column: Steps 4-6 */}
         <div className="space-y-5">
-          {/* Step 4: Rate */}
-          <div className="space-y-2">
+          {/* Step 4: Rate Range */}
+          <div className="space-y-3">
             <label className="text-sm font-medium">
-              4. 시급 <span className="text-destructive">*</span>
+              4. 시급 범위 <span className="text-destructive">*</span>
             </label>
-            <div className="flex flex-wrap gap-2">
-              {RATE_PRESETS.map((preset) => (
-                <Button
-                  key={preset.value}
-                  type="button"
-                  variant={
-                    hourlyRate === preset.value ? 'default' : 'outline'
-                  }
-                  size="sm"
-                  className="min-h-[44px] min-w-[44px] text-base"
-                  onClick={() =>
-                    setValue('hourly_rate', preset.value, {
-                      shouldValidate: true,
-                    })
-                  }
-                >
-                  {preset.label}
-                </Button>
-              ))}
+            <div className="space-y-2">
+              <div>
+                <span className="mb-1 block text-xs text-muted-foreground">최소</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {RATE_OPTIONS.map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={rateMin === opt.value ? 'default' : 'outline'}
+                      size="sm"
+                      className="min-h-[40px] min-w-[40px] text-sm"
+                      onClick={() => {
+                        setRateMin(opt.value);
+                        setValue('hourly_rate', opt.value, { shouldValidate: true });
+                        // Auto-set max if not set or less than min
+                        if (rateMax < opt.value) setRateMax(opt.value);
+                      }}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="mb-1 block text-xs text-muted-foreground">최대</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {RATE_OPTIONS.map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={rateMax === opt.value ? 'default' : 'outline'}
+                      size="sm"
+                      className="min-h-[40px] min-w-[40px] text-sm"
+                      disabled={rateMin > 0 && opt.value < rateMin}
+                      onClick={() => {
+                        setRateMax(opt.value);
+                      }}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
-            {hourlyRate > 0 && (
-              <p className="text-sm text-muted-foreground">
-                선택: {formatCurrency(hourlyRate)}
+            {rateMin > 0 && rateMax > 0 && (
+              <p className="text-sm font-medium text-foreground">
+                {rateMin === rateMax
+                  ? formatCurrency(rateMin)
+                  : `${formatCurrency(rateMin)} ~ ${formatCurrency(rateMax)}`}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  구체적인 금액은 연락 후 조율
+                </span>
               </p>
             )}
             {errors.hourly_rate && (
@@ -380,7 +441,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             </label>
             <Input
               id="job-memo"
-              placeholder="예: 오전 수업 대행"
+              placeholder="예: 오전 수업 대타"
               className="min-h-[44px] text-base"
               {...register('description')}
             />
@@ -392,9 +453,12 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
       <Button
         type="submit"
         size="lg"
-        variant={isUrgent ? 'destructive' : 'default'}
+        variant={isUrgent ? 'default' : 'default'}
         disabled={createJob.isPending}
-        className="min-h-[48px] w-full text-base font-semibold"
+        className={cn(
+          'min-h-[48px] w-full text-base font-semibold',
+          isUrgent && 'bg-pink-500 text-white hover:bg-pink-600 dark:bg-pink-600 dark:hover:bg-pink-700',
+        )}
       >
         {createJob.isPending
           ? '등록 중...'

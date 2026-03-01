@@ -4,7 +4,7 @@ import type { ApplicationWithInstructorResponse } from '@/lib/api-types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Star, CheckCircle, Phone } from 'lucide-react';
+import { Star, CheckCircle, Phone, MessageSquare } from 'lucide-react';
 import { TierBadge } from '@/components/trust/tier-badge';
 
 // ---------------------------------------------------------------------------
@@ -105,19 +105,48 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
           리뷰 {reviewCount}건
         </div>
 
-        {/* Contact info */}
-        {maskedPhone && (
+        {/* Contact info - show directly when revealed */}
+        {contactRevealed && fullPhone ? (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/30">
+            <div className="flex items-center gap-2 text-sm font-medium text-green-800 dark:text-green-300">
+              <Phone className="size-4" aria-hidden="true" />
+              <a href={`tel:${fullPhone}`} className="underline underline-offset-2">
+                {fullPhone}
+              </a>
+            </div>
+            <div className="mt-2 flex gap-2">
+              <a
+                href={`tel:${fullPhone}`}
+                className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition-colors hover:bg-green-700"
+                aria-label={`${instructorName} 강사에게 전화`}
+              >
+                <Phone className="size-3.5" aria-hidden="true" />
+                전화
+              </a>
+              <a
+                href={`sms:${fullPhone}`}
+                className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-md border border-green-300 bg-white px-3 text-xs font-medium text-green-700 transition-colors hover:bg-green-50 dark:border-green-700 dark:bg-green-950 dark:text-green-300 dark:hover:bg-green-900"
+                aria-label={`${instructorName} 강사에게 문자`}
+              >
+                <MessageSquare className="size-3.5" aria-hidden="true" />
+                문자
+              </a>
+            </div>
+          </div>
+        ) : contactRevealed && !fullPhone ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              수락 완료 — 강사가 아직 연락처를 등록하지 않았습니다.
+            </p>
+          </div>
+        ) : maskedPhone ? (
           <div className="flex items-center gap-2 text-sm">
             <Phone className="size-4" aria-hidden="true" />
-            {contactRevealed && fullPhone ? (
-              <span className="font-medium text-foreground">{fullPhone}</span>
-            ) : (
-              <span className="text-muted-foreground">
-                {maskPhone(maskedPhone)}
-              </span>
-            )}
+            <span className="text-muted-foreground">
+              {maskPhone(maskedPhone)}
+            </span>
           </div>
-        )}
+        ) : null}
 
         {/* Cover letter */}
         {coverLetter && (
@@ -126,12 +155,14 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
           </p>
         )}
 
-        {/* Status badge */}
-        <div>
-          <Badge variant={statusDisplay.variant}>
-            {statusDisplay.label}
-          </Badge>
-        </div>
+        {/* Status badge - only show non-accepted statuses */}
+        {!contactRevealed && (
+          <div>
+            <Badge variant={statusDisplay.variant}>
+              {statusDisplay.label}
+            </Badge>
+          </div>
+        )}
 
         {/* Accept button (replaces "Send offer") */}
         {canAccept && (

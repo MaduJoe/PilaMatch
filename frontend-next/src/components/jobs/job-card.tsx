@@ -14,8 +14,8 @@ import { MapPin, Clock, Banknote, ChevronDown, ChevronUp } from 'lucide-react';
 // ---------------------------------------------------------------------------
 
 const JOB_TYPE_MAP: Record<string, { label: string; emoji: string }> = {
-  substitute: { label: '대타', emoji: '\u{1F504}' },
-  regular: { label: '정규', emoji: '\u{1F4C5}' },
+  substitute: { label: '1회 대타', emoji: '\u{1F504}' },
+  regular: { label: '다건 대타', emoji: '\u{1F4C5}' },
   contract: { label: '계약', emoji: '\u{1F4DD}' },
 };
 
