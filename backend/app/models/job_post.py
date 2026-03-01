@@ -28,6 +28,8 @@ class JobPost(Base, UUIDMixin, TimestampMixin):
     longitude = Column(Numeric(10, 7), nullable=True)  # GPS longitude
     is_urgent = Column(Boolean, default=False, nullable=False, index=True)  # Urgent substitute flag
     application_count = Column(Integer, default=0)
+    payment_method = Column(String(50), nullable=True)  # bank_transfer/cash/etc
+    terms_agreed = Column(Boolean, default=False, nullable=False)  # Checklist agreement
 
     # Relationships
     studio = relationship("StudioProfile", back_populates="job_posts")

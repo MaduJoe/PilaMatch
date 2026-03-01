@@ -28,6 +28,8 @@ class ApplicationResponse(BaseModel):
 class ApplicationWithJobResponse(ApplicationResponse):
     job_title: Optional[str] = None
     studio_name: Optional[str] = None
+    studio_phone: Optional[str] = None      # Only populated when contact_revealed=True
+    studio_address: Optional[str] = None     # Only populated when contact_revealed=True
 
 
 class ApplicationWithInstructorResponse(ApplicationResponse):
@@ -48,6 +50,9 @@ class ApplicationWithInstructorResponse(ApplicationResponse):
     instructor_completed_substitutes: int = 0
     instructor_no_show_count: int = 0
     instructor_review_count: int = 0
+    # Tier info
+    instructor_tier: str = "t1_basic"
+    instructor_tier_label: str = "Basic"
 
 
 class ContactRevealResponse(BaseModel):

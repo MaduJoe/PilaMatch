@@ -20,6 +20,7 @@ class StudioProfile(Base, UUIDMixin, TimestampMixin):
     is_verified = Column(Boolean, default=False, nullable=False)
     rating_average = Column(Numeric(3, 2), default=0)
     review_count = Column(Integer, default=0)
+    location_proof_verified = Column(Boolean, default=False, nullable=False)  # C2 requirement
 
     # Relationships
     user = relationship("User", back_populates="studio_profile")

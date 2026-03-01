@@ -67,9 +67,11 @@ class ApplicationService:
             if not completeness["allowed"]:
                 raise ValueError(f"INCOMPLETE_PROFILE:{completeness['reason']}")
 
-            # PMF pivot: Daily usage limits disabled — all users have unlimited access
-            # to prove value before adding friction.
-            # Original code preserved in daily_usage.py for post-PMF reactivation.
+            # Tier-based daily application limit
+            from app.services.tier_evaluation import check_can_apply
+            allowed, reason = await check_can_apply(self.db, instructor.user_id)
+            if not allowed:
+                raise ValueError(f"DAILY_LIMIT_REACHED:{reason}")
 
         # Create application
         application = Application(
@@ -83,8 +85,25 @@ class ApplicationService:
         # Update application count
         job_post.application_count += 1
 
+        # Increment daily application counter
+        if instructor:
+            user_result = await self.db.execute(
+                select(User).where(User.id == instructor.user_id)
+            )
+            inst_user = user_result.scalar_one_or_none()
+            if inst_user:
+                inst_user.daily_applications_today = (inst_user.daily_applications_today or 0) + 1
+
         await self.db.commit()
         await self.db.refresh(application)
+
+        # Re-evaluate tier after application (best-effort)
+        try:
+            if instructor:
+                from app.services.tier_evaluation import evaluate_and_update_tier
+                await evaluate_and_update_tier(self.db, instructor.user_id)
+        except Exception:
+            logger.exception("Failed to re-evaluate tier after application")
 
         # Record in generic event log (best-effort)
         try:
@@ -128,7 +147,12 @@ class ApplicationService:
 
     async def get_by_instructor(
         self, instructor_id: UUID, skip: int = 0, limit: int = 20
-    ) -> Tuple[List[Tuple[Application, str, str]], int]:
+    ) -> Tuple[List[Tuple[Application, str, str, str, str]], int]:
+        """Get applications for an instructor with job and studio info.
+
+        Returns:
+            Tuple of (list of (Application, job_title, studio_name, studio_phone, studio_address), total_count).
+        """
         base_filter = Application.instructor_id == instructor_id
 
         # Count total
@@ -138,7 +162,13 @@ class ApplicationService:
         total = count_result.scalar_one()
 
         query = (
-            select(Application, JobPost.title, StudioProfile.business_name)
+            select(
+                Application,
+                JobPost.title,
+                StudioProfile.business_name,
+                StudioProfile.phone,
+                StudioProfile.address,
+            )
             .join(JobPost, Application.job_post_id == JobPost.id)
             .join(StudioProfile, JobPost.studio_id == StudioProfile.id)
             .where(base_filter)

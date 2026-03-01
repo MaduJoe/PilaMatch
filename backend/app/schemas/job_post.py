@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from uuid import UUID
 from decimal import Decimal
-from datetime import date, time
+from datetime import date, time, datetime
 
 from app.models.enums import Category, JobType, JobPostStatus
 
@@ -24,6 +24,8 @@ class JobPostCreate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     is_urgent: bool = False
+    payment_method: Optional[str] = None  # bank_transfer/cash/etc
+    terms_agreed: bool = False  # Checklist 6+7 agreement
 
 
 class JobPostUpdate(BaseModel):
@@ -44,6 +46,8 @@ class JobPostUpdate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     is_urgent: Optional[bool] = None
+    payment_method: Optional[str] = None
+    terms_agreed: Optional[bool] = None
 
 
 class JobPostResponse(BaseModel):
@@ -66,11 +70,15 @@ class JobPostResponse(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     is_urgent: bool = False
+    payment_method: Optional[str] = None
+    terms_agreed: bool = False
     distance_km: Optional[float] = None  # Calculated field, not from DB
     distance_text: Optional[str] = None  # e.g. "2.3km"
     travel_time_min: Optional[int] = None  # e.g. 15
     is_past: bool = False
     application_count: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     # Note: is_premium is added at the endpoint level for security reasons
 
     class Config:

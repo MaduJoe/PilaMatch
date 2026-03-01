@@ -5,12 +5,12 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel
 
 from app.db.session import get_db
 from app.core.deps import require_role, get_optional_user, get_current_user
-from app.models import User, UserRole, InstructorProfile, StudioProfile
+from app.models import User, UserRole, InstructorProfile, StudioProfile, JobPost
 from app.models.enums import Category, JobType, JobPostStatus
 from app.schemas.job_post import (
     JobPostCreate,
@@ -62,6 +62,15 @@ async def create_job_post(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new job post (studio only)."""
+    # Tier-based active post limit check
+    from app.services.tier_evaluation import check_can_post
+    allowed, reason = await check_can_post(db, current_user.id)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "ACTIVE_POST_LIMIT_REACHED", "message": reason},
+        )
+
     service = JobPostService(db)
     studio_id = await service.get_studio_profile_id(current_user.id)
 
@@ -172,6 +181,52 @@ async def list_job_posts(
     )
 
 
+@router.get("/mine", response_model=JobPostListResponse)
+async def list_my_job_posts(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(require_role(UserRole.STUDIO)),
+    db: AsyncSession = Depends(get_db),
+):
+    """List job posts owned by the current studio (all statuses)."""
+    service = JobPostService(db)
+    studio_id = await service.get_studio_profile_id(current_user.id)
+
+    if not studio_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
+        )
+
+    result = await db.execute(
+        select(JobPost)
+        .where(JobPost.studio_id == studio_id)
+        .order_by(JobPost.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    items = result.scalars().all()
+
+    count_result = await db.execute(
+        select(func.count(JobPost.id)).where(JobPost.studio_id == studio_id)
+    )
+    total = count_result.scalar()
+
+    today = date.today()
+    response_items = []
+    for item in items:
+        job_response = JobPostResponse.model_validate(item)
+        job_response.is_past = item.date < today if item.date else False
+        response_items.append(job_response)
+
+    return JobPostListResponse(
+        items=response_items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
 @router.get("/for-me/with-matching", response_model=JobPostWithMatchingListResponse)
 async def list_job_posts_with_matching(
     category: Optional[Category] = None,
@@ -194,7 +249,13 @@ async def list_job_posts_with_matching(
 
     PMF pivot: Prioritizes urgent substitute jobs, adds distance-based sorting.
     """
+    import time as _time
+    import structlog
+    _logger = structlog.get_logger(__name__)
+
     from app.utils.distance import haversine_distance, estimate_travel_time, format_distance
+
+    t0 = _time.monotonic()
 
     # Get instructor profile
     result = await db.execute(
@@ -301,6 +362,16 @@ async def list_job_posts_with_matching(
             travel_time_min=estimate_travel_time(dist) if dist is not None else None,
         )
         response_items.append(resp)
+
+    elapsed_ms = (_time.monotonic() - t0) * 1000
+    _logger.info(
+        "matching_telemetry",
+        user_id=str(current_user.id),
+        jobs_scored=len(jobs_with_scores),
+        returned=len(response_items),
+        elapsed_ms=round(elapsed_ms, 1),
+        top_score=jobs_with_scores[0]["score"] if jobs_with_scores else 0,
+    )
 
     return JobPostWithMatchingListResponse(
         items=response_items,

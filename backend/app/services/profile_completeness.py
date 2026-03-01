@@ -19,14 +19,12 @@ async def calculate_instructor_completeness(
         dict with completeness percentage and missing fields
     """
     required_fields = {
-        "display_name": 20,  # 20% weight
-        "phone": 10,
+        "display_name": 25,  # 25% weight
+        "phone": 15,
         "bio": 15,
         "experience_years": 10,
-        "categories": 10,
-        "available_regions": 15,
-        "hourly_rate_min": 10,
-        "hourly_rate_max": 10,
+        "categories": 15,
+        "available_regions": 20,
     }
 
     total_weight = sum(required_fields.values())
@@ -65,16 +63,6 @@ async def calculate_instructor_completeness(
     else:
         missing_fields.append("available_regions")
 
-    if profile.hourly_rate_min and profile.hourly_rate_min > 0:
-        completed_weight += required_fields["hourly_rate_min"]
-    else:
-        missing_fields.append("hourly_rate_min")
-
-    if profile.hourly_rate_max and profile.hourly_rate_max > 0:
-        completed_weight += required_fields["hourly_rate_max"]
-    else:
-        missing_fields.append("hourly_rate_max")
-
     completeness_percentage = int((completed_weight / total_weight) * 100)
 
     return {
@@ -88,8 +76,6 @@ async def calculate_instructor_completeness(
             "experience_years": "경력",
             "categories": "수업 종목",
             "available_regions": "활동 지역",
-            "hourly_rate_min": "최소 시급",
-            "hourly_rate_max": "최대 시급",
         },
     }
 

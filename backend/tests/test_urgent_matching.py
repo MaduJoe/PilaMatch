@@ -707,13 +707,13 @@ class TestDailyUsageLimitsRemoved:
         # The daily usage tracking code should be commented out / removed
         assert "track_daily_usage" not in source or "disabled" in source.lower() or "pivot" in source.lower()
 
-    def test_application_service_has_pmf_pivot_comment(self) -> None:
-        """ApplicationService.create should contain the PMF pivot comment."""
+    def test_application_service_has_tier_based_limit(self) -> None:
+        """ApplicationService.create should contain tier-based daily limit check."""
         import inspect
         from app.services.application import ApplicationService
 
         source = inspect.getsource(ApplicationService.create)
-        assert "PMF pivot" in source or "Daily usage limits disabled" in source
+        assert "Tier-based daily application limit" in source or "check_can_apply" in source
 
 
 # ===========================================================================
