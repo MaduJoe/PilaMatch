@@ -397,6 +397,56 @@ PMF 검증을 위해 추적하는 핵심 지표.
 
 ---
 
+## UI/UX 디자인 (v4.1)
+
+### 모바일 퍼스트 설계
+
+PilaMatch는 긴급 대타 매칭 특성상 모바일 사용이 90%+ 예상되어, 모바일 퍼스트 UI로 설계되었다.
+
+### 주요 UI 컴포넌트
+
+| 컴포넌트 | 파일 | 설명 |
+|----------|------|------|
+| **Bottom Tab Bar** | `components/layout/bottom-tab-bar.tsx` | 하단 네비게이션 (탭 인디케이터 + 아이콘 하이라이트) |
+| **Applicant Card** | `components/offers/applicant-card.tsx` | 지원자 카드 (Tier 뱃지, 연락처, 전화/문자 버튼) |
+| **Job Creation Form** | `components/jobs/job-creation-form.tsx` | 공고 등록 폼 (6단계, 시급 범위, 핑크 긴급 버튼) |
+| **Job Card** | `components/jobs/job-card.tsx` | 공고 카드 (매칭 점수, D-Day, 거리) |
+| **Instructor App List** | `components/applications/instructor-application-list.tsx` | 강사 지원 현황 (매칭 완료 시 연락처 표시) |
+| **Tier Badge** | `components/trust/tier-badge.tsx` | 등급 뱃지 (T1 Basic / T2 Verified / T3 Pro) |
+
+### 핵심 UX 패턴
+
+1. **연락처 즉시 공개**: 스튜디오가 수락하면 양측 전화번호가 즉시 표시되며, 전화/문자 버튼으로 원탭 연락 가능
+2. **시급 범위 선택**: 최소/최대 시급을 버튼으로 선택, "구체적인 금액은 연락 후 조율" 안내
+3. **공고 유형**: "1회 대타" (단건) / "다건 대타" (여러 회차) — 툴팁으로 설명
+4. **긴급 공고**: 소프트 핑크 컬러로 긴급성 표현 (공격적 빨강 지양)
+5. **공고 상태 시각화**: 좌측 컬러 바 (초록=모집중, 파랑=채용완료, 회색=마감)
+6. **활성/지난 공고 분리**: 활성 공고 상단, 지난 공고 하단 (투명도 75%)
+
+---
+
+## 테스트 계정 (개발용)
+
+Docker Compose로 로컬 환경 구축 후, `/auth/signup`으로 계정을 생성하거나 아래 스크립트를 사용한다.
+
+```bash
+BASE="http://localhost:8000/api/v1/auth"
+
+# 강사 계정
+curl -X POST "$BASE/signup" -H "Content-Type: application/json" \
+  -d '{"email":"gangsa1@test.com","password":"Test1234","role":"instructor","display_name":"김강사"}'
+
+# 스튜디오 계정
+curl -X POST "$BASE/signup" -H "Content-Type: application/json" \
+  -d '{"email":"studio1@test.com","password":"Test1234","role":"studio","business_name":"필라테스센터"}'
+```
+
+> **비밀번호 규칙**: 8자 이상, 대문자 1개 이상 포함 필수
+
+프로필 완성 후 지원/수락 플로우를 테스트할 수 있다.
+
+---
+
 ## 비활성화 기능 (PMF 후 재활성화)
 
 아래 기능은 코드 기반에 완전히 구현되어 있으나, PMF 피벗 기간 동안 라우터에서 비활성화되었다.
@@ -419,4 +469,4 @@ Private - All rights reserved
 
 ---
 
-*Last updated: 2026-03-01 (PMF Pivot + Trust Tier System v4.0)*
+*Last updated: 2026-03-01 (PMF Pivot + Trust Tier System v4.1 — UI/UX 개선)*

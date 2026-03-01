@@ -12,14 +12,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Stable**: Stability > new features
 
 ### Current Status
-✅ **MVP Complete** with all trust features implemented:
+✅ **MVP Complete** with all trust features + UI/UX polished:
 - Authentication with JWT
 - Phone/business verification system
 - Direct settlement model (수업료 직접 정산 - 앱 외부에서 강사/스튜디오 간 직접 정산)
 - No-show penalty system (Trust Score 기반, 3-strike suspension)
 - 4-factor matching algorithm
 - Contract state machine with event logging
-- Premium membership system (월 9,900원)
+- Premium membership system (월 9,900원) — 현재 비활성
+- **UI/UX v4.1**: 탭 인디케이터, 연락처 즉시 표시, 시급 범위, 핑크 긴급 버튼, 공고 상태 시각화
 
 ---
 
