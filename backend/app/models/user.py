@@ -35,7 +35,7 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     # Trust score (v3.0 - enhanced)
     trust_score = Column(Integer, default=40, nullable=False)  # 0-100, default 40 for new users
-    trust_level = Column(String(20), default="신진", nullable=False)  # 신진/인증/전문/마스터
+    trust_level = Column(String(20), default="새싹", nullable=False)  # 새싹/인증/전문/마스터
 
     # 약관 동의
     terms_agreed_at = Column(DateTime, nullable=True)       # 이용약관 동의 일시

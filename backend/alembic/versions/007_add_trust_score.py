@@ -32,7 +32,7 @@ def upgrade() -> None:
 
     # Add trust_level column (new in v3.0)
     op.add_column('users',
-        sa.Column('trust_level', sa.String(20), nullable=False, server_default='신진')
+        sa.Column('trust_level', sa.String(20), nullable=False, server_default='새싹')
     )
 
     # Index idx_users_trust_score already exists from 003_prdv2_updates; skip.
@@ -56,7 +56,7 @@ def upgrade() -> None:
                 WHEN trust_score >= 80 THEN '마스터'
                 WHEN trust_score >= 60 THEN '전문'
                 WHEN trust_score >= 40 THEN '인증'
-                ELSE '신진'
+                ELSE '새싹'
             END
     """)
 

@@ -21,7 +21,7 @@ Successfully implemented comprehensive Premium membership strategy to replace de
   - Community standing (20 points)
   - Penalty deductions (negative points)
 - **Trust Levels**:
-  - 신진 (Bronze): 0-39 points
+  - 새싹 (Bronze): 0-39 points
   - 인증 (Silver): 40-59 points
   - 전문 (Gold): 60-79 points
   - 마스터 (Platinum): 80-100 points
@@ -86,7 +86,7 @@ UPDATE users SET deposit_required = 0;
 ### Migration 007: Trust Score Fields
 ```sql
 ALTER TABLE users ADD COLUMN trust_score INTEGER DEFAULT 40;
-ALTER TABLE users ADD COLUMN trust_level VARCHAR(20) DEFAULT '신진';
+ALTER TABLE users ADD COLUMN trust_level VARCHAR(20) DEFAULT '새싹';
 CREATE INDEX ix_users_trust_score ON users(trust_score);
 ```
 

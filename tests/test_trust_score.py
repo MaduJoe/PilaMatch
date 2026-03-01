@@ -563,7 +563,7 @@ def test_trust_level_0_to_39_is_bronze():
     for score in [0, 10, 20, 39]:
         level_name, color = TrustLevel.get_level(score)
         assert color == "bronze"
-        assert level_name == "신진"
+        assert level_name == "새싹"
 
 
 def test_trust_level_40_to_59_is_silver():
@@ -900,7 +900,7 @@ async def test_nonexistent_user_returns_zero_score(
     result = await calculate_trust_score(db_session, str(uuid.uuid4()), "instructor")
 
     assert result["score"] == 0
-    assert result["level"] == "신진"
+    assert result["level"] == "새싹"
     assert result["level_color"] == "bronze"
 
 

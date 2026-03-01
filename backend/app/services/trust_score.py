@@ -36,7 +36,7 @@ FACTOR_LABELS: Dict[str, Dict[str, Any]] = {
 }
 
 LEVEL_THRESHOLDS: list[Dict[str, Any]] = [
-    {"level": "신진", "min": 0, "max": 39, "color": "bronze"},
+    {"level": "새싹", "min": 0, "max": 39, "color": "bronze"},
     {"level": "인증", "min": 40, "max": 59, "color": "silver"},
     {"level": "전문", "min": 60, "max": 79, "color": "gold"},
     {"level": "마스터", "min": 80, "max": 100, "color": "platinum"},
@@ -45,7 +45,7 @@ LEVEL_THRESHOLDS: list[Dict[str, Any]] = [
 
 class TrustLevel:
     """Trust level thresholds and names."""
-    BRONZE = (0, 39, "신진")  # Beginner
+    BRONZE = (0, 39, "새싹")  # Beginner
     SILVER = (40, 59, "인증")  # Verified
     GOLD = (60, 79, "전문")  # Professional
     PLATINUM = (80, 100, "마스터")  # Master

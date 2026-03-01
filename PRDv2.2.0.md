@@ -154,7 +154,7 @@ PilaMatch는 필라테스/요가 강사와 스튜디오를 연결하는 B2B 매�
 ├─────────────────────────────────────────┤
 │ 5. Trust Score (신뢰 점수)              │ ← [v2.2 재설계]
 │    - 4개 컴포넌트 기반 0-100점          │
-│    - 4개 레벨: 신진/인증/전문/마스터    │
+│    - 4개 레벨: 새싹/인증/전문/마스터    │
 └─────────────────────────────────────────┘
 ```
 
@@ -488,14 +488,14 @@ Trust Score 구성 (0-100점):
 [DEPRECATED v2.2: 보증금 예치 +10점 항목 제거]
 
 신뢰 레벨:
-  신진 (Bronze):  0-39점
+  새싹 (Bronze):  0-39점
   인증 (Silver): 40-59점
   전문 (Gold):   60-79점
   마스터 (Platinum): 80-100점
 
 표시 방식:
   - 프로필 카드에 Trust Score 레벨 뱃지
-  - 마스터: 🟢 / 전문: 🔵 / 인증: 🟡 / 신진: 표시 안 함
+  - 마스터: 🟢 / 전문: 🔵 / 인증: 🟡 / 새싹: 표시 안 함
   - 매칭 리스트에서 Trust Score 정렬 옵션
 
 API 엔드포인트:
@@ -898,8 +898,8 @@ CREATE TABLE users (
     business_verified BOOLEAN DEFAULT FALSE,
 
     -- Trust System (v2.2 재설계)
-    trust_score INTEGER DEFAULT 40,         -- [v2.2] 기본값 40 (신진 레벨 하한)
-    trust_level VARCHAR(20) DEFAULT '신진', -- [v2.2] 신진/인증/전문/마스터
+    trust_score INTEGER DEFAULT 40,         -- [v2.2] 기본값 40 (새싹 레벨 하한)
+    trust_level VARCHAR(20) DEFAULT '새싹', -- [v2.2] 새싹/인증/전문/마스터
 
     -- Deposit (DEPRECATED v2.2)
     deposit_balance NUMERIC(10,2) DEFAULT 0,   -- DEPRECATED: 사용 안 함
@@ -1024,7 +1024,7 @@ CREATE TABLE disputes (
 | 003 | PRD v2.0 업데이트 (disputes, policy_agreements, user_churn_log) |
 | 004 | Premium 구독 테이블 (subscriptions, subscription_payments, subscription_history) |
 | **006** | **[v2.2] 보증금 Deprecated: deposit_balance/deposit_required 컬럼 COMMENT 추가, deposit_required=0 일괄 업데이트** |
-| **007** | **[v2.2] Trust Score 필드: trust_score INTEGER DEFAULT 40, trust_level VARCHAR(20) DEFAULT '신진', 인덱스 추가** |
+| **007** | **[v2.2] Trust Score 필드: trust_score INTEGER DEFAULT 40, trust_level VARCHAR(20) DEFAULT '새싹', 인덱스 추가** |
 | **008** | **[v2.2] 지원서 템플릿 테이블: application_templates 생성** |
 
 ### 9.3 인덱스 전략
@@ -1476,7 +1476,7 @@ CI/CD Pipeline:
 - `deposit` 관련 API endpoint 비활성화 (`api_client.py`)
 
 #### Added (추가)
-- **Trust Score 시스템**: 0-100점, 4개 레벨 (신진/인증/전문/마스터) (PRD §6.2.3)
+- **Trust Score 시스템**: 0-100점, 4개 레벨 (새싹/인증/전문/마스터) (PRD §6.2.3)
   - 서비스: `/backend/app/services/trust_score.py`
   - API: `GET /trust-score`, `GET /trust-score/display`, `POST /trust-score/refresh`
   - Migration 007: `trust_score INTEGER DEFAULT 40`, `trust_level VARCHAR(20)`
@@ -1545,7 +1545,7 @@ CI/CD Pipeline:
 | 오퍼 (Offer) | 스튜디오→강사 제안 |
 | ~~보증금~~ | ~~신뢰 담보금 [DEPRECATED v2.2]~~ |
 | Trust Score | 신뢰도 종합 점수 (0-100), 4개 레벨 |
-| 신진 (Bronze) | Trust Score 0-39점 |
+| 새싹 (Bronze) | Trust Score 0-39점 |
 | 인증 (Silver) | Trust Score 40-59점 |
 | 전문 (Gold) | Trust Score 60-79점 |
 | 마스터 (Platinum) | Trust Score 80-100점 |
