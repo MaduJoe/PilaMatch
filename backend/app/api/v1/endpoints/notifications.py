@@ -1,14 +1,18 @@
 """Notification API endpoints."""
+import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.core.deps import get_current_user
 from app.models import User
-from app.services.notification import NotificationService
+from app.services.notification import NotificationService, send_lesson_reminders
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -82,3 +86,29 @@ async def get_unread_count(
     service = NotificationService(db)
     count = await service.get_unread_count(str(current_user.id))
     return {"unread_count": count}
+
+
+class CronSecretRequest(BaseModel):
+    cron_secret: str
+
+
+@router.post("/send-reminders")
+async def trigger_lesson_reminders(
+    request: CronSecretRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Send lesson reminders for upcoming classes (CRON_SECRET protected).
+
+    Call via cron every hour. Sends reminders:
+    - 24 hours before: "내일 수업이 있습니다"
+    - 1 hour before: "1시간 후 수업이 시작됩니다"
+    """
+    if not settings.CRON_SECRET or request.cron_secret != settings.CRON_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "Invalid cron secret"},
+        )
+
+    sent = await send_lesson_reminders(db)
+    logger.info(f"Lesson reminders sent: {sent}")
+    return {"sent": sent}

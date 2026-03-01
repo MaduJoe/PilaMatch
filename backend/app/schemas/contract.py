@@ -34,6 +34,10 @@ class ContractResponse(BaseModel):
     platform_fee: Optional[float] = None
     settlement_amount: Optional[float] = None
 
+    # Recurring schedule (v3.0)
+    recurring_days: Optional[list[int]] = None
+    recurring_end_date: Optional[date] = None
+
     cancellation_reason: Optional[str] = None
     cancelled_by_user_id: Optional[UUID] = None
     created_at: datetime

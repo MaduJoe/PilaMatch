@@ -21,7 +21,7 @@ async def get_my_profile(
     current_user: User = Depends(require_role(UserRole.STUDIO)),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current studio's profile."""
+    """Get current studio's profile with completed contracts count."""
     service = StudioService(db)
     profile = await service.get_profile_by_user_id(current_user.id)
 
@@ -31,7 +31,10 @@ async def get_my_profile(
             detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
         )
 
-    return StudioProfileResponse.model_validate(profile)
+    completed_count = await service.get_completed_contracts_count(profile.id)
+    response = StudioProfileResponse.model_validate(profile)
+    response.completed_contracts_count = completed_count
+    return response
 
 
 @router.put("/me", response_model=StudioProfileResponse)
@@ -50,7 +53,10 @@ async def update_my_profile(
             detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
         )
 
-    return StudioProfileResponse.model_validate(profile)
+    completed_count = await service.get_completed_contracts_count(profile.id)
+    response = StudioProfileResponse.model_validate(profile)
+    response.completed_contracts_count = completed_count
+    return response
 
 
 @router.get("/{studio_id}", response_model=StudioPublicResponse)
@@ -68,4 +74,7 @@ async def get_studio(
             detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
         )
 
-    return StudioPublicResponse.model_validate(profile)
+    completed_count = await service.get_completed_contracts_count(profile.id)
+    response = StudioPublicResponse.model_validate(profile)
+    response.completed_contracts_count = completed_count
+    return response

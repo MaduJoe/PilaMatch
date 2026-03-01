@@ -171,18 +171,10 @@ export function JobDetailDialog({
             </div>
           </div>
 
-          {/* Premium boost info */}
-          {matching.is_boosted && (
-            <div className="rounded-md bg-violet-50 px-3 py-2 text-sm text-violet-800 dark:bg-violet-950 dark:text-violet-200">
-              Premium 부스트 적용: {matching.original_score ?? matching.total}%{' '}
-              → {matching.total}% (+30%)
-            </div>
-          )}
-
           {/* Urgent badge info */}
           {is_urgent && (
             <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-              긴급 매칭 - 24시간 내 수업 (프리미엄 회원 전용)
+              긴급 매칭 - 24시간 내 수업
             </div>
           )}
 

@@ -13,7 +13,6 @@ from sqlalchemy.sql import and_
 from app.models import (
     User, InstructorProfile, StudioProfile,
     Contract, ContractStatus, Review, Application,
-    MembershipTier
 )
 from app.services.profile_completeness import (
     calculate_instructor_completeness,
@@ -26,11 +25,10 @@ from app.services.profile_completeness import (
 FACTOR_LABELS: Dict[str, Dict[str, Any]] = {
     "identity_verification": {"name": "본인인증", "max": 20},
     "profile_completeness": {"name": "프로필 완성도", "max": 15},
-    "contract_history": {"name": "계약 이력", "max": 20},
+    "contract_history": {"name": "계약 이력", "max": 25},
     "review_average": {"name": "평균 평점", "max": 15},
-    "response_rate": {"name": "활동 빈도", "max": 5},
+    "response_rate": {"name": "활동 빈도", "max": 10},
     "certifications": {"name": "자격증/인증", "max": 15},
-    "premium_membership": {"name": "프리미엄", "max": 10},
     "no_show_penalty": {"name": "노쇼 감점", "max": 0},
     "account_age": {"name": "가입 기간", "max": 5},
 }
@@ -70,14 +68,13 @@ async def calculate_trust_score(
 ) -> Dict[str, Any]:
     """Calculate comprehensive Trust Score for a user.
 
-    Components:
+    Components (purely behavior-based, no premium influence):
     - Identity verification: 20 points
     - Profile completeness: 15 points
-    - Contract history: 20 points
+    - Contract history: 25 points
     - Review average: 15 points
-    - Response rate: 5 points
+    - Response rate: 10 points
     - Certifications: 15 points
-    - Premium membership: 5 points
     - No-show penalties: -20 per incident
     - Account age bonus: 5 points
 
@@ -181,17 +178,17 @@ async def calculate_trust_score(
     else:
         completed_count = 0
 
-    # Progressive scoring: 0-1 contracts: 0pts, 2-5: 10pts, 6-10: 15pts, 11+: 20pts
+    # Progressive scoring: 0: 0pts, 1: 5pts, 2-5: 12pts, 6-10: 18pts, 11+: 25pts
     if completed_count >= 11:
-        contract_score = 20
+        contract_score = 25
     elif completed_count >= 6:
-        contract_score = 15
+        contract_score = 18
     elif completed_count >= 2:
-        contract_score = 10
+        contract_score = 12
     elif completed_count >= 1:
         contract_score = 5
 
-    if contract_score < 20:
+    if contract_score < 25:
         recommendations.append(f"더 많은 계약을 완료하세요 (현재 {completed_count}건)")
 
     breakdown["contract_history"] = contract_score
@@ -213,18 +210,20 @@ async def calculate_trust_score(
     breakdown["review_average"] = review_score
     total_score += review_score
 
-    # 5. Response Rate (5 points)
+    # 5. Response Rate (10 points)
     response_score = 0
-    # TODO: Implement response rate tracking
-    # For now, give full points if user has been active in last 7 days
     if user.last_active_at:
         days_since_login = (datetime.utcnow() - user.last_active_at).days
-        if days_since_login <= 7:
-            response_score = 5
+        if days_since_login <= 3:
+            response_score = 10
+        elif days_since_login <= 7:
+            response_score = 7
+        elif days_since_login <= 14:
+            response_score = 4
         elif days_since_login <= 30:
-            response_score = 3
+            response_score = 2
         else:
-            recommendations.append("더 자주 로그인하세요 (+5점)")
+            recommendations.append("더 자주 로그인하세요 (+10점)")
 
     breakdown["response_rate"] = response_score
     total_score += response_score
@@ -245,17 +244,7 @@ async def calculate_trust_score(
     breakdown["certifications"] = cert_score
     total_score += cert_score
 
-    # 7. Premium Membership (10 points) - Enhanced benefit v3.0
-    membership_score = 0
-    if user.membership_tier == MembershipTier.PREMIUM.value:
-        membership_score = 10  # Increased from 5 to 10 for premium
-    else:
-        recommendations.append("프리미엄 멤버십 가입 (+10점)")
-
-    breakdown["premium_membership"] = membership_score
-    total_score += membership_score
-
-    # 8. No-show Penalties (-20 per incident)
+    # 7. No-show Penalties (-20 per incident)
     penalty_score = 0
     if user.no_show_count and user.no_show_count > 0:
         penalty_score = -20 * user.no_show_count
@@ -264,7 +253,7 @@ async def calculate_trust_score(
     breakdown["no_show_penalty"] = penalty_score
     total_score += penalty_score
 
-    # 9. Account Age Bonus (5 points)
+    # 8. Account Age Bonus (5 points)
     age_score = 0
     if user.created_at:
         account_age_days = (datetime.utcnow() - user.created_at).days
@@ -287,6 +276,19 @@ async def calculate_trust_score(
     # Sort recommendations by potential point gain
     recommendations = recommendations[:3]  # Top 3 recommendations
 
+    # Experience badge based on completed contracts (separate from trust level)
+    experience_badge = None
+    if completed_count >= 100:
+        experience_badge = {"label": "100회 완료", "tier": "diamond"}
+    elif completed_count >= 50:
+        experience_badge = {"label": "50회 완료", "tier": "platinum"}
+    elif completed_count >= 20:
+        experience_badge = {"label": "20회 완료", "tier": "gold"}
+    elif completed_count >= 10:
+        experience_badge = {"label": "10회 완료", "tier": "silver"}
+    elif completed_count >= 5:
+        experience_badge = {"label": "5회 완료", "tier": "bronze"}
+
     return {
         "score": final_score,
         "level": level_name,
@@ -297,6 +299,8 @@ async def calculate_trust_score(
         "points_to_next_level": max(0, (40 if final_score < 40 else (60 if final_score < 60 else (80 if final_score < 80 else 100))) - final_score),
         "factor_labels": FACTOR_LABELS,
         "level_thresholds": LEVEL_THRESHOLDS,
+        "completed_contracts_count": completed_count,
+        "experience_badge": experience_badge,
     }
 
 
@@ -346,6 +350,5 @@ async def get_trust_score_display(
         "level": trust_data["level"],
         "level_color": trust_data["level_color"],
         "display_text": f"{trust_data['level']} {trust_data['score']}점",
-        "is_premium": trust_data["breakdown"].get("premium_membership", 0) > 0,
         "badge_emoji": "🥉" if trust_data["score"] < 40 else ("🥈" if trust_data["score"] < 60 else ("🥇" if trust_data["score"] < 80 else "🏆"))
     }

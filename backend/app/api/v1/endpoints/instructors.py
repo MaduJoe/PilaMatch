@@ -21,7 +21,7 @@ async def get_my_profile(
     current_user: User = Depends(require_role(UserRole.INSTRUCTOR)),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current instructor's profile."""
+    """Get current instructor's profile with completed contracts count."""
     service = InstructorService(db)
     profile = await service.get_profile_by_user_id(current_user.id)
 
@@ -31,7 +31,8 @@ async def get_my_profile(
             detail={"code": "PROFILE_NOT_FOUND", "message": "Instructor profile not found"},
         )
 
-    return InstructorProfileResponse.model_validate(profile)
+    completed_count = await service.get_completed_contracts_count(profile.id)
+    return InstructorProfileResponse.from_model(profile, completed_contracts_count=completed_count)
 
 
 @router.put("/me", response_model=InstructorProfileResponse)
@@ -50,7 +51,8 @@ async def update_my_profile(
             detail={"code": "PROFILE_NOT_FOUND", "message": "Instructor profile not found"},
         )
 
-    return InstructorProfileResponse.model_validate(profile)
+    completed_count = await service.get_completed_contracts_count(profile.id)
+    return InstructorProfileResponse.from_model(profile, completed_contracts_count=completed_count)
 
 
 @router.get("/{instructor_id}", response_model=InstructorPublicResponse)
@@ -100,4 +102,7 @@ async def get_instructor(
                 },
             )
 
-    return InstructorPublicResponse.model_validate(profile)
+    completed_count = await service.get_completed_contracts_count(profile.id)
+    response = InstructorPublicResponse.model_validate(profile)
+    response.completed_contracts_count = completed_count
+    return response

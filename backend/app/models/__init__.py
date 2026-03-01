@@ -33,6 +33,7 @@ from app.models.application_template import ApplicationTemplate  # v3.0 Phase 2
 from app.models.daily_usage import DailyUsageLimit  # v3.0 Daily usage tracking
 from app.models.notification import Notification, NotificationType
 from app.models.device_token import DeviceToken
+from app.models.event_log import EventLog
 
 __all__ = [
     # Enums
@@ -79,4 +80,5 @@ __all__ = [
     "Notification",
     "NotificationType",
     "DeviceToken",
+    "EventLog",
 ]

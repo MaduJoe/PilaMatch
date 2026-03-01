@@ -89,7 +89,7 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
             aria-label={`매칭 점수 ${score}%`}
           >
             <Badge variant={scoreBadgeVariant(score)} className="text-xs">
-              {score}%{matching.is_boosted ? ' \u2197\uFE0F' : ''}
+              {score}%
             </Badge>
           </span>
         </div>

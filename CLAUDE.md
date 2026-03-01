@@ -357,11 +357,9 @@ BUSINESS_API_KEY=...  # 국세청
 ### 프리미엄 멤버십 정의 (월 9,900원)
 
 #### 공통 혜택 (강사 & 스튜디오):
-1. **🏆 프리미엄 배지 + Trust Score +10점**
-   - 프로필에 프리미엄 배지 표시 (has_premium_badge 필드)
-   - Trust Score 10점 추가 (5점에서 상향)
-   - 신뢰도 레벨 상승 효과
-   - 구현: `backend/app/services/trust_score.py` (line 229)
+1. **🏆 프리미엄 배지**
+   - 프로필에 프리미엄 배지 표시
+   - Trust Score에는 영향 없음 (순수 활동 기반)
 
 #### 강사 전용 혜택:
 1. **🚀 무제한 일일 지원**
@@ -369,12 +367,7 @@ BUSINESS_API_KEY=...  # 국세청
    - 프리미엄 회원: 무제한 지원 가능
    - 구현: `backend/app/services/daily_usage.py`, `backend/app/services/application.py`
 
-2. **📈 매칭 점수 30% 부스트**
-   - 모든 매칭 점수에 1.3배 자동 적용 (최대 100점)
-   - 스튜디오에게 더 높은 점수로 노출
-   - 구현: `backend/app/services/matching.py:calculate_matching_score(is_premium=True)`
-
-3. **📝 지원서 템플릿 10개 저장**
+2. **📝 지원서 템플릿 10개 저장**
    - 자주 사용하는 지원서 내용을 템플릿으로 저장
    - 빠른 지원을 위한 맞춤 템플릿 관리
    - 구현: `backend/app/services/application_template.py` (프리미엄 전용)

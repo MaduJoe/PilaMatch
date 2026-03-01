@@ -1,4 +1,5 @@
 """Dispute management service (v2.0)."""
+import logging
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime, timedelta
@@ -6,6 +7,8 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+
+logger = logging.getLogger(__name__)
 
 from app.models import (
     Dispute, DisputeType, DisputeStatus, DisputeResolution,
@@ -329,7 +332,28 @@ class DisputeService:
             if user.no_show_count >= 3:
                 user.is_suspended = True
 
-        # Note: escrow refund removed — settlement handled outside the platform
+        # Record in generic event log (best-effort)
+        try:
+            from app.services.event_log import EventLogService
+            event_service = EventLogService(self.db)
+            await event_service.log(
+                event_type="dispute.no_show_reported",
+                actor_user_id=str(dispute.reported_by),
+                target_type="contract",
+                target_id=str(dispute.contract_id),
+                data={
+                    "reported_user_id": str(dispute.reported_against),
+                    "no_show_count": user.no_show_count if user else None,
+                    "is_suspended": user.is_suspended if user else None,
+                },
+                note=f"No-show penalty applied (count: {user.no_show_count if user else '?'})",
+            )
+        except Exception:
+            logger.exception(
+                "Failed to write event log for no-show dispute %s", dispute.id
+            )
+
+        # Note: escrow refund removed -- settlement handled outside the platform
 
     def _get_time_remaining(self, deadline: datetime) -> Optional[str]:
         """Get human-readable time remaining until deadline."""

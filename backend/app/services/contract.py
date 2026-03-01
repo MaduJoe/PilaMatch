@@ -3,6 +3,9 @@ from uuid import UUID
 from datetime import datetime
 import hashlib
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -80,6 +83,25 @@ class ContractService:
             note=note,
         )
         self.db.add(event)
+
+        # Also record in the generic event log (best-effort)
+        try:
+            from app.services.event_log import EventLogService
+            event_service = EventLogService(self.db)
+            await event_service.log(
+                event_type="contract.status_changed",
+                actor_user_id=str(actor_user_id),
+                target_type="contract",
+                target_id=str(contract_id),
+                data={
+                    "from_status": from_status.value if from_status else None,
+                    "to_status": to_status.value if to_status else to_status,
+                },
+                note=note,
+            )
+        except Exception:
+            logger.exception("Failed to write generic event log for contract %s", contract_id)
+
         return event
 
     async def create_from_offer(self, offer_id: UUID, actor_user_id: UUID) -> Contract:
@@ -525,3 +547,80 @@ class ContractService:
         await self.db.commit()
         await self.db.refresh(contract)
         return contract
+
+    async def get_contract_document_data(
+        self, contract_id: UUID, actor_user_id: UUID
+    ) -> Dict:
+        """계약서 문서 렌더링에 필요한 데이터를 조회한다.
+
+        Args:
+            contract_id: 계약 ID.
+            actor_user_id: 요청자 user ID (권한 확인용).
+
+        Returns:
+            계약서 렌더링에 필요한 딕셔너리.
+
+        Raises:
+            ValueError: 계약을 찾을 수 없는 경우.
+            PermissionError: 계약 당사자가 아닌 경우.
+        """
+        contract = await self.get_by_id(contract_id)
+        if not contract:
+            raise ValueError("CONTRACT_NOT_FOUND")
+
+        # 권한 확인 -- 계약 당사자(studio 또는 instructor)만 허용
+        instructor_result = await self.db.execute(
+            select(InstructorProfile).where(
+                InstructorProfile.id == contract.instructor_id
+            )
+        )
+        instructor_profile = instructor_result.scalar_one_or_none()
+
+        studio_result = await self.db.execute(
+            select(StudioProfile).where(
+                StudioProfile.id == contract.studio_id
+            )
+        )
+        studio_profile = studio_result.scalar_one_or_none()
+
+        # user_id 기준 당사자 여부 확인
+        allowed_user_ids: set[str] = set()
+        if instructor_profile:
+            allowed_user_ids.add(str(instructor_profile.user_id))
+        if studio_profile:
+            allowed_user_ids.add(str(studio_profile.user_id))
+
+        if str(actor_user_id) not in allowed_user_ids:
+            raise PermissionError("NOT_CONTRACT_PARTY")
+
+        logger.info(
+            "계약서 문서 조회: contract_id=%s, actor=%s",
+            contract_id,
+            actor_user_id,
+        )
+
+        # 상태 한글 매핑
+        status_labels: Dict[str, str] = {
+            ContractStatus.CONFIRMED.value: "확정",
+            ContractStatus.IN_PROGRESS.value: "진행 중",
+            ContractStatus.PENDING_COMPLETION.value: "완료 대기",
+            ContractStatus.COMPLETED.value: "완료",
+            ContractStatus.DISPUTED.value: "분쟁 중",
+            ContractStatus.CANCELLED.value: "취소됨",
+        }
+
+        return {
+            "contract": contract,
+            "instructor_name": (
+                instructor_profile.display_name if instructor_profile else "알 수 없음"
+            ),
+            "studio_name": (
+                studio_profile.business_name if studio_profile else "알 수 없음"
+            ),
+            "studio_address": studio_profile.address if studio_profile else None,
+            "studio_phone": studio_profile.phone if studio_profile else None,
+            "instructor_phone": (
+                instructor_profile.phone if instructor_profile else None
+            ),
+            "status_label": status_labels.get(contract.status, contract.status),
+        }

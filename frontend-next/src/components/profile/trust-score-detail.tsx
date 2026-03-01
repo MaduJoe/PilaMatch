@@ -28,7 +28,6 @@ const FACTOR_ORDER = [
   'profile_completeness',
   'review_average',
   'certifications',
-  'premium_membership',
   'response_rate',
   'account_age',
   'no_show_penalty',
@@ -86,6 +85,8 @@ export function TrustScoreDetail() {
     points_to_next_level,
     factor_labels,
     level_thresholds,
+    completed_contracts_count,
+    experience_badge,
   } = trustData;
 
   const badge = LEVEL_BADGES[level_color] || LEVEL_BADGES.bronze;
@@ -133,6 +134,16 @@ export function TrustScoreDetail() {
             <span className="text-lg text-muted-foreground">/100</span>
           </div>
           <p className="text-sm text-muted-foreground">{level} 등급</p>
+          {experience_badge && (
+            <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              {experience_badge.label}
+            </p>
+          )}
+          {!experience_badge && completed_contracts_count != null && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              완료 {completed_contracts_count}건
+            </p>
+          )}
         </div>
 
         {/* Level Progress */}
@@ -153,12 +164,12 @@ export function TrustScoreDetail() {
           </p>
         )}
 
-        {/* Factor Breakdown, Recommendations, Level Guide */}
-        <Accordion type="single" collapsible>
-          <AccordionItem value="breakdown">
-            <AccordionTrigger className="text-sm">점수 상세</AccordionTrigger>
-            <AccordionContent className="space-y-3">
-              {FACTOR_ORDER.map((factorKey) => {
+        {/* Factor Breakdown — always visible for transparency */}
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">
+            점수 상세 (순수 활동 기반)
+          </p>
+          {FACTOR_ORDER.map((factorKey) => {
                 const current = breakdown?.[factorKey] ?? 0;
                 const labelInfo = factor_labels?.[factorKey];
                 const name = labelInfo?.name || factorKey;
@@ -203,10 +214,11 @@ export function TrustScoreDetail() {
                     />
                   </div>
                 );
-              })}
-            </AccordionContent>
-          </AccordionItem>
+          })}
+        </div>
 
+        {/* Recommendations & Level Guide in accordion */}
+        <Accordion type="single" collapsible>
           {/* Recommendations */}
           {recommendations && recommendations.length > 0 && (
             <AccordionItem value="recommendations">

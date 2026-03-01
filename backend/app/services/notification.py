@@ -36,6 +36,7 @@ class NotificationType:
     PAYMENT_COMPLETED = "PAYMENT_COMPLETED"
     NO_SHOW_REPORTED = "NO_SHOW_REPORTED"
     CHAT_MESSAGE = "CHAT_MESSAGE"
+    LESSON_REMINDER = "LESSON_REMINDER"
 
 
 # In-memory notification store (mock mode)
@@ -229,3 +230,86 @@ async def notify_contract_status(
         body=status_messages.get(status, f"계약 상태가 '{status}'로 변경되었습니다."),
         data={"type": "contract", "contract_id": contract_id},
     )
+
+
+async def send_lesson_reminders(db: AsyncSession) -> int:
+    """Send reminders for upcoming lessons. Call via cron every hour.
+
+    Sends reminders for contracts in IN_PROGRESS status:
+    - 24 hours before: "내일 수업이 있습니다"
+    - 1 hour before: "1시간 후 수업이 시작됩니다"
+
+    Returns:
+        Number of reminders sent
+    """
+    from sqlalchemy import select, and_
+    from app.models import Contract, ContractStatus, InstructorProfile, StudioProfile, User
+
+    now = datetime.utcnow()
+    today = now.date()
+    tomorrow = today + __import__("datetime").timedelta(days=1)
+
+    service = NotificationService(db)
+    sent = 0
+
+    # Find active contracts for today or tomorrow
+    result = await db.execute(
+        select(Contract).where(
+            and_(
+                Contract.status.in_([
+                    ContractStatus.CONFIRMED.value,
+                    ContractStatus.IN_PROGRESS.value,
+                ]),
+                Contract.date.in_([today, tomorrow]),
+            )
+        )
+    )
+    contracts = result.scalars().all()
+
+    for contract in contracts:
+        # Determine reminder type
+        is_tomorrow = contract.date == tomorrow
+        is_today = contract.date == today
+
+        if is_today and contract.start_time:
+            # Check if within 1-2 hours
+            from datetime import timedelta
+            lesson_start = datetime.combine(today, contract.start_time)
+            time_until = (lesson_start - now).total_seconds() / 3600
+            if not (0.5 <= time_until <= 1.5):
+                continue
+            reminder_body = f"오늘 {contract.start_time.strftime('%H:%M')} 수업이 1시간 후 시작됩니다."
+            reminder_title = "수업 시작 임박"
+        elif is_tomorrow:
+            reminder_body = f"내일 {contract.start_time.strftime('%H:%M')} 수업이 예정되어 있습니다."
+            reminder_title = "내일 수업 알림"
+        else:
+            continue
+
+        # Get user IDs for both parties
+        instructor_result = await db.execute(
+            select(InstructorProfile.user_id).where(
+                InstructorProfile.id == contract.instructor_id
+            )
+        )
+        instructor_user_id = instructor_result.scalar_one_or_none()
+
+        studio_result = await db.execute(
+            select(StudioProfile.user_id).where(
+                StudioProfile.id == contract.studio_id
+            )
+        )
+        studio_user_id = studio_result.scalar_one_or_none()
+
+        for uid in [instructor_user_id, studio_user_id]:
+            if uid:
+                await service.send(
+                    user_id=str(uid),
+                    type=NotificationType.LESSON_REMINDER,
+                    title=reminder_title,
+                    body=reminder_body,
+                    data={"type": "lesson_reminder", "contract_id": str(contract.id)},
+                )
+                sent += 1
+
+    return sent

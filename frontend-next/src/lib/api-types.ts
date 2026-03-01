@@ -210,9 +210,6 @@ export interface MatchingBreakdownItem {
 export interface MatchingScore {
   total: number;
   breakdown: Record<string, MatchingBreakdownItem>;
-  is_boosted: boolean;
-  original_score?: number | null;
-  boost_factor: number;
 }
 
 export interface JobPostWithMatchingItem {
@@ -444,6 +441,11 @@ export interface TrustScoreLevelThreshold {
   color: string;
 }
 
+export interface ExperienceBadge {
+  label: string;
+  tier: string;
+}
+
 export interface TrustScoreResponse {
   score: number;
   level: string;
@@ -454,6 +456,8 @@ export interface TrustScoreResponse {
   next_level_score: number;
   factor_labels: Record<string, TrustScoreFactorLabel>;
   level_thresholds: TrustScoreLevelThreshold[];
+  completed_contracts_count: number;
+  experience_badge?: ExperienceBadge | null;
 }
 
 // ---------------------------------------------------------------------------

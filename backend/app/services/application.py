@@ -6,8 +6,12 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from app.models import Application, JobPost, InstructorProfile, StudioProfile, Offer, ApplicationStatus, JobPostStatus, User
+import logging
+
 from app.schemas.application import ApplicationCreate
 from app.services.profile_completeness import check_profile_completeness_for_action
+
+logger = logging.getLogger(__name__)
 
 
 class ApplicationService:
@@ -90,6 +94,23 @@ class ApplicationService:
 
         await self.db.commit()
         await self.db.refresh(application)
+
+        # Record in generic event log (best-effort)
+        try:
+            from app.services.event_log import EventLogService
+            event_service = EventLogService(self.db)
+            await event_service.log(
+                event_type="application.submitted",
+                actor_user_id=str(instructor.user_id) if instructor else None,
+                target_type="job_post",
+                target_id=str(job_post_id),
+                data={"application_id": str(application.id)},
+            )
+            await self.db.commit()
+        except Exception:
+            logger.exception(
+                "Failed to write event log for application %s", application.id
+            )
 
         # Send notification to studio
         try:

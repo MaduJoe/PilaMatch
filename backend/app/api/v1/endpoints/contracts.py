@@ -1,6 +1,8 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
@@ -9,6 +11,11 @@ from app.core.deps import get_current_user, require_role
 from app.models import User, UserRole
 from app.schemas.contract import ContractResponse, ContractListResponse, ContractCancelRequest
 from app.services.contract import ContractService
+from app.services.contract_document import render_contract_html
+
+logger = logging.getLogger(__name__)
+
+
 class NoShowReportRequest(BaseModel):
     reported_user_id: str
 
@@ -90,6 +97,8 @@ async def get_my_contracts(
             "instructor_confirmed_at": contract.instructor_confirmed_at,
             "platform_fee": contract.platform_fee,
             "settlement_amount": contract.settlement_amount,
+            "recurring_days": contract.recurring_days,
+            "recurring_end_date": contract.recurring_end_date,
             "cancellation_reason": contract.cancellation_reason,
             "cancelled_by_user_id": contract.cancelled_by_user_id,
             "created_at": contract.created_at,
@@ -103,6 +112,131 @@ async def get_my_contracts(
         items=enriched_contracts,
         total=total,
     )
+
+
+@router.get("/{contract_id}/schedule")
+async def get_contract_schedule(
+    contract_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get recurring schedule for a contract.
+
+    Returns session dates, next session, and formatted weekday labels
+    for contracts with a recurring schedule. For single-date contracts
+    the response indicates is_recurring=False.
+
+    Args:
+        contract_id: The contract UUID to look up.
+        current_user: The authenticated user (injected).
+        db: Async database session (injected).
+
+    Returns:
+        Schedule details including all dates and the next upcoming session.
+    """
+    service = ContractService(db)
+    contract = await service.get_by_id(contract_id)
+
+    if not contract:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "계약을 찾을 수 없습니다"},
+        )
+
+    if not contract.recurring_days:
+        return {
+            "is_recurring": False,
+            "dates": [str(contract.date)],
+            "total_sessions": contract.total_sessions,
+        }
+
+    from app.services.recurring_schedule import (
+        generate_recurring_dates,
+        format_recurring_days_ko,
+        get_next_session_date,
+    )
+    from datetime import date as date_type
+
+    dates = generate_recurring_dates(
+        contract.date,
+        contract.recurring_end_date or contract.date,
+        contract.recurring_days,
+    )
+
+    next_session = get_next_session_date(
+        date_type.today(),
+        contract.recurring_days,
+        contract.recurring_end_date or contract.date,
+    )
+
+    return {
+        "is_recurring": True,
+        "recurring_days": contract.recurring_days,
+        "recurring_days_label": format_recurring_days_ko(contract.recurring_days),
+        "start_date": str(contract.date),
+        "end_date": str(contract.recurring_end_date) if contract.recurring_end_date else None,
+        "dates": [str(d) for d in dates],
+        "total_sessions": len(dates),
+        "next_session": str(next_session) if next_session else None,
+        "start_time": str(contract.start_time) if contract.start_time else None,
+        "end_time": str(contract.end_time) if contract.end_time else None,
+    }
+
+
+@router.get("/{contract_id}/document", response_class=HTMLResponse)
+async def get_contract_document(
+    contract_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> HTMLResponse:
+    """계약서 문서를 HTML로 반환한다.
+
+    브라우저에서 Ctrl+P (Cmd+P)로 PDF 인쇄/저장이 가능하다.
+    계약 당사자(스튜디오 또는 강사)만 조회할 수 있다.
+
+    Args:
+        contract_id: 조회할 계약 ID.
+        db: 비동기 DB 세션.
+        current_user: 인증된 사용자.
+
+    Returns:
+        HTML 계약서 문서.
+    """
+    service = ContractService(db)
+
+    try:
+        data = await service.get_contract_document_data(
+            contract_id, current_user.id
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if error_msg == "CONTRACT_NOT_FOUND":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "CONTRACT_NOT_FOUND", "message": "계약을 찾을 수 없습니다"},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "DOCUMENT_FAILED", "message": error_msg},
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "PERMISSION_DENIED",
+                "message": "계약 당사자만 계약서를 조회할 수 있습니다",
+            },
+        )
+
+    html_content = render_contract_html(data)
+
+    logger.info(
+        "계약서 문서 반환: contract_id=%s, user_id=%s",
+        contract_id,
+        current_user.id,
+    )
+
+    return HTMLResponse(content=html_content, status_code=200)
 
 
 @router.post("/{contract_id}/set-in-progress", response_model=ContractResponse)

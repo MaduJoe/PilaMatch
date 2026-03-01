@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Date, Time, ForeignKey, Numeric, Integer, DateTime
+from sqlalchemy import Column, String, Text, Date, Time, ForeignKey, Numeric, Integer, DateTime, JSON
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -21,6 +21,10 @@ class Contract(Base, UUIDMixin, TimestampMixin):
     date = Column(Date, nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
+
+    # Recurring schedule (v3.0)
+    recurring_days = Column(JSON, default=None)  # e.g., [1, 3, 5] for Mon/Wed/Fri (ISO weekday: 1=Mon, 7=Sun)
+    recurring_end_date = Column(Date, nullable=True)  # End date for recurring schedule
 
     # SHA-256 hash of contract content at signing time (non-repudiation)
     content_hash = Column(String(64))

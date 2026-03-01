@@ -37,6 +37,7 @@ class StudioProfileResponse(BaseModel):
     is_verified: bool = False
     rating_average: Decimal = Decimal("0")
     review_count: int = 0
+    completed_contracts_count: int = 0  # Number of completed contracts
 
     class Config:
         from_attributes = True
@@ -53,6 +54,7 @@ class StudioPublicResponse(BaseModel):
     is_verified: bool = False
     rating_average: Decimal = Decimal("0")
     review_count: int = 0
+    completed_contracts_count: int = 0  # Number of completed contracts
 
     class Config:
         from_attributes = True

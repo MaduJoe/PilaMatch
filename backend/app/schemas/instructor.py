@@ -60,13 +60,19 @@ class InstructorProfileResponse(BaseModel):
     rating_average: Decimal = Decimal("0")
     review_count: int = 0
     verified_cert_count: int = 0  # Number of verified certifications
+    completed_contracts_count: int = 0  # Number of completed contracts
 
     class Config:
         from_attributes = True
 
     @classmethod
-    def from_model(cls, profile):
-        """Create response from model with computed fields."""
+    def from_model(cls, profile, completed_contracts_count: int = 0):
+        """Create response from model with computed fields.
+
+        Args:
+            profile: InstructorProfile model instance.
+            completed_contracts_count: Number of completed contracts for this instructor.
+        """
         certs = profile.certifications or []
         verified_count = sum(
             1 for c in certs
@@ -91,6 +97,7 @@ class InstructorProfileResponse(BaseModel):
             rating_average=profile.rating_average or Decimal("0"),
             review_count=profile.review_count or 0,
             verified_cert_count=verified_count,
+            completed_contracts_count=completed_contracts_count,
         )
 
 
@@ -109,6 +116,7 @@ class InstructorPublicResponse(BaseModel):
     rating_average: Decimal = Decimal("0")
     review_count: int = 0
     verified_cert_count: int = 0
+    completed_contracts_count: int = 0  # Number of completed contracts
 
     class Config:
         from_attributes = True
