@@ -20,6 +20,11 @@ from app.schemas.application import (
 from app.services.application import ApplicationService
 from app.utils.masking import mask_phone
 
+def _get_tier_label(tier: str) -> str:
+    from app.services.tier_evaluation import get_tier_limits
+    return get_tier_limits(tier).get("label", "Basic")
+
+
 router = APIRouter()
 
 
@@ -60,6 +65,12 @@ async def create_application(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={"code": "INCOMPLETE_PROFILE", "message": reason},
+            )
+        elif error_msg.startswith("DAILY_LIMIT_REACHED:"):
+            reason = error_msg.split(":", 1)[1] if ":" in error_msg else "일일 지원 한도 초과"
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={"code": "DAILY_LIMIT_REACHED", "message": reason},
             )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -111,6 +122,21 @@ async def get_job_post_applications(
         revealed = getattr(application, "contact_revealed", False)
         phone_display = instructor.phone if revealed else mask_phone(instructor.phone)
 
+        # When contact is revealed, also populate full phone and studio info
+        instructor_full_phone = None
+        studio_phone_val = None
+        studio_name_val = None
+        if revealed:
+            instructor_full_phone = instructor.phone
+            # Fetch studio info for the revealed contact
+            studio_result = await db.execute(
+                select(StudioProfile).where(StudioProfile.id == studio_id)
+            )
+            studio_profile = studio_result.scalar_one_or_none()
+            if studio_profile:
+                studio_phone_val = studio_profile.phone
+                studio_name_val = studio_profile.business_name
+
         item = ApplicationWithInstructorResponse(
             id=application.id,
             job_post_id=application.job_post_id,
@@ -127,10 +153,16 @@ async def get_job_post_applications(
             has_offer=has_offer,
             is_premium=False,  # PMF pivot: premium hidden
             contact_revealed=revealed,
+            instructor_full_phone=instructor_full_phone,
+            studio_phone=studio_phone_val,
+            studio_name=studio_name_val,
             # Trust-tech profile data
             instructor_completed_substitutes=getattr(instructor, "completed_substitute_count", 0) or 0,
             instructor_no_show_count=inst_user.no_show_count if inst_user else 0,
             instructor_review_count=instructor.review_count or 0,
+            # Tier data
+            instructor_tier=inst_user.tier if inst_user else "t1_basic",
+            instructor_tier_label=_get_tier_label(inst_user.tier if inst_user else "t1_basic"),
         )
         items.append(item)
 
@@ -159,17 +191,21 @@ async def get_my_applications(
     )
 
     items = []
-    for application, job_title, studio_name in results:
+    for application, job_title, studio_name, studio_phone, studio_address in results:
         item = ApplicationWithJobResponse(
             id=application.id,
             job_post_id=application.job_post_id,
             instructor_id=application.instructor_id,
             status=application.status,
             cover_letter=application.cover_letter,
+            contact_revealed=application.contact_revealed,
+            contact_revealed_at=application.contact_revealed_at,
             created_at=application.created_at,
             updated_at=application.updated_at,
             job_title=job_title,
             studio_name=studio_name,
+            studio_phone=studio_phone if application.contact_revealed else None,
+            studio_address=studio_address if application.contact_revealed else None,
         )
         items.append(item)
 
@@ -317,10 +353,16 @@ async def accept_application(
     except Exception:
         pass  # Notification failure should not block
 
-    # Record event
+    # Record event + time-to-match telemetry
     try:
         from app.services.event_log import EventLogService
         event_service = EventLogService(db)
+
+        # Calculate time-to-match: application created → studio accepts
+        time_to_match_sec = None
+        if application.created_at:
+            time_to_match_sec = int((datetime.utcnow() - application.created_at).total_seconds())
+
         await event_service.log(
             event_type="application.accepted_contact_revealed",
             actor_user_id=str(current_user.id),
@@ -329,9 +371,18 @@ async def accept_application(
             data={
                 "job_post_id": str(job_post.id),
                 "instructor_id": str(application.instructor_id),
+                "time_to_match_sec": time_to_match_sec,
             },
         )
         await db.commit()
+
+        import structlog
+        _logger = structlog.get_logger(__name__)
+        _logger.info(
+            "match_confirmed",
+            application_id=str(application_id),
+            time_to_match_sec=time_to_match_sec,
+        )
     except Exception:
         pass
 
