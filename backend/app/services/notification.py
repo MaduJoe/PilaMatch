@@ -1,9 +1,10 @@
 """Push notification service with FCM/APNs support (mock mode by default).
 
-In mock mode, notifications are stored in memory.
+Uses Redis for persistence when available, falling back to in-memory storage.
 When a Notification model is added (DATA worktree), this will persist to DB.
 """
 
+import json
 import logging
 import uuid
 from collections import defaultdict
@@ -13,6 +14,18 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+
+def _get_redis():
+    """Get Redis connection for notification storage. Returns None if unavailable."""
+    try:
+        import redis
+        from app.core.config import settings
+        r = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        r.ping()
+        return r
+    except Exception:
+        return None
 
 
 # Notification types
@@ -58,10 +71,18 @@ class NotificationService:
             "created_at": datetime.utcnow().isoformat(),
         }
 
-        _notifications[user_id].append(notification)
+        r = _get_redis()
+        if r:
+            r.lpush(f"notifications:{user_id}", json.dumps(notification))
+            r.expire(f"notifications:{user_id}", 86400 * 30)  # 30 days TTL
+        else:
+            _notifications[user_id].append(notification)
 
         # In production, send to FCM/APNs
-        tokens = _device_tokens.get(user_id, [])
+        if r:
+            tokens = list(r.smembers(f"device_tokens:{user_id}"))
+        else:
+            tokens = _device_tokens.get(user_id, [])
         if tokens:
             await self._send_push(tokens, title, body, data)
 
@@ -87,34 +108,64 @@ class NotificationService:
 
     async def mark_read(self, notification_id: str, user_id: str) -> bool:
         """Mark a notification as read."""
-        for n in _notifications.get(user_id, []):
-            if n["id"] == notification_id:
-                n["is_read"] = True
-                return True
-        return False
+        r = _get_redis()
+        if r:
+            key = f"notifications:{user_id}"
+            items = r.lrange(key, 0, -1)
+            for i, raw in enumerate(items):
+                n = json.loads(raw)
+                if n["id"] == notification_id:
+                    n["is_read"] = True
+                    r.lset(key, i, json.dumps(n))
+                    return True
+            return False
+        else:
+            for n in _notifications.get(user_id, []):
+                if n["id"] == notification_id:
+                    n["is_read"] = True
+                    return True
+            return False
 
     async def get_notifications(
         self, user_id: str, skip: int = 0, limit: int = 20
     ) -> list[dict]:
         """Get paginated notifications for a user."""
-        all_notifs = _notifications.get(user_id, [])
-        # Sort by created_at desc
-        sorted_notifs = sorted(all_notifs, key=lambda x: x["created_at"], reverse=True)
-        return sorted_notifs[skip : skip + limit]
+        r = _get_redis()
+        if r:
+            key = f"notifications:{user_id}"
+            # Redis list is already in reverse chronological order (lpush)
+            items = r.lrange(key, skip, skip + limit - 1)
+            return [json.loads(raw) for raw in items]
+        else:
+            all_notifs = _notifications.get(user_id, [])
+            # Sort by created_at desc
+            sorted_notifs = sorted(
+                all_notifs, key=lambda x: x["created_at"], reverse=True
+            )
+            return sorted_notifs[skip : skip + limit]
 
     async def get_unread_count(self, user_id: str) -> int:
         """Get unread notification count for a user."""
-        return sum(
-            1 for n in _notifications.get(user_id, []) if not n["is_read"]
-        )
+        r = _get_redis()
+        if r:
+            items = r.lrange(f"notifications:{user_id}", 0, -1)
+            return sum(1 for raw in items if not json.loads(raw).get("is_read"))
+        else:
+            return sum(
+                1 for n in _notifications.get(user_id, []) if not n["is_read"]
+            )
 
     async def register_device_token(
         self, user_id: str, token: str, platform: str = "fcm"
     ) -> None:
         """Register a device token for push notifications."""
-        tokens = _device_tokens[user_id]
-        if token not in tokens:
-            tokens.append(token)
+        r = _get_redis()
+        if r:
+            r.sadd(f"device_tokens:{user_id}", token)
+        else:
+            tokens = _device_tokens[user_id]
+            if token not in tokens:
+                tokens.append(token)
         logger.info(f"Registered device token for user {user_id}: {platform}")
 
     async def _send_push(
