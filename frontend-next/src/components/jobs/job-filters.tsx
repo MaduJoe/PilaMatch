@@ -9,8 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 
 // ---------------------------------------------------------------------------
@@ -20,7 +18,6 @@ import { Button } from '@/components/ui/button';
 export interface JobFilters {
   category: string;
   region: string;
-  sortByScore: boolean;
   urgentOnly: boolean;
 }
 
@@ -87,20 +84,6 @@ export function JobFiltersBar({ filters, onChange }: JobFiltersProps) {
         {filters.urgentOnly ? '긴급만 ON' : '긴급만'}
       </Button>
 
-      {/* Sort by matching score */}
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="sort-by-score"
-          checked={filters.sortByScore}
-          onCheckedChange={(checked) =>
-            onChange({ ...filters, sortByScore: checked === true })
-          }
-          aria-label="매칭 점수 순으로 정렬"
-        />
-        <Label htmlFor="sort-by-score" className="cursor-pointer text-sm">
-          매칭순
-        </Label>
-      </div>
     </div>
   );
 }

@@ -63,11 +63,6 @@ export const instructorProfileSchema = z.object({
   phone: z.string().optional(),
   categories: z.array(z.string()).min(1, '카테고리를 선택해주세요'),
   experience_years: z.number().min(0, '경력은 0년 이상이어야 합니다'),
-  hourly_rate_min: z
-    .number()
-    .min(10000, '최소 시급은 10,000원 이상이어야 합니다')
-    .optional(),
-  hourly_rate_max: z.number().optional(),
   available_regions: z
     .array(z.string())
     .min(1, '활동 지역을 선택해주세요'),
@@ -110,6 +105,11 @@ export const jobPostSchema = z.object({
   required_certifications: z.array(z.string()).default([]),
   region: z.string().optional(),
   address: z.string().optional(),
+  is_urgent: z.boolean().default(true),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  payment_method: z.string().optional(),
+  terms_agreed: z.boolean().optional(),
 });
 
 export type JobPostFormData = z.infer<typeof jobPostSchema>;

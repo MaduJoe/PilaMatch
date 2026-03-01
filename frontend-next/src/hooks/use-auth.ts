@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { APIError } from '@/lib/api-client';
 import type { SignupRequest, MeResponse } from '@/lib/api-types';
@@ -48,6 +48,7 @@ export function useCurrentUser() {
 
 export function useLogin() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { setUser } = useAuthStore();
 
@@ -66,7 +67,8 @@ export function useLogin() {
       setUser(data.user, data.profile_id ?? null);
       queryClient.setQueryData(['auth', 'me'], data);
       toast.success('로그인 성공!');
-      router.push('/steps/profile');
+      const callbackUrl = searchParams.get('callbackUrl');
+      router.push(callbackUrl || '/steps/profile');
     },
     onError: (error: Error) => {
       if (error instanceof APIError) {

@@ -12,6 +12,7 @@ import type {
   JobPostWithMatchingListResponse,
   ApplicationCreate,
   ApplicationResponse,
+  ApplicationWithJobResponse,
   ApplicationWithInstructorResponse,
   ContactRevealResponse,
   OfferCreate,
@@ -28,7 +29,13 @@ import type {
   BillingKeyRegisterResponse,
   BillingMethodResponse,
   BankTransferUpgradeResponse,
-  TrustScoreResponse,
+  TierResponse,
+  TierPublicResponse,
+  TierRequirementsResponse,
+  PenaltyReportRequest,
+  PenaltyRecordResponse,
+  MarkPaidRequest,
+  PaymentConfirmationResponse,
   VerificationStatusResponse,
   ProfileCompletenessResponse,
   // PMF pivot: Chat disabled -- contact reveal replaces in-app chat
@@ -39,7 +46,8 @@ import type {
   SupportTicketResponse,
   // PMF pivot: Application templates disabled
   // ApplicationTemplateResponse,
-  DailyUsageResponse,
+  // Daily usage removed with Trust Tier pivot
+  // DailyUsageResponse,
   APIErrorResponse,
 } from './api-types';
 import { isNativePlatform, getAccessToken } from './token-manager';
@@ -206,6 +214,9 @@ export const jobPosts = {
     return get<JobPostListResponse>(`/job-posts${query}`);
   },
 
+  listMine: () =>
+    get<JobPostListResponse>('/job-posts/mine'),
+
   listWithMatching: (params?: Record<string, string> & {
     user_latitude?: string;
     user_longitude?: string;
@@ -232,7 +243,7 @@ export const applications = {
     post<ApplicationResponse>(`/job-posts/${jobPostId}/applications`, data || {}),
 
   getMyApplications: () =>
-    get<{ items: ApplicationResponse[]; total: number }>('/applications/me'),
+    get<{ items: ApplicationWithJobResponse[]; total: number }>('/applications/me'),
 
   withdraw: (id: string) =>
     post<ApplicationResponse>(`/applications/${id}/withdraw`),
@@ -336,17 +347,43 @@ export const subscriptions = {
     post<BankTransferUpgradeResponse>('/subscriptions/upgrade/bank-transfer', data),
 };
 
-// --- Trust Score -----------------------------------------
+// --- Trust Tier ------------------------------------------
 
-export const trustScore = {
-  get: () =>
-    get<TrustScoreResponse>('/trust-score'),
+export const tier = {
+  getMyTier: () =>
+    get<TierResponse>('/tier/me'),
 
-  getDisplay: () =>
-    get<TrustScoreResponse>('/trust-score/display'),
+  getUserTier: (userId: string) =>
+    get<TierPublicResponse>(`/tier/user/${userId}`),
 
-  refresh: () =>
-    post<TrustScoreResponse>('/trust-score/refresh'),
+  getRequirements: () =>
+    get<TierRequirementsResponse>('/tier/requirements'),
+};
+
+// --- Penalties -------------------------------------------
+
+export const penalties = {
+  report: (data: PenaltyReportRequest) =>
+    post<PenaltyRecordResponse>('/penalties/report', data),
+
+  getMyPenalties: () =>
+    get<{ items: PenaltyRecordResponse[]; total: number }>('/penalties/me'),
+};
+
+// --- Payment Confirmations -------------------------------
+
+export const paymentConfirmations = {
+  markPaid: (applicationId: string, data: MarkPaidRequest) =>
+    post<PaymentConfirmationResponse>(`/applications/${applicationId}/mark-paid`, data),
+
+  confirm: (id: string) =>
+    post<PaymentConfirmationResponse>(`/payment-confirmations/${id}/confirm`),
+
+  dispute: (id: string, reason: string) =>
+    post<PaymentConfirmationResponse>(`/payment-confirmations/${id}/dispute`, { reason }),
+
+  getMyConfirmations: () =>
+    get<{ items: PaymentConfirmationResponse[] }>('/payment-confirmations/me'),
 };
 
 // --- Verification ----------------------------------------
@@ -426,11 +463,7 @@ export const support = {
 // };
 
 // --- Daily Usage -----------------------------------------
-
-export const usage = {
-  get: () =>
-    get<DailyUsageResponse>('/usage/me'),
-};
+// Removed with Trust Tier pivot
 
 // --- Convenience: grouped API ----------------------------
 
@@ -444,7 +477,9 @@ export const api = {
   contracts,
   reviews,
   subscriptions,
-  trustScore,
+  tier,
+  penalties,
+  paymentConfirmations,
   verification,
   profileCompleteness,
   // PMF pivot: chat disabled -- contact reveal replaces in-app chat
@@ -452,7 +487,8 @@ export const api = {
   support,
   // PMF pivot: applicationTemplates disabled
   // applicationTemplates,
-  usage,
+  // Daily usage removed with Trust Tier pivot
+  // usage,
 } as const;
 
 export default api;

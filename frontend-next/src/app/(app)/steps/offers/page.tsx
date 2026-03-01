@@ -1,12 +1,12 @@
 'use client';
 
 import { useAuthStore } from '@/stores/auth-store';
-import { OfferList } from '@/components/offers/offer-list';
 import { ApplicantList } from '@/components/offers/applicant-list';
+import { InstructorApplicationList } from '@/components/applications/instructor-application-list';
 import { Loader2 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
-// Page
+// Page: Instructor sees their applications; Studio sees applicants
 // ---------------------------------------------------------------------------
 
 export default function OffersPage() {
@@ -28,16 +28,16 @@ export default function OffersPage() {
   return (
     <div className="mx-auto max-w-4xl p-6">
       <h1 className="text-2xl font-bold">
-        {isInstructor ? '3단계: 오퍼 확인' : '3단계: 지원자 수락'}
+        {isInstructor ? '지원 현황' : '지원자 선택'}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {isInstructor
-          ? '스튜디오에서 보낸 오퍼를 확인하고 수락하세요.'
-          : '공고에 지원한 강사를 확인하고 수락하세요. 수락 시 양측 연락처가 공개됩니다.'}
+          ? '스튜디오가 수락하면 연락처가 공개됩니다. 여러 곳에 지원할수록 빠르게 매칭됩니다.'
+          : '마음에 드는 강사를 수락하면 양측 연락처가 즉시 공개됩니다.'}
       </p>
 
       <div className="mt-6">
-        {isInstructor ? <OfferList /> : <ApplicantList />}
+        {isInstructor ? <InstructorApplicationList /> : <ApplicantList />}
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import {
   JOB_TYPES,
   RATE_PRESETS,
   REGION_NAMES,
+  SEOUL_REGIONS,
 } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,9 @@ interface JobCreationFormProps {
 export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   const queryClient = useQueryClient();
 
+  // Today's date as default for urgent posts
+  const today = new Date().toISOString().split('T')[0];
+
   const {
     register,
     handleSubmit,
@@ -50,20 +54,26 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   } = useForm<JobFormValues>({
     resolver: zodResolver(jobPostSchema) as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- Zod v4 input/output type gap
     defaultValues: {
+      is_urgent: true,
       category: undefined,
       job_type: undefined,
       region: '',
       hourly_rate: 0,
-      date: '',
+      date: today,
       start_time: '',
       end_time: '',
       description: '',
       total_sessions: 1,
       required_experience_years: 0,
       required_certifications: [],
+      payment_method: 'bank_transfer',
+      terms_agreed: true,
+      latitude: null,
+      longitude: null,
     },
   });
 
+  const isUrgent = watch('is_urgent');
   const category = watch('category');
   const jobType = watch('job_type');
   const region = watch('region');
@@ -95,7 +105,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
     },
     onSuccess: () => {
       toast.success('공고가 등록되었습니다!');
-      queryClient.invalidateQueries({ queryKey: ['jobPosts'] });
+      queryClient.invalidateQueries({ queryKey: ['studio-job-posts'] });
       onSuccess?.();
     },
     onError: (error: Error) => {
@@ -107,11 +117,50 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
     createJob.mutate(data);
   };
 
-  // Today's date as default min for the date input
-  const today = new Date().toISOString().split('T')[0];
-
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* Urgency toggle */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">공고 유형</label>
+        <ToggleGroup
+          type="single"
+          value={isUrgent ? 'urgent' : 'normal'}
+          onValueChange={(val) => {
+            if (!val) return;
+            const urgent = val === 'urgent';
+            setValue('is_urgent', urgent);
+            if (urgent) {
+              setValue('date', today);
+            }
+          }}
+          className="w-full"
+        >
+          <ToggleGroupItem
+            value="urgent"
+            aria-label="긴급 대타"
+            className={`min-h-[44px] flex-1 text-base font-semibold ${
+              isUrgent
+                ? 'border-destructive bg-destructive/10 text-destructive data-[state=on]:bg-destructive data-[state=on]:text-destructive-foreground'
+                : ''
+            }`}
+          >
+            긴급 대타
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="normal"
+            aria-label="일반 공고"
+            className="min-h-[44px] flex-1 text-base font-semibold"
+          >
+            일반 공고
+          </ToggleGroupItem>
+        </ToggleGroup>
+        {isUrgent && (
+          <p className="text-sm text-destructive">
+            급하게 강사가 필요할 때 사용하세요. 강사들에게 우선 노출됩니다.
+          </p>
+        )}
+      </div>
+
       {/* Title preview */}
       {titlePreview && (
         <Card className="border-primary/30 bg-primary/5">
@@ -197,9 +246,14 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             </label>
             <Select
               value={region ?? ''}
-              onValueChange={(val) =>
-                setValue('region', val, { shouldValidate: true })
-              }
+              onValueChange={(val) => {
+                setValue('region', val, { shouldValidate: true });
+                const coords = SEOUL_REGIONS[val];
+                if (coords) {
+                  setValue('latitude', coords.lat);
+                  setValue('longitude', coords.lng);
+                }
+              }}
             >
               <SelectTrigger className="min-h-[44px] w-full text-base">
                 <SelectValue placeholder="지역을 선택하세요" />
@@ -338,10 +392,15 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
       <Button
         type="submit"
         size="lg"
+        variant={isUrgent ? 'destructive' : 'default'}
         disabled={createJob.isPending}
         className="min-h-[48px] w-full text-base font-semibold"
       >
-        {createJob.isPending ? '등록 중...' : '공고 등록하기'}
+        {createJob.isPending
+          ? '등록 중...'
+          : isUrgent
+            ? '긴급 공고 등록하기'
+            : '공고 등록하기'}
       </Button>
     </form>
   );

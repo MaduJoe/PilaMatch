@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Loader2, Search } from 'lucide-react';
 import api, { APIError } from '@/lib/api-client';
 import type { JobPostWithMatchingItem, ApplicationResponse } from '@/lib/api-types';
 // PMF pivot: FREE_DAILY_APPLICATION_LIMIT no longer used
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { JobFiltersBar, type JobFilters } from './job-filters';
 import { JobCard } from './job-card';
 import { JobDetailDialog } from './job-detail-dialog';
+import { ProfileNudgeBanner } from './profile-nudge-banner';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -32,7 +34,6 @@ export function JobList() {
   const [filters, setFilters] = useState<JobFilters>({
     category: 'all',
     region: 'all',
-    sortByScore: true,
     urgentOnly: false,
   });
 
@@ -41,6 +42,7 @@ export function JobList() {
   // ---- Detail dialog state ------------------------------------------------
   const [detailItem, setDetailItem] = useState<JobPostWithMatchingItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [showProfileNudge, setShowProfileNudge] = useState(false);
 
   // ---- Build query params -------------------------------------------------
   const queryParams = useMemo(() => {
@@ -70,6 +72,11 @@ export function JobList() {
   //   queryFn: () => api.subscriptions.getStatus(),
   // });
 
+  const profileQuery = useQuery({
+    queryKey: ['profile', 'completeness'],
+    queryFn: () => api.profileCompleteness.get(),
+  });
+
   // ---- Derived data -------------------------------------------------------
   const appliedJobIds = useMemo(() => {
     if (!applicationsQuery.data) return new Set<string>();
@@ -92,16 +99,14 @@ export function JobList() {
         return a.job.is_past ? 1 : -1;
       }
 
-      if (filters.sortByScore) {
-        // Higher matching score first
-        const scoreDiff = b.matching.total - a.matching.total;
-        if (scoreDiff !== 0) return scoreDiff;
-      }
+      // Higher matching score first
+      const scoreDiff = b.matching.total - a.matching.total;
+      if (scoreDiff !== 0) return scoreDiff;
 
       // Newer first (fallback)
-      return b.job.created_at.localeCompare(a.job.created_at);
+      return (b.job.created_at ?? '').localeCompare(a.job.created_at ?? '');
     });
-  }, [jobsQuery.data?.items, filters.sortByScore, filters.urgentOnly]);
+  }, [jobsQuery.data?.items, filters.urgentOnly]);
 
   const total = jobsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -114,7 +119,9 @@ export function JobList() {
   const applyMutation = useMutation({
     mutationFn: (jobId: string) => api.applications.apply(jobId),
     onSuccess: () => {
-      toast.success('지원 완료! 스튜디오 응답을 기다려주세요.');
+      toast.success('지원 완료! 보통 30분 내에 연락이 옵니다.', {
+        duration: 5000,
+      });
       void queryClient.invalidateQueries({ queryKey: ['my-applications'] });
       void queryClient.invalidateQueries({ queryKey: ['jobs-with-matching'] });
     },
@@ -123,7 +130,7 @@ export function JobList() {
         if (error.code === 'ALREADY_APPLIED') {
           toast.warning('이미 지원한 공고입니다.');
         } else if (error.code === 'INCOMPLETE_PROFILE') {
-          toast.warning(`프로필 미완성: ${error.message}`);
+          setShowProfileNudge(true);
         } else if (error.code === 'APPLICATION_LIMIT') {
           toast.error(error.message);
         } else {
@@ -183,23 +190,52 @@ export function JobList() {
     <div className="flex flex-col gap-6">
       {/* PMF pivot: subscription/premium status bar removed */}
 
+      {/* Subtle profile hint */}
+      {!showProfileNudge && profileQuery.data && profileQuery.data.percentage < 70 && (
+        <p className="text-xs text-muted-foreground">
+          프로필 {profileQuery.data.percentage}% 완성 &mdash;{' '}
+          <Link href="/steps/profile" className="text-primary underline underline-offset-2">
+            완성하면 지원 가능
+          </Link>
+        </p>
+      )}
+
       {/* Filters */}
       <JobFiltersBar filters={filters} onChange={handleFiltersChange} />
 
-      {/* Summary */}
+      {/* Profile nudge (shown when apply fails due to incomplete profile) */}
+      <ProfileNudgeBanner
+        show={showProfileNudge}
+        onDismiss={() => setShowProfileNudge(false)}
+      />
+
+      {/* Summary + encouragement */}
       {sortedJobs.length > 0 && (
-        <p className="text-sm text-muted-foreground">
-          총 {total}개 공고 | 지원 완료 {appliedCount}건
-        </p>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">
+            총 {total}개 공고 | 지원 완료 {appliedCount}건
+          </p>
+          {appliedCount > 0 && appliedCount < 3 && (
+            <p className="text-xs text-muted-foreground">
+              여러 곳에 지원하면 매칭 확률이 높아집니다
+            </p>
+          )}
+        </div>
       )}
 
       {/* Empty state */}
       {sortedJobs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 py-20">
-          <p className="text-sm text-muted-foreground">등록된 공고가 없습니다.</p>
-          <p className="text-xs text-muted-foreground">
-            스튜디오가 공고를 등록하면 여기에 표시됩니다.
+        <div className="flex flex-col items-center justify-center gap-3 py-16">
+          <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+            <Search className="size-6 text-muted-foreground" aria-hidden="true" />
+          </div>
+          <p className="text-sm font-medium">아직 등록된 공고가 없습니다</p>
+          <p className="text-center text-xs text-muted-foreground max-w-[240px]">
+            프로필을 완성해두면 새 공고 등록 시 알림을 받을 수 있습니다
           </p>
+          <Button variant="outline" size="sm" className="mt-1 min-h-[44px]" asChild>
+            <Link href="/steps/profile">프로필 확인하기</Link>
+          </Button>
         </div>
       ) : (
         <>

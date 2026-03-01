@@ -1,7 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Users, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import api from '@/lib/api-client';
 import type { JobPostResponse } from '@/lib/api-types';
@@ -49,9 +52,13 @@ function StudioJobCard({ job }: { job: JobPostResponse }) {
             <span>{formatDate(job.date)}</span>
             <span>{getDDay(job.date)}</span>
             <span>{formatCurrency(job.hourly_rate)}/h</span>
-            <span>
-              지원 {job.application_count}건
-            </span>
+            {job.application_count > 0 ? (
+              <Badge variant="default" className="text-xs">
+                지원 {job.application_count}명
+              </Badge>
+            ) : (
+              <span>지원 0건</span>
+            )}
           </div>
         </div>
         <Button
@@ -77,9 +84,22 @@ function StudioView() {
     data: jobListData,
     isLoading,
   } = useQuery({
-    queryKey: ['jobPosts', 'mine'],
-    queryFn: () => api.jobPosts.list(),
+    queryKey: ['studio-job-posts'],
+    queryFn: () => api.jobPosts.listMine(),
+    refetchInterval: 30000, // Poll every 30 seconds for new applicants
   });
+
+  // Jobs with pending applicants
+  const jobsWithApplicants = useMemo(() => {
+    if (!jobListData?.items) return [];
+    return jobListData.items.filter(
+      (job: JobPostResponse) => job.status === 'open' && job.application_count > 0
+    );
+  }, [jobListData?.items]);
+
+  const totalPendingApplicants = useMemo(() => {
+    return jobsWithApplicants.reduce((sum, job) => sum + job.application_count, 0);
+  }, [jobsWithApplicants]);
 
   return (
     <div className="space-y-8">
@@ -94,6 +114,22 @@ function StudioView() {
       {/* My job posts section */}
       <section id="my-jobs-section" className="space-y-4">
         <h3 className="text-lg font-semibold">내 공고 목록</h3>
+
+        {/* New applicants banner */}
+        {jobsWithApplicants.length > 0 && (
+          <Link
+            href="/steps/offers"
+            className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/30 dark:hover:bg-blue-950/50"
+          >
+            <div className="flex items-center gap-2">
+              <Users className="size-5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+              <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                지원자 {totalPendingApplicants}명이 대기 중
+              </span>
+            </div>
+            <ArrowRight className="size-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+          </Link>
+        )}
 
         {isLoading && (
           <div className="flex justify-center py-8">
@@ -141,7 +177,7 @@ export default function JobsPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">
-        {isInstructor ? '2단계: 일 찾기' : '2단계: 공고 등록'}
+        {isInstructor ? '일 찾기' : '공고 등록'}
       </h2>
 
       {isInstructor ? <JobList /> : <StudioView />}

@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Star, CheckCircle, Phone } from 'lucide-react';
+import { TierBadge } from '@/components/trust/tier-badge';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -76,8 +77,8 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
   const maskedPhone = application.instructor_phone;
 
   return (
-    <Card className="flex flex-col gap-4 py-4">
-      <CardContent className="flex flex-col gap-3">
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-4">
         {/* Header: name + experience */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-base font-semibold" aria-label={`강사 이름: ${instructorName}`}>
@@ -86,7 +87,7 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
           <span className="text-sm text-muted-foreground">
             (경력 {experienceYears}년)
           </span>
-          {/* PMF pivot: Premium badge hidden */}
+          <TierBadge tier={application.instructor_tier ?? 't1_basic'} label={application.instructor_tier_label ?? undefined} />
         </div>
 
         {/* Rating */}

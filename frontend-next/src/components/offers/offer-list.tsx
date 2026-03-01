@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
+import { Clock, Loader2 } from 'lucide-react';
 import api from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -119,12 +119,16 @@ export function OfferList() {
       {/* Pending tab */}
       <TabsContent value="pending">
         {pending.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-20">
-            <p className="text-sm text-muted-foreground">
-              아직 받은 오퍼가 없습니다
+          <div className="flex flex-col items-center justify-center gap-3 py-16">
+            <div className="flex size-14 items-center justify-center rounded-full bg-muted">
+              <Clock className="size-6 text-muted-foreground" aria-hidden="true" />
+            </div>
+            <p className="text-sm font-medium">아직 수락된 매칭이 없습니다</p>
+            <p className="text-center text-xs text-muted-foreground max-w-[260px]">
+              더 많은 공고에 지원할수록 매칭 확률이 높아집니다. 긴급 공고는 보통 30분 내에 결정됩니다.
             </p>
-            <Button variant="outline" size="sm" className="min-h-[44px]" asChild>
-              <Link href="/steps/jobs">일 찾기로 돌아가기</Link>
+            <Button variant="default" size="sm" className="mt-1 min-h-[44px]" asChild>
+              <Link href="/steps/jobs">공고 더 찾아보기</Link>
             </Button>
           </div>
         ) : (
@@ -143,9 +147,10 @@ export function OfferList() {
       {/* Accepted tab */}
       <TabsContent value="accepted">
         {accepted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-20">
-            <p className="text-sm text-muted-foreground">
-              수락된 오퍼가 없습니다
+          <div className="flex flex-col items-center justify-center gap-2 py-16">
+            <p className="text-sm text-muted-foreground">수락된 매칭이 없습니다</p>
+            <p className="text-xs text-muted-foreground">
+              스튜디오가 지원을 수락하면 여기에 표시됩니다
             </p>
           </div>
         ) : (

@@ -4,9 +4,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Header } from '@/components/layout/header';
-import { StepProgress } from '@/components/layout/step-progress';
-import { StepNavigation } from '@/components/layout/step-navigation';
-import { useUserProgress } from '@/hooks/use-user-progress';
+import { BottomTabBar } from '@/components/layout/bottom-tab-bar';
 
 export default function AppLayout({
   children,
@@ -15,7 +13,6 @@ export default function AppLayout({
 }) {
   const { isAuthenticated, isLoading } = useAuthStore();
   const router = useRouter();
-  const { steps, currentStep } = useUserProgress();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -39,11 +36,10 @@ export default function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-background">
       <Header />
-      <StepProgress steps={steps} currentStep={currentStep} />
-      <StepNavigation steps={steps} currentStep={currentStep} />
-      <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-4xl px-4 pb-24 pt-6">{children}</main>
+      <BottomTabBar />
     </div>
   );
 }

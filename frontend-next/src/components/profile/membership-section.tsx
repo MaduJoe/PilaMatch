@@ -82,7 +82,7 @@ export function MembershipSection() {
     onSuccess: () => {
       toast.success('구독이 취소되었습니다');
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
-      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
+      queryClient.invalidateQueries({ queryKey: ['tier'] });
     },
     onError: (error: Error) => {
       toast.error(
@@ -100,7 +100,7 @@ export function MembershipSection() {
       setOrderData(null);
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
+      queryClient.invalidateQueries({ queryKey: ['tier'] });
     },
     onError: (error: Error) => {
       toast.error(

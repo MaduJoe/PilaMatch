@@ -41,8 +41,6 @@ export function InstructorProfileForm() {
         bio: profile.bio || '',
         categories: profile.categories || [],
         experience_years: profile.experience_years || 0,
-        hourly_rate_min: profile.hourly_rate_min ?? undefined,
-        hourly_rate_max: profile.hourly_rate_max ?? undefined,
         available_regions: profile.available_regions || [],
       });
     }
@@ -55,15 +53,13 @@ export function InstructorProfileForm() {
         bio: data.bio,
         categories: data.categories,
         experience_years: data.experience_years,
-        hourly_rate_min: data.hourly_rate_min,
-        hourly_rate_max: data.hourly_rate_max,
         available_regions: data.available_regions,
       });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
+      queryClient.invalidateQueries({ queryKey: ['tier'] });
       if (user) {
         setUser({ ...user, display_name: variables.display_name }, useAuthStore.getState().profileId);
       }
@@ -155,28 +151,6 @@ export function InstructorProfileForm() {
             {errors.available_regions && (
               <p className="text-sm text-red-500">{errors.available_regions.message}</p>
             )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="hourly_rate_min">최소 희망시급</Label>
-              <Input
-                id="hourly_rate_min"
-                type="number"
-                step={5000}
-                min={10000}
-                {...register('hourly_rate_min', { valueAsNumber: true })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="hourly_rate_max">최대 희망시급</Label>
-              <Input
-                id="hourly_rate_max"
-                type="number"
-                step={5000}
-                {...register('hourly_rate_max', { valueAsNumber: true })}
-              />
-            </div>
           </div>
 
           <Button

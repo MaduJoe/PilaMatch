@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
 import { loginSchema, type LoginFormData } from '@/lib/validators';
 import { useLogin } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -18,6 +20,7 @@ import {
 } from '@/components/ui/card';
 
 export default function LoginPage() {
+  const [showPassword, setShowPassword] = useState(false);
   const login = useLogin();
   const {
     register,
@@ -54,12 +57,23 @@ export default function LoginPage() {
 
           <div className="space-y-2">
             <Label htmlFor="password">비밀번호</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="8자 이상"
-              {...register('password')}
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="8자 이상"
+                {...register('password')}
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
             {errors.password && (
               <p className="text-sm text-red-500">{errors.password.message}</p>
             )}

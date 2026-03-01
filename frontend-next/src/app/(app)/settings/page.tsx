@@ -111,7 +111,7 @@ export default function SettingsPage() {
                     <ul className="list-inside list-disc space-y-1 text-sm">
                       <li>30일 내 로그인하면 복구 가능합니다</li>
                       <li>활성 계약은 자동 취소됩니다</li>
-                      <li>미정산 금액은 환불 처리됩니다</li>
+                      <li>작성한 공고 및 지원 내역은 삭제됩니다</li>
                     </ul>
                   </div>
                 </DialogDescription>

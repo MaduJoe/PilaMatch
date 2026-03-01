@@ -10,17 +10,13 @@
 export const INSTRUCTOR_STEPS = [
   { key: 'profile', label: '프로필 완성', path: '/steps/profile' },
   { key: 'find_jobs', label: '급구/대행 찾기', path: '/steps/jobs' },
-  { key: 'offers', label: '수락 대기', path: '/steps/offers' },
-  { key: 'contracts', label: '수업 진행', path: '/steps/contracts' },
-  { key: 'complete', label: '완료/리뷰', path: '/steps/complete' },
+  { key: 'offers', label: '지원 현황', path: '/steps/offers' },
 ] as const;
 
 export const STUDIO_STEPS = [
   { key: 'profile', label: '프로필 완성', path: '/steps/profile' },
   { key: 'create_job', label: '급구 등록', path: '/steps/jobs' },
-  { key: 'applicants', label: '강사 선택/연락', path: '/steps/offers' },
-  { key: 'contracts', label: '수업 진행', path: '/steps/contracts' },
-  { key: 'complete', label: '완료/리뷰', path: '/steps/complete' },
+  { key: 'applicants', label: '강사 선택', path: '/steps/offers' },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -95,7 +91,7 @@ export const CONTRACT_TERMS = `
 
 ### 노쇼 패널티
 - 3회 노쇼 시 계정이 정지됩니다.
-- Trust Score가 차감됩니다.
+- Tier 등급이 강등됩니다.
 
 ### 취소 정책
 - 수업 시작 24시간 전까지 무료 취소 가능
@@ -126,15 +122,15 @@ export const JOB_TYPES = [
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Trust score levels
+// Trust score levels (deprecated: replaced by Tier system)
 // ---------------------------------------------------------------------------
 
-export const TRUST_LEVELS = [
-  { min: 0, max: 29, level: 'bronze', color: '#CD7F32', label: '브론즈' },
-  { min: 30, max: 59, level: 'silver', color: '#C0C0C0', label: '실버' },
-  { min: 60, max: 79, level: 'gold', color: '#FFD700', label: '골드' },
-  { min: 80, max: 100, level: 'platinum', color: '#E5E4E2', label: '플래티넘' },
-] as const;
+// export const TRUST_LEVELS = [
+//   { min: 0, max: 29, level: 'bronze', color: '#CD7F32', label: '브론즈' },
+//   { min: 30, max: 59, level: 'silver', color: '#C0C0C0', label: '실버' },
+//   { min: 60, max: 79, level: 'gold', color: '#FFD700', label: '골드' },
+//   { min: 80, max: 100, level: 'platinum', color: '#E5E4E2', label: '플래티넘' },
+// ] as const;
 
 // ---------------------------------------------------------------------------
 // PMF pivot: Premium disabled -- free-only model during validation phase

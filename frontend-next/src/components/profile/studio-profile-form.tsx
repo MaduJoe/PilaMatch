@@ -59,7 +59,7 @@ export function StudioProfileForm() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
+      queryClient.invalidateQueries({ queryKey: ['tier'] });
       if (user) {
         setUser({ ...user, business_name: variables.business_name }, useAuthStore.getState().profileId);
       }

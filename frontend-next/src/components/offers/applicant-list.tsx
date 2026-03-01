@@ -1,12 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { Clock, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import api from '@/lib/api-client';
-import { useAuthStore } from '@/stores/auth-store';
-import type { ApplicationWithInstructorResponse, JobPostResponse } from '@/lib/api-types';
+import { toast } from 'sonner';
+import api, { APIError } from '@/lib/api-client';
+import type { ContactRevealResponse, JobPostResponse } from '@/lib/api-types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ApplicantCard } from './applicant-card';
-import { SendOfferDialog } from './send-offer-dialog';
+import { ContactRevealScreen } from './contact-reveal-screen';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -40,27 +40,21 @@ function buildJobLabel(job: JobPostResponse): string {
 
 export function ApplicantList() {
   const queryClient = useQueryClient();
-  const profileId = useAuthStore((s) => s.profileId);
 
   // ---- State ---------------------------------------------------------------
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>(undefined);
-  const [offerTarget, setOfferTarget] = useState<ApplicationWithInstructorResponse | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [contactReveal, setContactReveal] = useState<ContactRevealResponse | null>(null);
+  const [contactRevealJob, setContactRevealJob] = useState<JobPostResponse | null>(null);
 
-  // ---- Query: job posts ----------------------------------------------------
+  // ---- Query: my job posts (studio only) -----------------------------------
   const jobsQuery = useQuery({
     queryKey: ['studio-job-posts'],
-    queryFn: () => api.jobPosts.list(),
+    queryFn: () => api.jobPosts.listMine(),
   });
 
-  // Filter to only my jobs (extra safety - API should already filter)
   const myJobs = useMemo(() => {
-    if (!jobsQuery.data?.items) return [];
-    if (!profileId) return jobsQuery.data.items;
-    return jobsQuery.data.items.filter(
-      (job) => job.studio_id === profileId,
-    );
-  }, [jobsQuery.data?.items, profileId]);
+    return jobsQuery.data?.items ?? [];
+  }, [jobsQuery.data?.items]);
 
   // Auto-select first job if none selected
   const effectiveJobId = selectedJobId ?? myJobs[0]?.id;
@@ -70,6 +64,7 @@ export function ApplicantList() {
     queryKey: ['job-applications', effectiveJobId],
     queryFn: () => api.applications.getForJobPost(effectiveJobId!),
     enabled: !!effectiveJobId,
+    refetchInterval: 15000, // Poll every 15 seconds for new applicants
   });
 
   // ---- Selected job info ---------------------------------------------------
@@ -78,18 +73,24 @@ export function ApplicantList() {
     [myJobs, effectiveJobId],
   );
 
-  // ---- Handlers ------------------------------------------------------------
-  function handleSendOffer(app: ApplicationWithInstructorResponse) {
-    setOfferTarget(app);
-    setDialogOpen(true);
-  }
-
-  function handleOfferSuccess() {
-    // Refetch applications to update has_offer status
-    void queryClient.invalidateQueries({
-      queryKey: ['job-applications', effectiveJobId],
-    });
-  }
+  // ---- Accept mutation (replaces offer flow) --------------------------------
+  const acceptMutation = useMutation({
+    mutationFn: (applicationId: string) => api.applications.accept(applicationId),
+    onSuccess: (data: ContactRevealResponse) => {
+      // Snapshot job data before invalidation can remove it from the query cache
+      setContactRevealJob(selectedJob ?? null);
+      setContactReveal(data);
+      void queryClient.invalidateQueries({ queryKey: ['job-applications', effectiveJobId] });
+      void queryClient.invalidateQueries({ queryKey: ['studio-job-posts'] });
+    },
+    onError: (error: Error) => {
+      if (error instanceof APIError) {
+        toast.error(error.message);
+      } else {
+        toast.error('수락 중 오류가 발생했습니다.');
+      }
+    },
+  });
 
   // ---- Render: loading state -----------------------------------------------
   if (jobsQuery.isLoading) {
@@ -188,36 +189,53 @@ export function ApplicantList() {
           </Button>
         </div>
       ) : !applicationsQuery.data?.items || applicationsQuery.data.items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 py-12">
-          <p className="text-sm text-muted-foreground">아직 지원자가 없습니다.</p>
-          <p className="text-xs text-muted-foreground">
-            강사가 공고에 지원하면 여기에 표시됩니다.
+        <div className="flex flex-col items-center justify-center gap-3 py-12">
+          <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+            <Clock className="size-5 text-muted-foreground" aria-hidden="true" />
+          </div>
+          <p className="text-sm font-medium">지원자를 기다리는 중</p>
+          <p className="text-center text-xs text-muted-foreground max-w-[260px]">
+            공고 등록 후 보통 30분 내에 첫 지원이 옵니다. 이 페이지는 자동으로 새로고침됩니다.
           </p>
         </div>
       ) : (
-        <>
+        <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">
             지원자 ({applicationsQuery.data.total}명)
           </p>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {applicationsQuery.data.items.map((app) => (
               <ApplicantCard
                 key={app.id}
                 application={app}
-                onSendOffer={handleSendOffer}
+                onSendOffer={(a) => acceptMutation.mutate(a.id)}
               />
             ))}
           </div>
-        </>
+        </div>
       )}
 
-      {/* Send offer dialog */}
-      <SendOfferDialog
-        application={offerTarget}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSuccess={handleOfferSuccess}
-      />
+      {/* Contact reveal screen (shown after accepting applicant) */}
+      {contactReveal && contactRevealJob && (
+        <ContactRevealScreen
+          open={!!contactReveal}
+          onClose={() => {
+            setContactReveal(null);
+            setContactRevealJob(null);
+          }}
+          contactData={contactReveal}
+          jobTitle={contactRevealJob.title}
+          jobDate={contactRevealJob.date}
+          jobTime={
+            contactRevealJob.start_time && contactRevealJob.end_time
+              ? `${contactRevealJob.start_time}~${contactRevealJob.end_time}`
+              : undefined
+          }
+          jobRegion={contactRevealJob.region ?? undefined}
+          hourlyRate={contactRevealJob.hourly_rate}
+          viewerRole="studio"
+        />
+      )}
     </div>
   );
 }

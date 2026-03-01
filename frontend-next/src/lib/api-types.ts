@@ -72,6 +72,9 @@ export interface UserResponse {
   identity_verified: boolean;
   business_verified: boolean;
   trust_score: number;
+  tier?: string | null;
+  suspension_until?: string | null;
+  restriction_until?: string | null;
   last_active_at?: string | null;
   onboarding_completed: boolean;
 }
@@ -101,8 +104,6 @@ export interface InstructorProfileUpdate {
   specialties?: string[];
   certifications?: (Certification | string)[];
   experience_years?: number;
-  hourly_rate_min?: number;
-  hourly_rate_max?: number;
   available_regions?: string[];
   is_public?: boolean;
 }
@@ -118,8 +119,6 @@ export interface InstructorProfileResponse {
   specialties: string[];
   certifications: (Certification | string)[];
   experience_years: number;
-  hourly_rate_min?: number | null;
-  hourly_rate_max?: number | null;
   available_regions: string[];
   is_public: boolean;
   rating_average: number;
@@ -177,6 +176,8 @@ export interface JobPostCreate {
   latitude?: number | null;
   longitude?: number | null;
   is_urgent?: boolean;
+  payment_method?: string;
+  terms_agreed?: boolean;
 }
 
 export interface JobPostResponse {
@@ -204,6 +205,8 @@ export interface JobPostResponse {
   travel_time_min?: number | null;
   is_past: boolean;
   application_count: number;
+  payment_method?: string | null;
+  terms_agreed?: boolean;
   created_at: string;
   updated_at: string;
   // Studio info (populated in list endpoints)
@@ -265,6 +268,13 @@ export interface ApplicationResponse {
   updated_at: string;
 }
 
+export interface ApplicationWithJobResponse extends ApplicationResponse {
+  job_title?: string | null;
+  studio_name?: string | null;
+  studio_phone?: string | null;    // Only when contact_revealed=true
+  studio_address?: string | null;  // Only when contact_revealed=true
+}
+
 export interface ApplicationWithInstructorResponse extends ApplicationResponse {
   instructor_name?: string | null;
   instructor_phone?: string | null;
@@ -280,6 +290,8 @@ export interface ApplicationWithInstructorResponse extends ApplicationResponse {
   instructor_completed_substitutes: number;
   instructor_no_show_count: number;
   instructor_review_count: number;
+  instructor_tier?: string | null;
+  instructor_tier_label?: string | null;
 }
 
 export interface ContactRevealResponse {
@@ -457,38 +469,84 @@ export interface BankTransferUpgradeResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Trust Score
+// Trust Tier (replaces old Trust Score)
 // ---------------------------------------------------------------------------
 
-export interface TrustScoreFactorLabel {
-  name: string;
-  max: number;
-}
+export type TeacherTier = 't1_basic' | 't2_verified' | 't3_pro';
+export type CenterTier = 'c1_basic' | 'c2_verified';
+export type PenaltyTypeEnum = 'no_show' | 'same_day_cancel' | 'late' | 'cancel_after_confirm';
 
-export interface TrustScoreLevelThreshold {
-  min: number;
-  max: number;
-  level: string;
-  color: string;
-}
-
-export interface ExperienceBadge {
-  label: string;
+export interface TierResponse {
   tier: string;
+  tier_label: string;
+  tier_label_ko: string;
+  tier_color: string;
+  role: string;
+  completed_jobs_recent: number;
+  no_show_recent: number;
+  same_day_cancel_recent: number;
+  late_recent: number;
+  cancel_after_confirm_recent: number;
+  next_tier: string | null;
+  missing_requirements: string[];
 }
 
-export interface TrustScoreResponse {
-  score: number;
-  level: string;
-  level_color: string;
-  breakdown: Record<string, number>;
-  recommendations: string[];
-  points_to_next_level: number;
-  next_level_score: number;
-  factor_labels: Record<string, TrustScoreFactorLabel>;
-  level_thresholds: TrustScoreLevelThreshold[];
-  completed_contracts_count: number;
-  experience_badge?: ExperienceBadge | null;
+export interface TierPublicResponse {
+  user_id: string;
+  tier: string;
+  tier_label: string;
+  tier_color: string;
+  role: string;
+  completed_jobs_recent: number;
+  no_show_recent: number;
+}
+
+export interface TierRequirementsResponse {
+  teacher_tiers: TierRequirementItem[];
+  center_tiers: TierRequirementItem[];
+}
+
+export interface TierRequirementItem {
+  tier: string;
+  label: string;
+  label_ko: string;
+  requirements: string[];
+  limits: Record<string, number>;
+}
+
+export interface PenaltyReportRequest {
+  reported_user_id: string;
+  penalty_type: PenaltyTypeEnum;
+  description?: string;
+}
+
+export interface PenaltyRecordResponse {
+  id: string;
+  user_id: string;
+  penalty_type: string;
+  status: string;
+  reported_by?: string | null;
+  suspend_until?: string | null;
+  restrict_until?: string | null;
+  description?: string | null;
+  created_at: string;
+}
+
+export interface MarkPaidRequest {
+  amount: number;
+}
+
+export interface PaymentConfirmationResponse {
+  id: string;
+  application_id: string;
+  center_user_id: string;
+  instructor_user_id: string;
+  amount: number;
+  status: string;
+  center_marked_paid_at?: string | null;
+  instructor_confirmed_at?: string | null;
+  dispute_reason?: string | null;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -583,17 +641,17 @@ export interface ApplicationTemplateResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Daily Usage
+// Daily Usage (deprecated -- removed with Trust Tier pivot)
 // ---------------------------------------------------------------------------
 
-export interface DailyUsageResponse {
-  daily_applications_today: number;
-  daily_views_today: number;
-  last_usage_reset_date: string;
-  application_limit: number;
-  view_limit: number;
-  is_premium: boolean;
-}
+// export interface DailyUsageResponse {
+//   daily_applications_today: number;
+//   daily_views_today: number;
+//   last_usage_reset_date: string;
+//   application_limit: number;
+//   view_limit: number;
+//   is_premium: boolean;
+// }
 
 // ---------------------------------------------------------------------------
 // API Error

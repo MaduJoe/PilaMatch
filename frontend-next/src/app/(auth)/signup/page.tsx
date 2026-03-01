@@ -12,15 +12,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from '@/components/ui/toggle-group';
+import { User, Building2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function SignupPage() {
   const signup = useSignup();
@@ -42,7 +39,6 @@ export default function SignupPage() {
   const role = watch('role');
   const termsAgreed = watch('terms_agreed');
   const privacyAgreed = watch('privacy_agreed');
-
   const allAgreed = termsAgreed === true && privacyAgreed === true;
 
   const handleAllAgree = (checked: boolean) => {
@@ -56,155 +52,168 @@ export default function SignupPage() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>회원가입</CardTitle>
-        <CardDescription>PilaMatch에 가입하고 시작하세요</CardDescription>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-center text-xl">시작하기</CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
+          {/* Step 1: Role selection - large cards */}
           <div className="space-y-2">
-            <Label htmlFor="email">이메일</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="example@email.com"
-              {...register('email')}
-            />
-            {errors.email && (
-              <p className="text-sm text-red-500">{errors.email.message}</p>
-            )}
-          </div>
+            <Label className="text-sm font-medium text-muted-foreground">어떤 분이신가요?</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setValue('role', 'instructor')}
+                className={cn(
+                  'flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all',
+                  'hover:border-primary/50 hover:bg-primary/5',
+                  role === 'instructor'
+                    ? 'border-primary bg-primary/10 shadow-sm'
+                    : 'border-muted',
+                )}
+                aria-pressed={role === 'instructor'}
+              >
+                <div className={cn(
+                  'flex size-12 items-center justify-center rounded-full',
+                  role === 'instructor' ? 'bg-primary text-primary-foreground' : 'bg-muted',
+                )}>
+                  <User className="size-6" aria-hidden="true" />
+                </div>
+                <span className={cn(
+                  'text-sm font-semibold',
+                  role === 'instructor' ? 'text-primary' : 'text-muted-foreground',
+                )}>
+                  강사
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  대타/일자리 찾기
+                </span>
+              </button>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">비밀번호</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="8자 이상"
-              {...register('password')}
-            />
-            {errors.password && (
-              <p className="text-sm text-red-500">{errors.password.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>역할</Label>
-            <ToggleGroup
-              type="single"
-              value={role}
-              onValueChange={(value) => {
-                if (value) setValue('role', value as 'instructor' | 'studio');
-              }}
-              className="justify-start"
-            >
-              <ToggleGroupItem value="instructor" className="flex-1">
-                강사
-              </ToggleGroupItem>
-              <ToggleGroupItem value="studio" className="flex-1">
-                스튜디오
-              </ToggleGroupItem>
-            </ToggleGroup>
+              <button
+                type="button"
+                onClick={() => setValue('role', 'studio')}
+                className={cn(
+                  'flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all',
+                  'hover:border-primary/50 hover:bg-primary/5',
+                  role === 'studio'
+                    ? 'border-primary bg-primary/10 shadow-sm'
+                    : 'border-muted',
+                )}
+                aria-pressed={role === 'studio'}
+              >
+                <div className={cn(
+                  'flex size-12 items-center justify-center rounded-full',
+                  role === 'studio' ? 'bg-primary text-primary-foreground' : 'bg-muted',
+                )}>
+                  <Building2 className="size-6" aria-hidden="true" />
+                </div>
+                <span className={cn(
+                  'text-sm font-semibold',
+                  role === 'studio' ? 'text-primary' : 'text-muted-foreground',
+                )}>
+                  스튜디오
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  대타/강사 찾기
+                </span>
+              </button>
+            </div>
             {errors.role && (
-              <p className="text-sm text-red-500">{errors.role.message}</p>
+              <p className="text-sm text-destructive">{errors.role.message}</p>
             )}
           </div>
 
-          {role === 'instructor' && (
-            <div className="space-y-2">
-              <Label htmlFor="display_name">이름</Label>
+          {/* Step 2: Credentials */}
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-sm">이메일</Label>
               <Input
-                id="display_name"
-                placeholder="홍길동"
-                {...register('display_name')}
+                id="email"
+                type="email"
+                placeholder="example@email.com"
+                autoFocus
+                className="min-h-[44px]"
+                {...register('email')}
               />
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-sm">비밀번호</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="8자 이상"
+                className="min-h-[44px]"
+                {...register('password')}
+              />
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password.message}</p>
+              )}
+            </div>
+
+            {/* Name field - role-dependent */}
+            <div className="space-y-1.5">
+              <Label htmlFor={role === 'instructor' ? 'display_name' : 'business_name'} className="text-sm">
+                {role === 'instructor' ? '이름' : '업체명'}
+              </Label>
+              {role === 'instructor' ? (
+                <Input
+                  id="display_name"
+                  placeholder="홍길동"
+                  className="min-h-[44px]"
+                  {...register('display_name')}
+                />
+              ) : (
+                <Input
+                  id="business_name"
+                  placeholder="OO필라테스"
+                  className="min-h-[44px]"
+                  {...register('business_name')}
+                />
+              )}
               {errors.display_name && (
-                <p className="text-sm text-red-500">{errors.display_name.message}</p>
+                <p className="text-xs text-destructive">{errors.display_name.message}</p>
               )}
-            </div>
-          )}
-
-          {role === 'studio' && (
-            <div className="space-y-2">
-              <Label htmlFor="business_name">업체명</Label>
-              <Input
-                id="business_name"
-                placeholder="OO필라테스"
-                {...register('business_name')}
-              />
               {errors.business_name && (
-                <p className="text-sm text-red-500">{errors.business_name.message}</p>
+                <p className="text-xs text-destructive">{errors.business_name.message}</p>
               )}
             </div>
-          )}
+          </div>
 
-          {/* 약관 동의 */}
-          <div className="space-y-3 rounded-lg border p-4">
-            <div className="flex items-center gap-2">
+          {/* Step 3: Terms - simplified */}
+          <div className="space-y-2.5 rounded-lg border bg-muted/30 p-3">
+            <label className="flex cursor-pointer items-center gap-2.5">
               <Checkbox
                 id="agree-all"
                 checked={allAgreed}
                 onCheckedChange={(checked) => handleAllAgree(checked === true)}
               />
-              <Label htmlFor="agree-all" className="font-medium">
-                전체 동의
-              </Label>
-            </div>
-            <div className="ml-1 space-y-2 border-t pt-3">
-              <div className="flex items-start gap-2">
-                <Checkbox
-                  id="terms_agreed"
-                  checked={termsAgreed === true}
-                  onCheckedChange={(checked) =>
-                    setValue('terms_agreed', checked as unknown as true, { shouldValidate: true })
-                  }
-                />
-                <div>
-                  <Label htmlFor="terms_agreed" className="text-sm">
-                    [필수]{' '}
-                    <Link href="/terms" target="_blank" className="text-primary underline">
-                      이용약관
-                    </Link>
-                    에 동의합니다
-                  </Label>
-                  {errors.terms_agreed && (
-                    <p className="text-xs text-red-500">{errors.terms_agreed.message}</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <Checkbox
-                  id="privacy_agreed"
-                  checked={privacyAgreed === true}
-                  onCheckedChange={(checked) =>
-                    setValue('privacy_agreed', checked as unknown as true, { shouldValidate: true })
-                  }
-                />
-                <div>
-                  <Label htmlFor="privacy_agreed" className="text-sm">
-                    [필수]{' '}
-                    <Link href="/privacy" target="_blank" className="text-primary underline">
-                      개인정보 처리방침
-                    </Link>
-                    에 동의합니다
-                  </Label>
-                  {errors.privacy_agreed && (
-                    <p className="text-xs text-red-500">{errors.privacy_agreed.message}</p>
-                  )}
-                </div>
-              </div>
+              <span className="text-sm font-semibold">전체 동의하고 시작하기</span>
+            </label>
+            <div className="flex gap-3 pl-7 text-xs text-muted-foreground">
+              <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-foreground">
+                이용약관
+              </Link>
+              <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-foreground">
+                개인정보 처리방침
+              </Link>
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex flex-col gap-4">
+
+        <CardFooter className="flex flex-col gap-3 pt-2">
           <Button
             type="submit"
-            className="w-full"
+            className="w-full min-h-[48px] text-base font-bold"
             disabled={signup.isPending || !allAgreed}
           >
-            {signup.isPending ? '가입 중...' : '회원가입'}
+            {signup.isPending ? '가입 중...' : '가입하기'}
           </Button>
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-xs text-muted-foreground">
             이미 계정이 있으신가요?{' '}
             <Link href="/login" className="font-medium text-primary hover:underline">
               로그인

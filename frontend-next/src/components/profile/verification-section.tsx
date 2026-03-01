@@ -47,7 +47,7 @@ export function VerificationSection() {
       const me = await api.auth.me();
       setUser(me.user, me.profile_id ?? null);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
+      queryClient.invalidateQueries({ queryKey: ['tier'] });
       queryClient.invalidateQueries({ queryKey: ['profile', 'completeness'] });
     },
     onError: (error: Error) => {
@@ -62,7 +62,7 @@ export function VerificationSection() {
       const me = await api.auth.me();
       setUser(me.user, me.profile_id ?? null);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      queryClient.invalidateQueries({ queryKey: ['trustScore'] });
+      queryClient.invalidateQueries({ queryKey: ['tier'] });
       queryClient.invalidateQueries({ queryKey: ['profile', 'completeness'] });
     },
     onError: (error: Error) => {

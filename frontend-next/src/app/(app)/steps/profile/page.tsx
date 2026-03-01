@@ -14,16 +14,16 @@ export default function ProfilePage() {
   const isInstructor = user?.role === 'instructor';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <ProfileCompletenessHeader />
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
           {isInstructor ? <InstructorProfileForm /> : <StudioProfileForm />}
-          <VerificationSection />
         </div>
-        <div className="space-y-6">
+        <div className="space-y-4">
           <TrustScoreDetail />
+          <VerificationSection />
           {/* PMF pivot: Premium membership hidden */}
         </div>
       </div>
