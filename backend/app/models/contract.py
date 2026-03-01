@@ -43,8 +43,6 @@ class Contract(Base, UUIDMixin, TimestampMixin):
     # Relationships
     offer = relationship("Offer", back_populates="contract")
     event_logs = relationship("ContractEventLog", back_populates="contract", order_by="ContractEventLog.created_at")
-    payment = relationship("Payment", back_populates="contract", uselist=False)
-    payout = relationship("Payout", back_populates="contract", uselist=False)
     reviews = relationship("Review", back_populates="contract")
     chat_thread = relationship("ChatThread", back_populates="contract", uselist=False)
 

@@ -10,8 +10,8 @@ from sqlalchemy.orm import selectinload
 
 from app.models import (
     Contract, ContractEventLog, Offer, JobPost, Application,
-    Payment, InstructorProfile, StudioProfile, User, MembershipTier,
-    ContractStatus, OfferStatus, PaymentStatus
+    InstructorProfile, StudioProfile, User,
+    ContractStatus, OfferStatus,
 )
 
 
@@ -24,11 +24,6 @@ VALID_TRANSITIONS: Dict[ContractStatus, Set[ContractStatus]] = {
     ContractStatus.DISPUTED: {ContractStatus.COMPLETED, ContractStatus.CANCELLED},  # Can be resolved
     ContractStatus.CANCELLED: set(),  # Terminal state
 }
-
-# v3.0: Fee rates based on membership
-PREMIUM_FEE_RATE = 0.03  # 3% for Premium members
-FREE_FEE_RATE = 0.05  # 5% for Free members
-
 
 class ContractService:
     def __init__(self, db: AsyncSession):
@@ -68,31 +63,6 @@ class ContractService:
     def _validate_transition(self, from_status: ContractStatus, to_status: ContractStatus) -> bool:
         valid_next = VALID_TRANSITIONS.get(from_status, set())
         return to_status in valid_next
-
-    async def _get_fee_rate(self, instructor_id: UUID) -> float:
-        """Get fee rate based on instructor's membership tier (v3.0).
-
-        Premium members get 3% fee rate, Free members get 5%.
-        """
-        # Get instructor's user account
-        instructor = await self.db.execute(
-            select(InstructorProfile.user_id).where(InstructorProfile.id == instructor_id)
-        )
-        user_id = instructor.scalar_one_or_none()
-
-        if not user_id:
-            return FREE_FEE_RATE  # Default to free tier rate
-
-        # Get user's membership tier
-        user = await self.db.execute(
-            select(User.membership_tier).where(User.id == user_id)
-        )
-        membership_tier = user.scalar_one_or_none()
-
-        if membership_tier == MembershipTier.PREMIUM.value:
-            return PREMIUM_FEE_RATE
-        else:
-            return FREE_FEE_RATE
 
     async def _log_event(
         self,
@@ -219,8 +189,6 @@ class ContractService:
             select(Contract)
             .options(
                 selectinload(Contract.offer),
-                selectinload(Contract.payment),
-                selectinload(Contract.payout),
             )
             .where(filter_clause)
             .order_by(Contract.created_at.desc())
@@ -229,15 +197,6 @@ class ContractService:
         )
 
         return list(result.scalars().all()), total
-
-    async def _check_payment(self, contract_id: UUID) -> bool:
-        result = await self.db.execute(
-            select(Payment).where(
-                Payment.contract_id == contract_id,
-                Payment.status == PaymentStatus.COMPLETED,
-            )
-        )
-        return result.scalar_one_or_none() is not None
 
     async def set_in_progress(
         self, contract_id: UUID, actor_user_id: UUID, profile_id: UUID, role: str
@@ -370,19 +329,6 @@ class ContractService:
                 note="Contract completed - both parties confirmed",
             )
 
-            # Calculate platform fee based on membership (v3.0)
-            from decimal import Decimal
-            fee_rate = await self._get_fee_rate(contract.instructor_id)
-            contract.platform_fee = float(contract.total_amount) * fee_rate
-            contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
-
-            # Release escrow to instructor
-            from app.services.escrow import release_escrow_to_instructor
-            try:
-                await release_escrow_to_instructor(self.db, str(contract_id))
-            except ValueError:
-                pass  # Payment may not exist yet
-
             # Notify both parties of completion
             try:
                 from app.services.notification import notify_contract_status
@@ -498,10 +444,6 @@ class ContractService:
 
             if should_complete:
                 contract.status = ContractStatus.COMPLETED
-                # v3.0: Calculate fee based on membership
-                fee_rate = await self._get_fee_rate(contract.instructor_id)
-                contract.platform_fee = float(contract.total_amount) * fee_rate
-                contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
 
                 await self._log_event(
                     contract_id=contract.id,
@@ -510,13 +452,6 @@ class ContractService:
                     to_status=ContractStatus.COMPLETED,
                     note=note,
                 )
-
-                # Release escrow to instructor
-                from app.services.escrow import release_escrow_to_instructor
-                try:
-                    await release_escrow_to_instructor(self.db, str(contract.id))
-                except ValueError:
-                    pass
 
                 auto_completed.append(contract)
 
@@ -533,10 +468,6 @@ class ContractService:
             class_end = datetime.combine(contract.date, contract.end_time)
             if now - class_end > timedelta(hours=48):
                 contract.status = ContractStatus.COMPLETED
-                # v3.0: Calculate fee based on membership
-                fee_rate = await self._get_fee_rate(contract.instructor_id)
-                contract.platform_fee = float(contract.total_amount) * fee_rate
-                contract.settlement_amount = float(contract.total_amount) - contract.platform_fee
 
                 await self._log_event(
                     contract_id=contract.id,
@@ -545,13 +476,6 @@ class ContractService:
                     to_status=ContractStatus.COMPLETED,
                     note="Auto-completed: 48h passed since class end without confirmation",
                 )
-
-                # Release escrow to instructor
-                from app.services.escrow import release_escrow_to_instructor
-                try:
-                    await release_escrow_to_instructor(self.db, str(contract.id))
-                except ValueError:
-                    pass
 
                 auto_completed.append(contract)
 
@@ -597,13 +521,6 @@ class ContractService:
             to_status=ContractStatus.CANCELLED,
             note=f"Contract cancelled: {reason}",
         )
-
-        # Refund escrow to studio (100% for normal cancellation)
-        from app.services.escrow import refund_escrow_to_studio
-        try:
-            await refund_escrow_to_studio(self.db, str(contract_id), reason=reason)
-        except ValueError:
-            pass  # Payment may not exist
 
         await self.db.commit()
         await self.db.refresh(contract)

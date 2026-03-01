@@ -53,21 +53,6 @@ class ContractStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
-class PaymentStatus(str, enum.Enum):
-    PENDING = "pending"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    PARTIALLY_CANCELLED = "partially_cancelled"
-    REFUNDED = "refunded"
-
-
-class PayoutStatus(str, enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
 class ThreadScope(str, enum.Enum):
     JOB = "job"
     CONTRACT = "contract"

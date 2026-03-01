@@ -7,7 +7,6 @@ Service-level unit tests for the ContractService, covering:
 - Event log creation and audit trail correctness
 - Bidirectional signing (set_in_progress)
 - Bidirectional completion confirmation (confirm_completion)
-- Fee rate calculation based on membership tier
 - Auto-completion of pending contracts (24h / 48h rules)
 
 Test naming convention: test_{scenario}_{expected_result}
@@ -15,8 +14,6 @@ Test naming convention: test_{scenario}_{expected_result}
 
 import uuid
 from datetime import date, time, datetime, timedelta
-from decimal import Decimal
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -49,8 +46,6 @@ from app.services.contract import ContractService, VALID_TRANSITIONS
 
 async def _create_users_and_profiles(
     db: AsyncSession,
-    *,
-    instructor_membership: str = MembershipTier.FREE.value,
 ) -> dict:
     """Insert a full chain of test records: User -> Profile -> JobPost -> Application -> Offer.
 
@@ -86,7 +81,7 @@ async def _create_users_and_profiles(
         email=f"instructor_{instructor_user_id}@test.com",
         hashed_password="hashed_test_password",
         role=UserRole.INSTRUCTOR.value,
-        membership_tier=instructor_membership,
+        membership_tier=MembershipTier.FREE.value,
     )
     db.add(instructor_user)
     await db.flush()
@@ -381,9 +376,7 @@ async def test_create_contract_duplicate_offer_fails(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.refund_escrow_to_studio", new_callable=AsyncMock)
 async def test_cancel_contract_from_confirmed(
-    mock_refund: AsyncMock,
     db_session: AsyncSession,
 ):
     """Cancelling a CONFIRMED contract transitions it to CANCELLED."""
@@ -405,9 +398,7 @@ async def test_cancel_contract_from_confirmed(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.refund_escrow_to_studio", new_callable=AsyncMock)
 async def test_cancel_contract_stores_reason(
-    mock_refund: AsyncMock,
     db_session: AsyncSession,
 ):
     """Cancellation reason is persisted on the contract record."""
@@ -429,9 +420,7 @@ async def test_cancel_contract_stores_reason(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.refund_escrow_to_studio", new_callable=AsyncMock)
 async def test_cancel_contract_stores_cancelled_by_user(
-    mock_refund: AsyncMock,
     db_session: AsyncSession,
 ):
     """The user who cancelled is recorded."""
@@ -453,9 +442,7 @@ async def test_cancel_contract_stores_cancelled_by_user(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.refund_escrow_to_studio", new_callable=AsyncMock)
 async def test_cancel_contract_from_in_progress(
-    mock_refund: AsyncMock,
     db_session: AsyncSession,
 ):
     """Cancelling an IN_PROGRESS contract also succeeds (valid transition)."""
@@ -555,9 +542,7 @@ async def test_cancel_contract_without_reason_fails(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.refund_escrow_to_studio", new_callable=AsyncMock)
 async def test_event_log_created_on_cancellation(
-    mock_refund: AsyncMock,
     db_session: AsyncSession,
 ):
     """After cancelling a CONFIRMED contract, an event log with correct from/to is persisted."""
@@ -590,9 +575,7 @@ async def test_event_log_created_on_cancellation(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.refund_escrow_to_studio", new_callable=AsyncMock)
 async def test_event_log_note_contains_reason(
-    mock_refund: AsyncMock,
     db_session: AsyncSession,
 ):
     """The event log note includes the cancellation reason."""
@@ -834,9 +817,7 @@ async def test_sign_contract_event_log_on_both_signatures(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_confirm_completion_studio_first_moves_to_pending(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """When only the studio confirms, the contract moves to PENDING_COMPLETION."""
@@ -865,9 +846,7 @@ async def test_confirm_completion_studio_first_moves_to_pending(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_confirm_completion_both_parties_completes(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """When both parties confirm, the contract transitions to COMPLETED."""
@@ -903,9 +882,7 @@ async def test_confirm_completion_both_parties_completes(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_confirm_completion_instructor_first_then_studio(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """Confirmation order does not matter -- instructor first, then studio, produces COMPLETED."""
@@ -939,9 +916,7 @@ async def test_confirm_completion_instructor_first_then_studio(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_confirm_completion_duplicate_studio_fails(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """A studio cannot confirm completion twice."""
@@ -994,9 +969,7 @@ async def test_confirm_completion_from_confirmed_status_fails(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_confirm_completion_event_logs(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """Full completion flow produces two event logs: IN_PROGRESS->PENDING_COMPLETION, then PENDING_COMPLETION->COMPLETED."""
@@ -1043,133 +1016,12 @@ async def test_confirm_completion_event_logs(
 
 
 # ---------------------------------------------------------------------------
-# 11. Fee rate calculation based on membership tier
+# 11. auto_complete_pending_contracts -- 24h timeout
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
-async def test_completion_fee_rate_free_member_5_percent(
-    mock_release: AsyncMock,
-    db_session: AsyncSession,
-):
-    """Free-tier instructor incurs 5% platform fee upon contract completion."""
-    data = await _create_users_and_profiles(
-        db_session, instructor_membership=MembershipTier.FREE.value
-    )
-    contract = await _create_contract_directly(
-        db_session,
-        data,
-        status=ContractStatus.IN_PROGRESS,
-        studio_signed_at=datetime.utcnow(),
-        instructor_signed_at=datetime.utcnow(),
-    )
-    await db_session.commit()
-
-    service = ContractService(db_session)
-
-    await service.confirm_completion(
-        contract_id=contract.id,
-        actor_user_id=data["studio_user_id"],
-        profile_id=data["studio_profile_id"],
-        role="studio",
-    )
-    result = await service.confirm_completion(
-        contract_id=contract.id,
-        actor_user_id=data["instructor_user_id"],
-        profile_id=data["instructor_profile_id"],
-        role="instructor",
-    )
-
-    expected_fee = float(result.total_amount) * 0.05
-    assert float(result.platform_fee) == pytest.approx(expected_fee, rel=1e-6)
-
-
-@pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
-async def test_completion_fee_rate_premium_member_3_percent(
-    mock_release: AsyncMock,
-    db_session: AsyncSession,
-):
-    """Premium-tier instructor incurs only 3% platform fee upon contract completion."""
-    data = await _create_users_and_profiles(
-        db_session, instructor_membership=MembershipTier.PREMIUM.value
-    )
-    contract = await _create_contract_directly(
-        db_session,
-        data,
-        status=ContractStatus.IN_PROGRESS,
-        studio_signed_at=datetime.utcnow(),
-        instructor_signed_at=datetime.utcnow(),
-    )
-    await db_session.commit()
-
-    service = ContractService(db_session)
-
-    await service.confirm_completion(
-        contract_id=contract.id,
-        actor_user_id=data["studio_user_id"],
-        profile_id=data["studio_profile_id"],
-        role="studio",
-    )
-    result = await service.confirm_completion(
-        contract_id=contract.id,
-        actor_user_id=data["instructor_user_id"],
-        profile_id=data["instructor_profile_id"],
-        role="instructor",
-    )
-
-    expected_fee = float(result.total_amount) * 0.03
-    assert float(result.platform_fee) == pytest.approx(expected_fee, rel=1e-6)
-
-
-@pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
-async def test_completion_settlement_amount(
-    mock_release: AsyncMock,
-    db_session: AsyncSession,
-):
-    """Settlement amount = total_amount - platform_fee."""
-    data = await _create_users_and_profiles(
-        db_session, instructor_membership=MembershipTier.FREE.value
-    )
-    contract = await _create_contract_directly(
-        db_session,
-        data,
-        status=ContractStatus.IN_PROGRESS,
-        studio_signed_at=datetime.utcnow(),
-        instructor_signed_at=datetime.utcnow(),
-    )
-    await db_session.commit()
-
-    service = ContractService(db_session)
-
-    await service.confirm_completion(
-        contract_id=contract.id,
-        actor_user_id=data["studio_user_id"],
-        profile_id=data["studio_profile_id"],
-        role="studio",
-    )
-    result = await service.confirm_completion(
-        contract_id=contract.id,
-        actor_user_id=data["instructor_user_id"],
-        profile_id=data["instructor_profile_id"],
-        role="instructor",
-    )
-
-    expected_settlement = float(result.total_amount) - float(result.platform_fee)
-    assert float(result.settlement_amount) == pytest.approx(expected_settlement, rel=1e-6)
-
-
-# ---------------------------------------------------------------------------
-# 12. auto_complete_pending_contracts -- 24h timeout
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_auto_complete_pending_after_24h_studio_confirmed(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """A PENDING_COMPLETION contract with studio confirmation >24h ago is auto-completed."""
@@ -1192,9 +1044,7 @@ async def test_auto_complete_pending_after_24h_studio_confirmed(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_auto_complete_pending_not_triggered_before_24h(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """A PENDING_COMPLETION contract confirmed <24h ago should NOT be auto-completed."""
@@ -1216,14 +1066,12 @@ async def test_auto_complete_pending_not_triggered_before_24h(
 
 
 # ---------------------------------------------------------------------------
-# 13. auto_complete_pending_contracts -- 48h IN_PROGRESS timeout
+# 12. auto_complete_pending_contracts -- 48h IN_PROGRESS timeout
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_auto_complete_in_progress_after_48h(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """An IN_PROGRESS contract where the class ended >48h ago is auto-completed."""
@@ -1257,9 +1105,7 @@ async def test_auto_complete_in_progress_after_48h(
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_auto_complete_in_progress_not_triggered_before_48h(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """An IN_PROGRESS contract where the class ended <48h ago should NOT be auto-completed."""
@@ -1293,7 +1139,7 @@ async def test_auto_complete_in_progress_not_triggered_before_48h(
 
 
 # ---------------------------------------------------------------------------
-# 14. Authorization checks
+# 13. Authorization checks
 # ---------------------------------------------------------------------------
 
 
@@ -1336,73 +1182,7 @@ async def test_cancel_nonexistent_contract_fails(db_session: AsyncSession):
 
 
 # ---------------------------------------------------------------------------
-# 15. Escrow interaction
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-@patch("app.services.escrow.refund_escrow_to_studio", new_callable=AsyncMock)
-async def test_cancel_calls_refund_escrow(
-    mock_refund: AsyncMock,
-    db_session: AsyncSession,
-):
-    """Cancelling a contract triggers refund_escrow_to_studio."""
-    data = await _create_users_and_profiles(db_session)
-    contract = await _create_contract_directly(db_session, data, status=ContractStatus.CONFIRMED)
-    await db_session.commit()
-
-    service = ContractService(db_session)
-
-    await service.cancel(
-        contract_id=contract.id,
-        actor_user_id=data["studio_user_id"],
-        profile_id=data["studio_profile_id"],
-        role="studio",
-        reason="Changed my mind",
-    )
-
-    mock_refund.assert_called_once_with(
-        db_session, str(contract.id), reason="Changed my mind"
-    )
-
-
-@pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
-async def test_completion_calls_release_escrow(
-    mock_release: AsyncMock,
-    db_session: AsyncSession,
-):
-    """Completing a contract triggers release_escrow_to_instructor."""
-    data = await _create_users_and_profiles(db_session)
-    contract = await _create_contract_directly(
-        db_session,
-        data,
-        status=ContractStatus.IN_PROGRESS,
-        studio_signed_at=datetime.utcnow(),
-        instructor_signed_at=datetime.utcnow(),
-    )
-    await db_session.commit()
-
-    service = ContractService(db_session)
-
-    await service.confirm_completion(
-        contract_id=contract.id,
-        actor_user_id=data["studio_user_id"],
-        profile_id=data["studio_profile_id"],
-        role="studio",
-    )
-    await service.confirm_completion(
-        contract_id=contract.id,
-        actor_user_id=data["instructor_user_id"],
-        profile_id=data["instructor_profile_id"],
-        role="instructor",
-    )
-
-    mock_release.assert_called_once_with(db_session, str(contract.id))
-
-
-# ---------------------------------------------------------------------------
-# 16. get_by_id / get_by_user
+# 14. get_by_id / get_by_user
 # ---------------------------------------------------------------------------
 
 
@@ -1458,14 +1238,12 @@ async def test_get_by_user_as_studio(db_session: AsyncSession):
 
 
 # ---------------------------------------------------------------------------
-# 17. Full lifecycle: CONFIRMED -> IN_PROGRESS -> PENDING_COMPLETION -> COMPLETED
+# 15. Full lifecycle: CONFIRMED -> IN_PROGRESS -> PENDING_COMPLETION -> COMPLETED
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-@patch("app.services.escrow.release_escrow_to_instructor", new_callable=AsyncMock)
 async def test_full_lifecycle_happy_path(
-    mock_release: AsyncMock,
     db_session: AsyncSession,
 ):
     """Exercise the entire happy path: create -> sign (both) -> confirm (both) -> COMPLETED."""
@@ -1539,7 +1317,7 @@ async def test_full_lifecycle_happy_path(
 
 
 # ---------------------------------------------------------------------------
-# 18. Terminal state completeness check
+# 16. Terminal state completeness check
 # ---------------------------------------------------------------------------
 
 

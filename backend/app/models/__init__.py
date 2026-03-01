@@ -7,8 +7,6 @@ from app.models.enums import (
     ApplicationStatus,
     OfferStatus,
     ContractStatus,
-    PaymentStatus,
-    PayoutStatus,
     ThreadScope,
     MessageType,
     ReportType,
@@ -25,9 +23,6 @@ from app.models.job_post import JobPost
 from app.models.application import Application
 from app.models.offer import Offer
 from app.models.contract import Contract, ContractEventLog
-from app.models.payment import Payment, Payout
-from app.models.payment_cancellation import PaymentCancellation
-from app.models.webhook_event import WebhookEvent
 from app.models.chat import ChatThread, ChatMessage
 from app.models.review import Review
 from app.models.report import Report, Block
@@ -49,8 +44,6 @@ __all__ = [
     "ApplicationStatus",
     "OfferStatus",
     "ContractStatus",
-    "PaymentStatus",
-    "PayoutStatus",
     "ThreadScope",
     "MessageType",
     "ReportType",
@@ -68,10 +61,6 @@ __all__ = [
     "Offer",
     "Contract",
     "ContractEventLog",
-    "Payment",
-    "Payout",
-    "PaymentCancellation",
-    "WebhookEvent",
     "ChatThread",
     "ChatMessage",
     "Review",

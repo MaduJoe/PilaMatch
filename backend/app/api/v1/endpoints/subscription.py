@@ -197,9 +197,8 @@ async def handle_subscription_webhook(
     body = await request.body()
     signature = request.headers.get("X-Toss-Signature", "")
 
-    from app.services.payment import PaymentService
-    payment_service = PaymentService(db)
-    if not payment_service.verify_webhook_signature(body, signature):
+    from app.utils.webhook_signature import verify_toss_webhook_signature
+    if not verify_toss_webhook_signature(body, signature):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "INVALID_SIGNATURE", "message": "Webhook signature verification failed"},

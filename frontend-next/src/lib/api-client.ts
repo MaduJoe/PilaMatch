@@ -19,12 +19,6 @@ import type {
   ContractResponse,
   ContractListResponse,
   ContractCancelRequest,
-  PaymentInitResponse,
-  PaymentConfirmRequest,
-  PaymentResponse,
-  PaymentCancelRequest,
-  PaymentCancelResponse,
-  PaymentDetailResponse,
   ReviewCreate,
   ReviewResponse,
   ReviewListResponse,
@@ -278,22 +272,6 @@ export const contracts = {
     post<ContractResponse>(`/contracts/${id}/report-no-show`, { reported_user_id: reportedUserId }),
 };
 
-// --- Payments --------------------------------------------
-
-export const payments = {
-  initialize: (contractId: string) =>
-    post<PaymentInitResponse>(`/contracts/${contractId}/payments`),
-
-  confirm: (data: PaymentConfirmRequest) =>
-    post<PaymentResponse>('/payments/confirm', data),
-
-  getDetail: (paymentId: string) =>
-    get<PaymentDetailResponse>(`/payments/${paymentId}`),
-
-  cancel: (paymentId: string, data: PaymentCancelRequest) =>
-    post<PaymentCancelResponse>(`/payments/${paymentId}/cancel`, data),
-};
-
 // --- Reviews ---------------------------------------------
 
 export const reviews = {
@@ -453,7 +431,6 @@ export const api = {
   applications,
   offers,
   contracts,
-  payments,
   reviews,
   subscriptions,
   trustScore,

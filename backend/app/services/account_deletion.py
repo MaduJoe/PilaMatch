@@ -8,8 +8,8 @@ from sqlalchemy import select, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
-    User, Contract, Payment, Subscription,
-    ContractStatus, PaymentStatus,
+    User, Contract, Subscription,
+    ContractStatus,
     SubscriptionStatus,
 )
 from app.core.security import verify_password
@@ -52,7 +52,6 @@ class AccountDeletionService:
 
         # Cascade operations
         await self._cascade_cancel_contracts(user_id)
-        await self._cascade_refund_escrows(user_id)
         await self._cascade_cancel_subscriptions(user_id)
 
         await self.db.commit()
@@ -190,35 +189,6 @@ class AccountDeletionService:
             contract.cancellation_reason = "Account deletion"
 
         logger.info(f"Cancelled {len(contracts)} contracts for user {user_id}")
-
-    async def _cascade_refund_escrows(self, user_id: str) -> None:
-        """Refund all held escrow payments for the user."""
-        from app.models import InstructorProfile, StudioProfile
-
-        studio_result = await self.db.execute(
-            select(StudioProfile.id).where(StudioProfile.user_id == user_id)
-        )
-        studio_profile_id = studio_result.scalar_one_or_none()
-
-        if not studio_profile_id:
-            return
-
-        # Find contracts with held escrow where this user is the studio
-        result = await self.db.execute(
-            select(Payment).join(Contract).where(
-                and_(
-                    Contract.studio_id == studio_profile_id,
-                    Payment.escrow_status == "HELD",
-                )
-            )
-        )
-        payments = result.scalars().all()
-
-        for payment in payments:
-            payment.escrow_status = "REFUNDED"
-            payment.status = PaymentStatus.REFUNDED.value
-
-        logger.info(f"Refunded {len(payments)} escrow payments for user {user_id}")
 
     async def _cascade_cancel_subscriptions(self, user_id: str) -> None:
         """Cancel active subscriptions for the user."""

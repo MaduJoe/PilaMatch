@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **PilaMatch** - Trust-based Pilates/Yoga instructor-studio matching platform MVP built with FastAPI + Next.js.
 
 ### Core Values
-- **신뢰 (Trust)**: Safety first - verified users, escrow payments, penalty system
+- **신뢰 (Trust)**: Safety first - verified users, Trust Score, penalty system
 - **Simple**: Focus on core features, avoid feature creep
 - **Stable**: Stability > new features
 
@@ -15,9 +15,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ✅ **MVP Complete** with all trust features implemented:
 - Authentication with JWT
 - Phone/business verification system
-- 50k KRW deposit requirement
-- Escrow payment system
-- No-show penalty system (30k KRW penalty, 3-strike suspension)
+- Direct settlement model (수업료 직접 정산 - 앱 외부에서 강사/스튜디오 간 직접 정산)
+- No-show penalty system (Trust Score 기반, 3-strike suspension)
 - 4-factor matching algorithm
 - Contract state machine with event logging
 - Premium membership system (월 9,900원)
@@ -37,7 +36,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **devops** | Docker, docker-compose, CI/CD, 배포 스크립트, 인프라 설정 |
 | **doc-writer** | README, API 문서, `docs/` 하위 파일, 세션 요약 문서 작성 |
 | **frontend-ui** | Next.js UI, `frontend-next/` 하위 코드, 화면 레이아웃, UX 개선 |
-| **payment-trust** | 결제(Toss), 에스크로, 보증금, 패널티, `services/escrow.py`, `services/report.py`, `services/deposit.py` |
 | **security-reviewer** | 인증/인가, JWT, CORS, 입력 검증, 보안 취약점 리뷰, `core/security.py`, `core/deps.py` |
 | **test-qa** | 테스트 작성/수정, 커버리지 분석, `tests/` 하위 작업, pytest 실행 |
 
@@ -101,8 +99,8 @@ alembic revision --autogenerate -m "description"  # Create migration
 
 ### System Flow
 ```
-User Registration → Verification (SMS/Business) → Deposit → Service Usage
-Job Posting → Matching Score → Application → Offer → Contract → Payment → Completion/Review
+User Registration → Verification (SMS/Business) → Service Usage
+Job Posting → Matching Score → Application → Offer → Contract → Completion/Review (수업료는 앱 외부에서 직접 정산)
 ```
 
 ### Tech Stack
@@ -166,9 +164,9 @@ VALID_TRANSITIONS = {
 
 ### 4. Trust Features Implementation
 - **Verification**: `services/verification.py` - Phone OTP (dev mode returns code)
-- **Deposit**: `services/deposit.py` - 50k KRW requirement
-- **Escrow**: `services/escrow.py` - Payment held until completion
-- **Penalties**: `services/penalty.py` - No-show tracking & suspension
+- **Trust Score**: `services/trust_score.py` - 신뢰도 점수 산정 (인증, 활동, 리뷰 기반)
+- **Penalties**: `services/penalty.py` - No-show tracking & Trust Score 차감, 3회 시 계정 정지
+- **Direct Settlement**: 수업료는 강사/스튜디오 간 앱 외부에서 직접 정산 (플랫폼 미개입)
 
 ---
 
@@ -228,7 +226,7 @@ async def create_contract(
 | `app/services/` | 단위 테스트 | `uv run pytest tests/test_{service}.py -v` |
 | `app/api/` | API 통합 테스트 | `uv run pytest tests/test_{endpoint}.py -v` |
 | `app/models/` | 스키마 + 전체 | `uv run pytest --cov=app` |
-| `services/escrow.py`, `penalty.py`, `deposit.py` | 결제/신뢰 (필수) | `uv run pytest tests/test_payment*.py tests/test_penalty*.py -v` |
+| `services/penalty.py`, `services/trust_score.py` | 신뢰/패널티 (필수) | `uv run pytest tests/test_penalty*.py tests/test_trust*.py -v` |
 | `core/security.py`, `core/deps.py` | 보안 테스트 | `uv run pytest tests/test_auth.py -v` |
 | `frontend-next/` | 수동 브라우저 검증 | DevTools 모바일 뷰 확인 |
 
@@ -237,10 +235,9 @@ async def create_contract(
 ```
 P0 (반드시 테스트):
   - 회원가입/로그인 인증 플로우
-  - 보증금 입금/차감
-  - 에스크로 결제 → 완료 → 정산
-  - 노쇼 패널티 → 3회 정지
+  - 노쇼 패널티 → Trust Score 차감 → 3회 정지
   - 계약 상태 전이 (state machine)
+  - Trust Score 산정 및 갱신
 
 P1 (기능 완성 시 테스트):
   - 매칭 알고리즘 점수 계산
@@ -272,9 +269,9 @@ uv run pytest tests/e2e/ -v
 ```
 
 E2E 대상 (크리티컬 플로우만):
-1. 회원가입 → 인증 → 보증금 입금 → 서비스 이용 가능
-2. 공고 작성 → 매칭 → 지원 → 오퍼 → 계약 → 결제 → 완료
-3. 노쇼 신고 → 패널티 → 보증금 차감 → 3회 시 계정 정지
+1. 회원가입 → 인증 → 서비스 이용 가능
+2. 공고 작성 → 매칭 → 지원 → 오퍼 → 계약 → 완료
+3. 노쇼 신고 → 패널티 → Trust Score 차감 → 3회 시 계정 정지
 4. 프리미엄 구독 → 혜택 적용 확인
 
 ---
@@ -307,11 +304,11 @@ test: Test changes
 
 ### 4. Testing Requirements
 - 모든 기능 구현 후 반드시 관련 테스트 작성 및 통과 확인
-- 결제/신뢰 관련 변경 시 `/test-payment` 필수 실행
+- 신뢰/패널티 관련 변경 시 관련 테스트 필수 실행
 - PR 생성 전 `/test-and-fix` 필수 실행
 - 커버리지: 핵심 서비스 80%+, 전체 60%+
 - 필수 케이스: Happy path + 엣지케이스 + 에러 케이스 (최소 3개)
-- Mock 대상: SMS API, 토스페이먼츠 API, 국세청 API
+- Mock 대상: SMS API, 토스페이먼츠 API (구독 결제용), 국세청 API
 - 테스트 통과 전 커밋 금지
 
 ---
@@ -331,9 +328,6 @@ test: Test changes
 3. Review migration file
 4. Apply: `alembic upgrade head`
 
-### Handle Payment Webhook
-See `backend/app/api/v1/endpoints/payments.py:handle_webhook()` for idempotent processing pattern.
-
 ### Add Verification Check
 Use `backend/app/services/verification.py` methods and check `user.phone_verified` or `user.business_verified`.
 
@@ -350,8 +344,8 @@ SECRET_KEY=your-secret-key-change-in-production
 
 ### External Services (Production)
 ```bash
-TOSS_CLIENT_KEY=live_ck_...
-TOSS_SECRET_KEY=live_sk_...
+TOSS_CLIENT_KEY=live_ck_...   # 프리미엄 구독 결제 전용
+TOSS_SECRET_KEY=live_sk_...   # 프리미엄 구독 결제 전용
 SMS_API_KEY=...  # NHN Cloud
 BUSINESS_API_KEY=...  # 국세청
 ```
@@ -363,12 +357,7 @@ BUSINESS_API_KEY=...  # 국세청
 ### 프리미엄 멤버십 정의 (월 9,900원)
 
 #### 공통 혜택 (강사 & 스튜디오):
-1. **💰 플랫폼 수수료 40% 할인**
-   - 무료 회원: 계약 완료 시 5% 수수료
-   - 프리미엄 회원: 계약 완료 시 3% 수수료 (계약당 2% 절약)
-   - 구현: `backend/app/services/contract.py:_get_fee_rate()`
-
-2. **🏆 프리미엄 배지 + Trust Score +10점**
+1. **🏆 프리미엄 배지 + Trust Score +10점**
    - 프로필에 프리미엄 배지 표시 (has_premium_badge 필드)
    - Trust Score 10점 추가 (5점에서 상향)
    - 신뢰도 레벨 상승 효과
@@ -429,9 +418,10 @@ BUSINESS_API_KEY=...  # 국세청
 ## Debugging Tips
 
 ### Check Contract State
-```python
-# View contract with all transitions
-SELECT c.*, cel.* FROM contracts c
+```sql
+-- View contract with all transitions
+SELECT c.id, c.status, cel.event_type, cel.created_at
+FROM contracts c
 JOIN contract_event_logs cel ON c.id = cel.contract_id
 WHERE c.id = 'uuid'
 ORDER BY cel.created_at;
@@ -447,7 +437,8 @@ print(score)  # {"total": 85, "breakdown": {...}}
 ### Simulate No-Show
 ```python
 POST /api/v1/contracts/{id}/report-no-show
-# Automatically: penalty applied, deposit deducted, contract cancelled
+# Automatically: penalty applied, Trust Score deducted, contract cancelled
+# 3회 누적 시 계정 정지
 ```
 
 ---
@@ -458,7 +449,9 @@ POST /api/v1/contracts/{id}/report-no-show
 |------|---------|
 | `backend/app/services/contract.py` | State machine implementation |
 | `backend/app/services/matching.py` | Matching algorithm |
-| `backend/app/services/penalty.py` | No-show penalty logic |
+| `backend/app/services/penalty.py` | No-show penalty logic (Trust Score 차감) |
+| `backend/app/services/trust_score.py` | Trust Score 산정 |
+| `backend/app/services/subscription.py` | 프리미엄 구독 관리 |
 | `backend/app/models/base.py` | GUID type, mixins |
 | `backend/app/core/deps.py` | Auth dependencies |
 | `backend/app/core/security.py` | JWT, password hashing |
@@ -472,7 +465,7 @@ POST /api/v1/contracts/{id}/report-no-show
 - [ ] Change SECRET_KEY
 - [ ] Set DEBUG=false
 - [ ] Configure real SMS service
-- [ ] Configure real payment keys
+- [ ] Configure real payment keys (프리미엄 구독 결제용)
 - [ ] Set up monitoring (Sentry)
 - [ ] Configure backup strategy
 - [ ] Review CORS settings
@@ -480,4 +473,4 @@ POST /api/v1/contracts/{id}/report-no-show
 
 ---
 
-*Last updated: 2026-02-18*
+*Last updated: 2026-03-01*

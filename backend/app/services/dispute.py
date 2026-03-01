@@ -12,8 +12,6 @@ from app.models import (
     Contract, ContractStatus, User,
     ChatMessage, ChatThread
 )
-from app.services.escrow import refund_escrow_to_studio
-
 # v3.0: No deposit system - penalties handled via Trust Score
 NO_SHOW_PENALTY_AMOUNT = Decimal("0")
 
@@ -331,13 +329,7 @@ class DisputeService:
             if user.no_show_count >= 3:
                 user.is_suspended = True
 
-        # Refund studio if it's a no-show case
-        contract = await self.db.execute(
-            select(Contract).where(Contract.id == dispute.contract_id)
-        )
-        contract = contract.scalar_one_or_none()
-        if contract:
-            await refund_escrow_to_studio(self.db, str(contract.id), reason="No-show by instructor")
+        # Note: escrow refund removed — settlement handled outside the platform
 
     def _get_time_remaining(self, deadline: datetime) -> Optional[str]:
         """Get human-readable time remaining until deadline."""

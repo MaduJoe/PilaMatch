@@ -12,7 +12,6 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SigningSection } from './signing-section';
 import { InProgressSection } from './in-progress-section';
-import { ContractPaymentSection } from './contract-payment-section';
 import { CompletionConfirmSection } from './completion-confirm-section';
 
 // ---------------------------------------------------------------------------
@@ -136,12 +135,9 @@ export function ContractCard({ contract, onAction }: ContractCardProps) {
               userId={userId}
               onAction={onAction}
             />
-            {userRole === 'studio' && (
-              <ContractPaymentSection
-                contract={contract}
-                onAction={onAction}
-              />
-            )}
+            <p className="text-center text-xs text-muted-foreground">
+              수업료는 강사와 스튜디오가 직접 정산해주세요
+            </p>
           </div>
         )}
 

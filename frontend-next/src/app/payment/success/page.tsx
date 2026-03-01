@@ -26,17 +26,9 @@ function PaymentSuccessContent() {
         throw new Error('결제 정보가 누락되었습니다');
       }
 
-      // Determine payment type from orderId prefix
-      if (orderId.startsWith('sub_') || orderId.startsWith('premium_')) {
-        return api.subscriptions.confirmPayment({
-          payment_key: paymentKey,
-          order_id: orderId,
-        });
-      }
-      return api.payments.confirm({
+      return api.subscriptions.confirmPayment({
         payment_key: paymentKey,
         order_id: orderId,
-        amount: Number(amount),
       });
     },
     onSuccess: () => {
