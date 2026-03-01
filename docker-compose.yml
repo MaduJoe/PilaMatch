@@ -53,7 +53,9 @@ services:
       - BANK_ACCOUNT_NUMBER=${BANK_ACCOUNT_NUMBER:-}
       - BANK_ACCOUNT_HOLDER=${BANK_ACCOUNT_HOLDER:-}
       - BANK_NAME=${BANK_NAME:-}
-      - APP_ENV=${APP_ENV:-production}
+      - APP_ENV=${APP_ENV:-development}
+    volumes:
+      - ./backend:/app  # hot reload
     depends_on:
       db:
         condition: service_healthy

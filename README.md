@@ -25,7 +25,7 @@
 
 | 축 | 설명 | 구현 |
 |----|------|------|
-| **Trust-Tech** | 실명인증 기반 신뢰 -- 행동 이력이 곧 신뢰 | SMS 본인인증, 사업자인증, Trust Score (0-100), 노쇼 3-strike 정지 |
+| **Trust-Tech** | 실명인증 기반 신뢰 -- 행동 이력이 곧 등급 | SMS 본인인증, 사업자인증, Tier 등급제 (T1/T2/T3, C1/C2), 노쇼 3-strike 정지 |
 | **Hyper-Local** | 거리 기반 매칭 -- GPS Haversine 계산 | 5단계 거리 점수 (2km 이내 100점, 30km+ 10점), 이동 시간 추정 |
 | **Urgent Matching** | 긴급 대타 특화 -- 공고 작성 3분, 지원 원탭 | 수락 즉시 연락처 공개, 직접 전화/카톡으로 확정 |
 
@@ -44,15 +44,16 @@
   |  커버레터 (선택)
   v
 센터: 지원자 프로필 확인
-  |  이력, 리뷰, 거리, Trust Score, 노쇼 이력
+  |  이력, 리뷰, 거리, Tier 등급, 노쇼 이력
   v
 센터: 수락 (POST /applications/{id}/accept)
   |  즉시 양측 연락처 공개
   v
 직접 전화/카톡으로 최종 확정
   v
-수업 완료 후 상호 체크리스트 리뷰
-  |  Trust Score에 반영
+수업 완료 → 센터 지급 표시 → 강사 수령 확인
+  v
+상호 리뷰 → Tier 등급에 반영
 ```
 
 ```mermaid
@@ -61,28 +62,39 @@ flowchart LR
     B --> C[센터 수락]
     C --> D[연락처 공개]
     D --> E[직접 연락 → 수업]
-    E --> F[상호 리뷰]
-    F --> G[Trust Score 갱신]
+    E --> F[지급 확인]
+    F --> G[상호 리뷰 → Tier 갱신]
 ```
 
 ---
 
-## Trust-Tech: 행동 이력 = 신뢰
+## Trust-Tech: Tier 등급제
 
-PilaMatch는 "돈"이 아니라 "행동"으로 신뢰를 증명한다.
+PilaMatch는 "점수"가 아니라 "행동 조건"으로 등급을 판정한다.
 
-| 요소 | 가중치 | 설명 |
-|------|--------|------|
-| 본인인증 (SMS + 사업자) | 20점 | 실명 확인 |
-| 프로필 완성도 | 15점 | 자격증, 경력, 카테고리 입력 |
-| 완료된 대타 이력 | 25점 | 성공적으로 수업을 마친 횟수 |
-| 평균 리뷰 평점 | 15점 | 상호 체크리스트 기반 평가 |
-| 자격증/인증 | 15점 | 전문 자격 보유 여부 |
-| 활동 빈도 | 10점 | 지원/공고 활동 |
-| 가입 기간 | 5점 | 꾸준한 참여 |
-| 노쇼 감점 | -15점/회 | 3회 누적 시 계정 정지 |
+### 강사 등급 (Teacher Tier)
 
-**레벨 체계**: 새싹 (0-39) → 인증 (40-59) → 전문 (60-79) → 마스터 (80-100)
+| 등급 | 라벨 | 조건 | 일일 지원 | 매칭 부스트 |
+|------|------|------|----------|------------|
+| **T1** | Basic | 본인인증 + 프로필 기본정보 | 3건 | 1.0x |
+| **T2** | Verified | T1 + 신분증 인증 + 자격증 1개+ + 최근 30일 완료 2건+ + 노쇼 0 | 20건 | 1.0x |
+| **T3** | Pro | T2 + 최근 30일 완료 5건+ + 노쇼 0 + 당일취소 0 + 지각 1회 이하 | 무제한 | 1.3x |
+
+### 센터 등급 (Center Tier)
+
+| 등급 | 라벨 | 조건 | 활성 공고 | 매칭 부스트 |
+|------|------|------|----------|------------|
+| **C1** | Basic | 본인인증 + 업체 기본정보 | 2건 | 1.0x |
+| **C2** | Verified | C1 + 사업자인증 + 위치증빙 + 최근 30일 완료 2건+ + 확정후취소 1회 이하 | 10건 | 1.15x |
+
+### 패널티 제재
+
+| 패널티 | 제재 | 등급 영향 |
+|--------|------|----------|
+| **노쇼** | 14일 정지, 3회 누적 시 영구 정지 | T1 강등 |
+| **당일 취소** | 7일 당일급구 제한 | T3 유지 불가 |
+| **지각** | 기록 (월 2회 이상 시 T3 유지 불가) | Pro 조건 영향 |
+| **확정 후 취소** (센터) | 기록 | C2 유지 불가 |
 
 ---
 
@@ -127,10 +139,9 @@ docker-compose down -v && docker-compose up -d
 ```bash
 # Backend
 cd backend
-uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt
+uv sync
 alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000
 
 # Frontend (new terminal)
 cd frontend-next
@@ -166,11 +177,26 @@ pnpm install && pnpm dev
 | GET | `/profiles/me` | 내 프로필 조회 |
 | PUT | `/profiles/me` | 프로필 수정 |
 
-### Trust Score
+### Tier (등급)
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| GET | `/trust-score` | Trust Score 조회 |
-| GET | `/trust-score/display` | 표시용 Trust Score (레벨, breakdown 포함) |
+| GET | `/tier/me` | 내 등급 조회 (뱃지, 다음 등급 요건 포함) |
+| GET | `/tier/user/{user_id}` | 타인 등급 공개 조회 |
+| GET | `/tier/requirements` | 전체 등급 체계 설명 |
+
+### Penalties (패널티)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | `/penalties/report` | 패널티 신고 (노쇼/당일취소/지각/확정후취소) |
+| GET | `/penalties/me` | 내 패널티 이력 |
+
+### Payment Confirmation (지급 확인)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | `/applications/{id}/mark-paid` | 지급 완료 표시 (센터) |
+| POST | `/payment-confirmations/{id}/confirm` | 수령 확인 (강사) |
+| POST | `/payment-confirmations/{id}/dispute` | 미지급 신고 (강사) |
+| GET | `/payment-confirmations/me` | 내 지급 이력 |
 
 ### Instructors
 | Method | Endpoint | 설명 |
@@ -277,13 +303,13 @@ pie title 매칭 점수 가중치 (GPS 활성)
 
 지역 30% / 경력 25% / 자격증 25% / 시급 20%
 
-> PMF 피벗에서 프리미엄 부스트(x1.3)는 제거되었다. 매칭 점수는 순수 실력/거리 기반으로만 계산된다.
+> T3 Pro 강사는 매칭 점수 1.3x 부스트, C2 Verified 센터 공고는 1.15x 부스트가 적용된다.
 
 ---
 
 ## Testing
 
-총 **237개** 테스트 -- 긴급 매칭, Trust Score, 이벤트 로그, 마스킹 등.
+총 **327개** 테스트 -- Tier 등급, 패널티, 지급 확인, 긴급 매칭, 이벤트 로그 등.
 
 ```bash
 cd backend
@@ -294,14 +320,14 @@ uv run pytest
 # 커버리지 포함
 uv run pytest --cov=app --cov-report=html
 
-# 긴급 매칭 관련 테스트
+# Tier 등급 테스트
+uv run pytest tests/test_tier_evaluation.py tests/test_tier_limits.py -v
+
+# 패널티/지급 확인 테스트
+uv run pytest tests/test_penalty_service.py tests/test_payment_confirmation.py -v
+
+# 긴급 매칭 테스트
 uv run pytest tests/test_urgent_matching.py -v
-
-# Trust Score 테스트
-uv run pytest tests/test_trust_score.py -v
-
-# 특정 테스트 파일
-uv run pytest tests/test_auth.py -v
 ```
 
 ---
@@ -354,7 +380,7 @@ PMF 검증을 위해 추적하는 핵심 지표.
 | **TTFA** (Time to First Accept) | 공고 작성 → 첫 수락까지 소요 시간 | < 30분 |
 | **Fill Rate** | 공고 대비 수락 완료 비율 | > 60% |
 | **Repeat Rate** | 재사용률 (2주 내 재공고/재지원) | > 40% |
-| **Trust Score Engagement** | 본인인증 완료율 | > 70% |
+| **Tier Upgrade Rate** | T2+ 등급 달성 비율 | > 30% |
 
 ---
 
@@ -378,12 +404,12 @@ PMF 검증을 위해 추적하는 핵심 지표.
 
 | 기능 | 라우터 | 상태 |
 |------|--------|------|
+| Trust Score API (점수제) | `/trust-score` | 비활성 (Tier 등급제로 대체) |
 | 프리미엄 멤버십 (월 9,900원) | `/subscriptions` | 비활성 |
 | Offer 플로우 | `/offers` | 비활성 (accept로 대체) |
 | Contract 상태 머신 | `/contracts` | 비활성 |
 | 실시간 채팅 (WebSocket) | `/threads` | 비활성 |
 | 지원서 템플릿 (Premium) | `/templates` | 비활성 |
-| 일일 사용량 제한 | `/usage` | 비활성 |
 
 ---
 
@@ -393,4 +419,4 @@ Private - All rights reserved
 
 ---
 
-*Last updated: 2026-03-01 (PMF Pivot: Urgent Substitute Matching)*
+*Last updated: 2026-03-01 (PMF Pivot + Trust Tier System v4.0)*
