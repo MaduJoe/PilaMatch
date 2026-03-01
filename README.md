@@ -37,9 +37,7 @@
 MVP Complete - 전체 신뢰 기능 및 프리미엄 멤버십 구현 완료:
 - JWT 기반 인증 (Access + Refresh Token)
 - 본인인증 (SMS OTP) + 사업자인증
-- 보증금 5만원 예치 시스템
-- 에스크로 결제 시스템 (TossPayments 연동)
-- 노쇼 패널티 시스템 (3만원 차감, 3회 정지)
+- 노쇼 패널티 시스템 (Trust Score 감점, 3회 정지)
 - 4-Factor 매칭 알고리즘
 - 계약 상태 머신 + 이벤트 로깅
 - 프리미엄 멤버십 (월 9,900원)
@@ -52,11 +50,9 @@ MVP Complete - 전체 신뢰 기능 및 프리미엄 멤버십 구현 완료:
 |------|------|----------|
 | **본인인증** | 실제 사용자 확인 | SMS OTP 6자리 (Solapi + Redis) |
 | **사업자인증** | 스튜디오 실체 확인 | 국세청 API + 체크섬 검증 |
-| **보증금** | 무책임 행동 방지 | 5만원 예치, 노쇼 시 3만원 차감 |
-| **에스크로** | 결제 안전 보장 | HELD -> RELEASED / REFUNDED |
-| **노쇼 패널티** | 반복 위반자 제재 | 3회 누적 시 계정 정지 |
+| **노쇼 패널티** | 반복 위반자 제재 | Trust Score 감점, 3회 누적 시 계정 정지 |
 | **Trust Score** | 종합 신뢰도 지표 | 0-100점 (인증, 활동, 리뷰 기반) |
-| **프리미엄 멤버십** | 추가 혜택 제공 | 월 9,900원, 수수료 할인 등 |
+| **프리미엄 멤버십** | 추가 혜택 제공 | 월 9,900원, 매칭 부스트 등 |
 
 ---
 
@@ -82,14 +78,14 @@ MVP Complete - 전체 신뢰 기능 및 프리미엄 멤버십 구현 완료:
 |  +----------------------------------------------------------+     |
 |  |                    FastAPI Backend                         |     |
 |  |  +----------+ +----------+ +----------+ +----------+      |     |
-|  |  |   Auth   | |   Jobs   | | Contract | | Payment  |      |     |
+|  |  |   Auth   | |   Jobs   | | Contract | | Review   |      |     |
 |  |  | Service  | | Service  | | Service  | | Service  |      |     |
 |  |  +----+-----+ +----+-----+ +----+-----+ +----+-----+      |     |
 |  |       |             |           |            |              |     |
-|  |  +----+-----+ +----+-----+ +---+------+ +---+------+      |     |
-|  |  | Matching | |   Chat   | | Penalty  | | Escrow   |      |     |
-|  |  | Service  | | Service  | | Service  | | Service  |      |     |
-|  |  +----------+ +----------+ +----------+ +----------+      |     |
+|  |  +----+-----+ +----+-----+ +---+------+ +---+-------+     |     |
+|  |  | Matching | |   Chat   | | Penalty  | | TrustScore|     |     |
+|  |  | Service  | | Service  | | Service  | | Service   |     |     |
+|  |  +----------+ +----------+ +----------+ +-----------+     |     |
 |  |       |             |           |            |              |     |
 |  |  +----+-------------+-----------+------------+----+        |     |
 |  |  |            SQLAlchemy ORM (Async)              |        |     |
@@ -113,20 +109,19 @@ MVP Complete - 전체 신뢰 기능 및 프리미엄 멤버십 구현 완료:
 +----------------------------------------------------------------------+
 |  +--------------+     +--------------+     +--------------+           |
 |  | TossPayments |     | Solapi (SMS) |     |  국세청 API   |           |
-|  |  (결제/취소)  |     |  (OTP 발송)   |     | (사업자 검증) |           |
+|  | (구독 결제)  |     |  (OTP 발송)   |     | (사업자 검증) |           |
 |  +--------------+     +--------------+     +--------------+           |
 +----------------------------------------------------------------------+
 ```
 
-### Backend 프로젝트 구조 (21 Endpoints, 29 Services)
+### Backend 프로젝트 구조 (19 Endpoints, 26 Services)
 
 ```
 backend/app/
 ├── api/v1/
-│   ├── endpoints/              # 21 REST API endpoints
+│   ├── endpoints/              # 19 REST API endpoints
 │   │   ├── auth.py             # 인증 (signup, login, refresh, password reset)
 │   │   ├── verification.py     # 본인/사업자 인증
-│   │   ├── deposit.py          # 보증금 관리
 │   │   ├── subscription.py     # 프리미엄 구독
 │   │   ├── profiles.py         # 사용자 프로필
 │   │   ├── trust.py            # Trust Score
@@ -136,7 +131,6 @@ backend/app/
 │   │   ├── applications.py     # 지원서
 │   │   ├── offers.py           # 오퍼
 │   │   ├── contracts.py        # 계약 + 노쇼 신고
-│   │   ├── payments.py         # 결제 + 웹훅
 │   │   ├── chat.py             # 실시간 채팅 (WebSocket)
 │   │   ├── reviews.py          # 리뷰
 │   │   ├── reports.py          # 신고/차단
@@ -150,17 +144,14 @@ backend/app/
 │   ├── security.py             # JWT (python-jose), bcrypt
 │   ├── deps.py                 # Auth dependencies, role check
 │   └── logging.py              # structlog 설정
-├── services/                   # 29 business logic services
+├── services/                   # 26 business logic services
 │   ├── auth.py                 # 인증 서비스
 │   ├── verification.py         # 인증 (Redis OTP)
 │   ├── sms.py                  # SMS 전송 (Solapi/Mock)
 │   ├── nts_client.py           # 국세청 API 클라이언트
 │   ├── matching.py             # 매칭 점수 계산
-│   ├── deposit.py              # 보증금 서비스
-│   ├── escrow.py               # 에스크로 서비스
 │   ├── penalty.py              # 패널티 서비스
 │   ├── contract.py             # 계약 상태 머신
-│   ├── payment.py              # 결제 서비스 (Toss)
 │   ├── subscription.py         # 프리미엄 구독
 │   ├── trust_score.py          # Trust Score 계산
 │   ├── daily_usage.py          # 일일 사용량 추적
@@ -237,9 +228,9 @@ frontend-next/
 │   │   ├── profile/            # 8 profile components
 │   │   ├── jobs/               # 5 job components (Kakao Map)
 │   │   ├── offers/             # 6 offer components
-│   │   ├── contracts/          # 6 contract components
+│   │   ├── contracts/          # 4 contract components
 │   │   ├── reviews/            # 6 review components
-│   │   ├── payment/            # 4 payment components (Toss widget)
+│   │   ├── payment/            # 2 payment components (구독 전용)
 │   │   └── notification/       # 1 notification component
 │   ├── lib/
 │   │   ├── api-client.ts       # Typed API client
@@ -247,7 +238,7 @@ frontend-next/
 │   │   ├── validators.ts       # Zod schemas
 │   │   └── constants.ts        # App constants
 │   ├── hooks/                  # Custom React hooks
-│   ├── stores/                 # Zustand stores (auth, payment)
+│   ├── stores/                 # Zustand stores (auth)
 │   ├── providers/              # Context providers (auth, query, toast)
 │   └── middleware.ts           # Auth middleware (httpOnly cookie)
 ├── __tests__/                  # 7 Vitest test files
@@ -288,7 +279,7 @@ frontend-next/
 | **Zustand** | 5.0.11 | 상태 관리 | 경량, 보일러플레이트 최소화 |
 | **TanStack Query** | 5.90+ | API 캐싱 | 서버 상태 관리, 자동 갱신 |
 | **react-hook-form + Zod** | - | 폼 검증 | 성능 최적화, 스키마 기반 검증 |
-| **@tosspayments/payment-sdk** | 2.3.0 | 결제 위젯 | TossPayments 공식 SDK |
+| **@tosspayments/payment-sdk** | 2.3.0 | 구독 결제 | TossPayments 공식 SDK |
 
 ### Database
 
@@ -311,7 +302,7 @@ frontend-next/
 
 | 서비스 | 용도 | 상태 |
 |--------|------|------|
-| **TossPayments** | 결제/취소/부분취소/웹훅 v2 | 연동 완료 |
+| **TossPayments** | 프리미엄 구독 결제 | 연동 완료 |
 | **Solapi (CoolSMS v4)** | SMS OTP 발송 | 연동 완료 |
 | **국세청 API** | 사업자등록번호 검증 | 연동 완료 (체크섬 + API) |
 | **Redis** | OTP 캐싱 | 구현 완료 (in-memory fallback 포함) |
@@ -325,8 +316,8 @@ frontend-next/
 
 ```
 +----------+     +----------+     +----------+     +----------+
-|  회원가입  |---->| 프로필   |---->| 본인인증  |---->| 보증금   |
-|          |     |  생성    |     | (SMS)   |     |  충전    |
+|  회원가입  |---->| 프로필   |---->| 본인인증  |---->| 서비스   |
+|          |     |  생성    |     | (SMS)   |     |  이용    |
 +----------+     +----------+     +----------+     +----------+
      |                                                   |
      |              +------------------+                 |
@@ -362,10 +353,6 @@ POST /api/v1/verification/phone/request
 # 3. OTP 검증
 POST /api/v1/verification/phone/verify
 {"phone": "01012345678", "otp": "123456"}
-
-# 4. 보증금 충전
-POST /api/v1/deposit/add
-{"amount": 50000}
 ```
 
 ### 2. 구인/구직 매칭 플로우
@@ -449,100 +436,51 @@ def calculate_matching_score(instructor, job, is_premium=False):
                     +--------+--------+
                              |
               +--------------+--------------+
-              |              |              |
-              v              |              v
-     +-------------+         |     +-------------+
-     |  CANCELLED  |         |     |  결제 완료   |
-     |   (취소)    |         |     | (에스크로)  |
-     +-------------+         |     +------+------+
-              ^              |            |
-              |              v            v
-              |     +-------------------------+
-              |     |      IN_PROGRESS        |
-              +-----|       (진행중)          |
-              |     +-----------+-------------+
-              |                 |
-              |     +-----------+-----------+
-              |     |           |           |
-              v     v           |           v
-     +-------------+            |  +-----------------+
-     |  CANCELLED  |            |  |    COMPLETED    |
-     | + 환불처리   |            |  |    (완료)       |
-     +-------------+            |  |  + 강사 정산    |
-                                |  +-----------------+
-                                |           |
-                                v           v
-                    +-----------------------------+
-                    |        노쇼 신고            |
-                    |  - 보증금 3만원 차감         |
-                    |  - 3회 누적 시 계정 정지     |
-                    +-----------------------------+
+              |                             |
+              v                             v
+     +-------------+              +-------------+
+     |  CANCELLED  |              | IN_PROGRESS |
+     |   (취소)    |              |   (진행중)  |
+     +-------------+              +------+------+
+              ^                          |
+              |              +-----------+-----------+
+              |              |                       |
+              |              v                       v
+              |     +-------------+         +-----------------+
+              +-----|  CANCELLED  |         |    COMPLETED    |
+                    |   (취소)    |         |    (완료)       |
+                    +-------------+         |  양쪽 확인 완료  |
+                                            +-----------------+
+                                                     |
+                                                     v
+                                        +-----------------------------+
+                                        |        노쇼 신고            |
+                                        |  - Trust Score 감점         |
+                                        |  - 3회 누적 시 계정 정지     |
+                                        +-----------------------------+
 ```
 
 **상태 전이 규칙:**
 ```python
 VALID_TRANSITIONS = {
     ContractStatus.CONFIRMED: {
-        ContractStatus.IN_PROGRESS,  # 결제 완료 후
+        ContractStatus.IN_PROGRESS,  # 양쪽 서명 후
         ContractStatus.CANCELLED,    # 취소
     },
     ContractStatus.IN_PROGRESS: {
-        ContractStatus.COMPLETED,    # 수업 완료
-        ContractStatus.CANCELLED,    # 취소 (환불)
+        ContractStatus.PENDING_COMPLETION,  # 한쪽 완료 확인
+        ContractStatus.CANCELLED,    # 취소
+    },
+    ContractStatus.PENDING_COMPLETION: {
+        ContractStatus.COMPLETED,    # 양쪽 완료 확인
+        ContractStatus.CANCELLED,    # 취소
     },
     ContractStatus.COMPLETED: set(),   # 최종 상태
     ContractStatus.CANCELLED: set(),   # 최종 상태
 }
 ```
 
-### 4. 에스크로 결제 플로우
-
-```
-+----------+                    +----------+                    +----------+
-| 스튜디오  |                    | 플랫폼   |                    |  강사    |
-+----+-----+                    +----+-----+                    +----+-----+
-     |                               |                               |
-     |  1. 계약 확정 + 결제          |                               |
-     |------------------------------>|                               |
-     |                               |                               |
-     |                    +----------+----------+                    |
-     |                    | 에스크로 상태: HELD |                    |
-     |                    | (플랫폼이 보관)     |                    |
-     |                    +----------+----------+                    |
-     |                               |                               |
-     |  2. 수업 진행                 |                               |
-     |<- - - - - - - - - - - - - - - + - - - - - - - - - - - - - - >|
-     |                               |                               |
-     |  3. 수업 완료 확인            |                               |
-     |------------------------------>|                               |
-     |                               |                               |
-     |                    +----------+----------+                    |
-     |                    | 에스크로: RELEASED  |                    |
-     |                    | 플랫폼 수수료:      |                    |
-     |                    |  일반 5% / 프리미엄 3% |                 |
-     |                    +----------+----------+                    |
-     |                               |                               |
-     |                               |  4. 정산 (95~97%)            |
-     |                               |------------------------------>|
-     |                               |                               |
-
---- 취소 시나리오 ---
-
-     |  취소 요청                    |                               |
-     |------------------------------>|                               |
-     |                               |                               |
-     |                    +----------+----------+                    |
-     |                    | 에스크로: REFUNDED  |                    |
-     |                    | 전액 환불 (정상취소)|                    |
-     |                    | or                  |                    |
-     |                    | 70% 환불 (노쇼)     |                    |
-     |                    +----------+----------+                    |
-     |                               |                               |
-     |  환불금 수령                  |                               |
-     |<------------------------------|                               |
-```
-
-### 5. 노쇼 패널티 시스템
+### 4. 노쇼 패널티 시스템
 
 ```
               +-------------------------+
@@ -555,7 +493,7 @@ VALID_TRANSITIONS = {
               +-------------------------+
               |   패널티 자동 적용      |
               | - no_show_count += 1    |
-              | - 보증금 -30,000원      |
+              | - Trust Score 감점      |
               | - 계약 자동 취소        |
               +-----------+-------------+
                           |
@@ -579,7 +517,6 @@ VALID_TRANSITIONS = {
 
 | 혜택 | 무료 회원 | 프리미엄 회원 |
 |------|----------|-------------|
-| 플랫폼 수수료 | 5% | 3% (40% 할인) |
 | 프리미엄 배지 | - | 프로필에 표시 |
 | Trust Score 보너스 | - | +10점 |
 
@@ -625,7 +562,6 @@ VALID_TRANSITIONS = {
 | identity_verified|  |    | hourly_rate_max  |  |
 | business_number  |  |    | available_regions|  |
 | business_verified|  |    | rating_average   |  |
-| deposit_balance  |  |    +------------------+  |
 | no_show_count    |  |                          |
 | is_suspended     |  |    +------------------+  |
 +------------------+  |    | studio_profiles  |  |
@@ -677,19 +613,15 @@ VALID_TRANSITIONS = {
                                      |   reason         |
                                      +--------+---------+
                                               |
-                              +---------------+---------------+
-                              v               v               v
-                     +-------------+ +---------------+ +-------------+
-                     |  payments   | |    payouts    | |   reviews   |
-                     +-------------+ +---------------+ +-------------+
-                     | id          | | id            | | id          |
-                     | contract_id | | contract_id   | | contract_id |
-                     | amount      | | amount        | | rating      |
-                     | status      | | status        | | comment     |
-                     | escrow_     | +---------------+ +-------------+
-                     |   status    |
-                     | payment_key |
-                     +-------------+
+                                              v
+                                     +-------------+
+                                     |   reviews   |
+                                     +-------------+
+                                     | id          |
+                                     | contract_id |
+                                     | rating      |
+                                     | comment     |
+                                     +-------------+
 
   +-------------------+  +-------------------+  +-------------------+
   |   subscriptions   |  |   daily_usage     |  |   chat_threads    |
@@ -730,31 +662,10 @@ CREATE TABLE users (
     business_number VARCHAR(20),
     business_verified BOOLEAN DEFAULT FALSE,
 
-    -- 보증금
-    deposit_balance  NUMERIC(10,2) DEFAULT 0,
-    deposit_required NUMERIC(10,2) DEFAULT 50000,
-
     -- 패널티
     no_show_count   INTEGER DEFAULT 0,
     is_suspended    BOOLEAN DEFAULT FALSE,
 
-    created_at      TIMESTAMP NOT NULL,
-    updated_at      TIMESTAMP NOT NULL
-);
-```
-
-#### payments (에스크로)
-```sql
-CREATE TABLE payments (
-    id              VARCHAR(36) PRIMARY KEY,
-    contract_id     VARCHAR(36) REFERENCES contracts(id),
-    payer_user_id   VARCHAR(36) REFERENCES users(id),
-    amount          NUMERIC(10,2) NOT NULL,
-    platform_fee    NUMERIC(10,2) DEFAULT 0,
-    status          VARCHAR(20) NOT NULL,  -- PENDING | COMPLETED | FAILED | REFUNDED
-    escrow_status   VARCHAR(20) DEFAULT 'HELD',  -- HELD | RELEASED | REFUNDED
-    payment_key     VARCHAR(200) UNIQUE,  -- TossPayments key
-    order_id        VARCHAR(200) UNIQUE NOT NULL,
     created_at      TIMESTAMP NOT NULL,
     updated_at      TIMESTAMP NOT NULL
 );
@@ -835,13 +746,6 @@ CREATE TABLE payments (
 | POST | `/verification/business/verify` | 사업자등록번호 인증 | Bearer |
 | GET | `/verification/status` | 인증 상태 조회 | Bearer |
 
-#### 보증금 (Deposit)
-| Method | Endpoint | 설명 | 인증 |
-|--------|----------|------|------|
-| GET | `/deposit/status` | 보증금 현황 | Bearer |
-| POST | `/deposit/add` | 보증금 충전 | Bearer |
-| POST | `/deposit/refund` | 보증금 환불 요청 | Bearer |
-
 #### 구독 (Subscription)
 | Method | Endpoint | 설명 | 인증 |
 |--------|----------|------|------|
@@ -902,15 +806,6 @@ CREATE TABLE payments (
 | POST | `/contracts/{id}/complete` | 완료 처리 | Bearer |
 | POST | `/contracts/{id}/cancel` | 취소 | Bearer |
 | POST | `/contracts/{id}/report-no-show` | 노쇼 신고 | Bearer |
-
-#### 결제 (Payments)
-| Method | Endpoint | 설명 | 인증 |
-|--------|----------|------|------|
-| POST | `/contracts/{id}/payments` | 결제 초기화 | Bearer |
-| POST | `/payments/confirm` | 결제 확인 (TossPayments) | Bearer |
-| POST | `/payments/{id}/cancel` | 결제 취소/부분취소 | Bearer |
-| GET | `/payments/{id}` | 결제 상세 조회 | Bearer |
-| POST | `/payments/webhook` | TossPayments 웹훅 v2 | HMAC-SHA256 |
 
 #### 채팅 (Chat)
 | Method | Endpoint | 설명 | 인증 |
@@ -1004,7 +899,7 @@ CREATE TABLE payments (
 | **토큰 관리** | 토큰 블랙리스트 (로그아웃 시 무효화) |
 | **Rate Limiting** | slowapi (100 req/min 기본값) |
 | **보안 헤더** | X-Frame-Options, CSP, X-XSS-Protection |
-| **웹훅 검증** | HMAC-SHA256 서명 검증 (TossPayments) |
+| **웹훅 검증** | HMAC-SHA256 서명 검증 (구독 웹훅) |
 | **CORS** | 허용된 origin만 접근 |
 | **입력 검증** | Pydantic + Zod 이중 검증 |
 
@@ -1108,7 +1003,7 @@ APP_ENV=production
 # === Redis ===
 REDIS_URL=redis://redis:6379/0
 
-# === TossPayments ===
+# === TossPayments (구독 결제 전용) ===
 TOSS_CLIENT_KEY=test_ck_...
 TOSS_SECRET_KEY=test_sk_...
 TOSS_WEBHOOK_SECRET=your-webhook-secret
@@ -1129,11 +1024,6 @@ STORAGE_BACKEND=local      # local | s3
 # AWS_SECRET_ACCESS_KEY=...
 # AWS_S3_BUCKET_NAME=...
 # AWS_S3_REGION=ap-northeast-2
-
-# === Bank (정산용) ===
-BANK_ACCOUNT_NUMBER=...
-BANK_ACCOUNT_HOLDER=...
-BANK_NAME=...
 
 # === Frontend (빌드 타임) ===
 NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
@@ -1163,8 +1053,8 @@ uv run pytest --cov=app --cov-report=html
 # 특정 테스트 파일
 uv run pytest tests/test_auth.py -v
 
-# 결제/신뢰 관련 필수 테스트
-uv run pytest tests/test_payment*.py tests/test_penalty*.py -v
+# 계약/패널티 관련 테스트
+uv run pytest tests/test_contract*.py -v
 ```
 
 ### Frontend (Vitest)
@@ -1202,10 +1092,9 @@ lint (ruff) --> test (pytest + coverage) --> build (docker compose)
 ```
 P0 (반드시 테스트):
   - 회원가입/로그인 인증 플로우
-  - 보증금 입금/차감
-  - 에스크로 결제 -> 완료 -> 정산
-  - 노쇼 패널티 -> 3회 정지
   - 계약 상태 전이 (state machine)
+  - 양쪽 완료 확인 플로우
+  - 노쇼 패널티 -> 3회 정지
 
 P1 (기능 완성 시 테스트):
   - 매칭 알고리즘 점수 계산
@@ -1262,10 +1151,6 @@ chore: 빌드, 설정 변경
 3. 마이그레이션 파일 리뷰
 4. 적용: `alembic upgrade head`
 
-#### 결제 웹훅 처리
-
-`backend/app/api/v1/endpoints/payments.py:handle_webhook()` 의 idempotent processing 패턴 참고
-
 ---
 
 ## 다이어그램 (Mermaid)
@@ -1287,7 +1172,6 @@ flowchart TB
             Auth["Auth<br/>Service"]
             Jobs["Jobs<br/>Service"]
             Contract["Contract<br/>Service"]
-            Payment["Payment<br/>Service"]
             Matching["Matching<br/>Service"]
             Chat["Chat<br/>Service"]
             Trust["Trust Score<br/>Service"]
@@ -1309,9 +1193,9 @@ flowchart TB
 
     Web & Mobile --> BFF
     BFF --> FastAPI
-    Auth & Jobs & Contract & Payment & Matching & Chat & Trust & Sub --> PostgreSQL
+    Auth & Jobs & Contract & Matching & Chat & Trust & Sub --> PostgreSQL
     Auth --> Redis
-    Payment --> Toss
+    Sub --> Toss
     Auth --> SMS
     Auth --> NTS
 ```
@@ -1325,10 +1209,9 @@ flowchart LR
     C -->|강사| D[본인인증<br/>SMS OTP]
     C -->|스튜디오| E[본인인증<br/>SMS OTP]
     E --> F[사업자인증<br/>국세청 API]
-    D --> G[보증금 충전<br/>50,000원]
+    D --> G[서비스 이용<br/>인증 배지 표시]
     F --> G
-    G --> H[서비스 이용<br/>인증 배지 표시]
-    H --> I{프리미엄?}
+    G --> I{프리미엄?}
     I -->|구독| J[프리미엄 혜택<br/>월 9,900원]
     I -->|무료| K[기본 사용<br/>일일 제한 적용]
 ```
@@ -1349,7 +1232,7 @@ pie title 매칭 점수 가중치
 stateDiagram-v2
     [*] --> CONFIRMED: 오퍼 수락
 
-    CONFIRMED --> IN_PROGRESS: 결제 완료
+    CONFIRMED --> IN_PROGRESS: 양쪽 서명
     CONFIRMED --> CANCELLED: 취소 요청
 
     IN_PROGRESS --> COMPLETED: 수업 완료
@@ -1358,50 +1241,10 @@ stateDiagram-v2
     COMPLETED --> [*]
     CANCELLED --> [*]
 
-    note right of CONFIRMED
-        에스크로: HELD
-        (플랫폼 보관)
-    end note
-
     note right of COMPLETED
-        에스크로: RELEASED
-        수수료: 일반 5% / 프리미엄 3%
+        양쪽 완료 확인 완료
+        수업료는 직접 정산
     end note
-
-    note right of CANCELLED
-        에스크로: REFUNDED
-        (스튜디오 환불)
-    end note
-```
-
-### 에스크로 결제 플로우
-
-```mermaid
-sequenceDiagram
-    participant S as 스튜디오
-    participant P as PilaMatch
-    participant T as TossPayments
-    participant I as 강사
-
-    S->>P: 1. 계약 확정 + 결제 요청
-    P->>T: 2. 결제 처리
-    T-->>P: 3. 결제 완료 (payment_key)
-    P->>P: 4. 에스크로 HELD
-
-    Note over S,I: 수업 진행
-
-    S->>P: 5. 수업 완료 확인
-    P->>P: 6. 에스크로 RELEASED
-    P->>I: 7. 정산 (금액 - 수수료)
-
-    rect rgb(255, 200, 200)
-        Note over S,I: 취소 시나리오
-        S->>P: 취소 요청
-        P->>T: 결제 취소/부분취소 API
-        T-->>P: 취소 완료
-        P->>P: 에스크로 REFUNDED
-        P->>S: 환불 처리
-    end
 ```
 
 ### 노쇼 패널티 시스템
@@ -1411,8 +1254,8 @@ flowchart TD
     A[노쇼 신고 접수] --> B[패널티 적용]
     B --> C{no_show_count}
 
-    C -->|1회| D[경고<br/>보증금 -3만원<br/>잔여 2회]
-    C -->|2회| E[경고<br/>보증금 -3만원<br/>잔여 1회]
+    C -->|1회| D[경고<br/>Trust Score 감점<br/>잔여 2회]
+    C -->|2회| E[경고<br/>Trust Score 감점<br/>잔여 1회]
     C -->|3회| F[계정 정지<br/>is_suspended = true]
 
     D --> G[서비스 계속]
@@ -1439,7 +1282,6 @@ erDiagram
     applications ||--o| offers : generates
     offers ||--o| contracts : creates
 
-    contracts ||--o{ payments : has
     contracts ||--o{ reviews : has
     contracts ||--o{ contract_event_logs : logs
 
@@ -1455,7 +1297,6 @@ erDiagram
         string role
         boolean phone_verified
         boolean business_verified
-        decimal deposit_balance
         int no_show_count
         boolean is_suspended
     }
@@ -1495,15 +1336,6 @@ erDiagram
         decimal total_amount
     }
 
-    payments {
-        uuid id PK
-        uuid contract_id FK
-        decimal amount
-        string status
-        string escrow_status
-        string payment_key
-    }
-
     subscriptions {
         uuid id PK
         uuid user_id FK
@@ -1519,7 +1351,6 @@ erDiagram
 flowchart TB
     subgraph Registration["1. 가입/인증"]
         R1[회원가입] --> R2[본인인증]
-        R2 --> R3[보증금 충전]
     end
 
     subgraph Matching["2. 매칭"]
@@ -1530,11 +1361,11 @@ flowchart TB
     end
 
     subgraph Contract["3. 계약"]
-        C1[계약 생성] --> C2[에스크로 결제]
+        C1[계약 생성] --> C2[양쪽 서명]
         C2 --> C3[수업 진행]
         C3 --> C4{결과}
-        C4 -->|완료| C5[강사 정산]
-        C4 -->|취소| C6[환불 처리]
+        C4 -->|완료| C5[완료 확인]
+        C4 -->|취소| C6[계약 취소]
         C4 -->|노쇼| C7[패널티 적용]
     end
 
@@ -1582,4 +1413,4 @@ Private - All rights reserved
 
 ---
 
-*Last updated: 2026-02-28*
+*Last updated: 2026-03-01*
