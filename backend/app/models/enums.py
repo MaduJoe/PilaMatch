@@ -109,3 +109,33 @@ class SubscriptionChangeReason(str, enum.Enum):
     CANCELLATION = "cancellation"
     SUSPENSION = "suspension"
     REACTIVATION = "reactivation"
+
+
+class TeacherTier(str, enum.Enum):
+    T1_BASIC = "t1_basic"
+    T2_VERIFIED = "t2_verified"
+    T3_PRO = "t3_pro"
+
+
+class CenterTier(str, enum.Enum):
+    C1_BASIC = "c1_basic"
+    C2_VERIFIED = "c2_verified"
+    # C3_TRUSTED = "c3_trusted"  # Post-MVP
+
+
+class PenaltyType(str, enum.Enum):
+    NO_SHOW = "no_show"
+    SAME_DAY_CANCEL = "same_day_cancel"
+    LATE = "late"
+    CANCEL_AFTER_CONFIRM = "cancel_after_confirm"
+
+
+class PenaltyStatus(str, enum.Enum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+
+
+class PaymentConfirmationStatus(str, enum.Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    DISPUTED = "disputed"

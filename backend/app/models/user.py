@@ -55,6 +55,12 @@ class User(Base, UUIDMixin, TimestampMixin):
     last_usage_reset_date = Column(Date, nullable=True)
     last_viewed_profiles = Column(JSON, nullable=True)  # List of viewed profile IDs today
 
+    # Trust Tier system (v4.0)
+    tier = Column(String(20), nullable=True)  # t1_basic/t2_verified/t3_pro or c1_basic/c2_verified
+    tier_computed_at = Column(DateTime, nullable=True)
+    suspension_until = Column(DateTime, nullable=True)  # Active suspension end
+    restriction_until = Column(DateTime, nullable=True)  # Restriction end (e.g. today-class ban)
+
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
     studio_profile = relationship("StudioProfile", back_populates="user", uselist=False)

@@ -15,6 +15,11 @@ from app.models.enums import (
     SubscriptionStatus,
     SubscriptionPaymentStatus,
     SubscriptionChangeReason,
+    TeacherTier,
+    CenterTier,
+    PenaltyType,
+    PenaltyStatus,
+    PaymentConfirmationStatus,
 )
 from app.models.user import User
 from app.models.instructor import InstructorProfile
@@ -34,6 +39,8 @@ from app.models.daily_usage import DailyUsageLimit  # v3.0 Daily usage tracking
 from app.models.notification import Notification, NotificationType
 from app.models.device_token import DeviceToken
 from app.models.event_log import EventLog
+from app.models.penalty_record import PenaltyRecord
+from app.models.payment_confirmation import PaymentConfirmation
 
 __all__ = [
     # Enums
@@ -53,6 +60,11 @@ __all__ = [
     "SubscriptionStatus",
     "SubscriptionPaymentStatus",
     "SubscriptionChangeReason",
+    "TeacherTier",
+    "CenterTier",
+    "PenaltyType",
+    "PenaltyStatus",
+    "PaymentConfirmationStatus",
     # Models
     "User",
     "InstructorProfile",
@@ -81,4 +93,6 @@ __all__ = [
     "NotificationType",
     "DeviceToken",
     "EventLog",
+    "PenaltyRecord",
+    "PaymentConfirmation",
 ]
