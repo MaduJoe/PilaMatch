@@ -20,15 +20,18 @@ pytest + pytest-asyncio / httpx (AsyncClient) / pytest-cov
 testcontainers 또는 pytest-postgresql / unittest.mock, fakeredis
 
 ## 구조
-tests/unit/ — 매칭, Trust Score, 환불 계산, 상태 전환
-tests/integration/ — 인증, 계약, 결제, 분쟁, 구독 플로우
-tests/e2e/ — 전체 시나리오
+```
+# 현재 (flat structure)
+tests/test_*.py — 단위/통합 테스트 (예: test_masking.py)
 tests/conftest.py — 공통 fixture
+# 향후 확장 시
+tests/e2e/ — E2E 시나리오 (Playwright)
+```
 
 ## 테스트 파일 네이밍 규칙
 - `tests/test_{대상 서비스명}.py` (단위/통합)
-- `tests/e2e/test_{플로우명}.py` (E2E)
-- 예: `tests/test_escrow.py`, `tests/test_contract.py`, `tests/e2e/test_payment_flow.py`
+- `tests/e2e/test_{플로우명}.py` (E2E, 향후)
+- 예: `tests/test_escrow.py`, `tests/test_contract.py`, `tests/test_masking.py`
 
 ## 테스트 클래스 구조
 ```python

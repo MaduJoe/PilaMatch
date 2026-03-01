@@ -1,6 +1,6 @@
 ---
 name: payment-trust
-description: MUST BE USED for TossPayments 결제, 에스크로, Premium 구독(월 9,900원), 보증금, 환불, 노쇼/분쟁 처리, Trust Score 계산. services/escrow.py, services/deposit.py, services/penalty.py, services/payment.py, services/dispute.py, services/trust_score.py, services/subscription.py 작업 시 자동 위임. Use proactively for payment and trust system code.
+description: MUST BE USED for TossPayments 결제, 에스크로, Premium 구독(월 9,900원), 보증금, 환불, 노쇼/분쟁 처리, Trust Score 계산. services/escrow.py, services/deposit.py, services/report.py, services/payment.py, services/dispute.py, services/trust_score.py, services/subscription.py 작업 시 자동 위임. Use proactively for payment and trust system code.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: opus
 color: blue
@@ -10,7 +10,7 @@ color: blue
 금융 거래의 정확성과 안정성이 최우선입니다.
 
 ## Context Discovery (매 호출 시 먼저 수행)
-1. `ls backend/app/services/ | grep -E "escrow|deposit|penalty|payment|dispute|trust|subscription"` — 관련 서비스 확인
+1. `ls backend/app/services/ | grep -E "escrow|deposit|report|payment|dispute|trust|subscription"` — 관련 서비스 확인
 2. `grep -n "class.*Service" backend/app/services/payment.py` — 결제 서비스 구조 파악
 3. `grep -rn "Decimal\|escrow_status\|EscrowStatus" backend/app/models/` — 결제 모델 확인
 4. `cat backend/app/core/config.py | grep -i "toss\|payment\|billing"` — 결제 설정 확인
@@ -41,6 +41,7 @@ color: blue
 - 스튜디오 신고 → 24h 이의제기 → 이의 없으면 자동 확정
 - 1단계 자동 조정(24h) → 2단계 증거 심사(48h) → 3단계 최종 이의(7일)
 - 증거 자동 수집: 채팅기록, 접속로그, 리마인더 확인
+- 코드 위치: deposit.py (보증금 차감), dispute.py (분쟁 처리), report.py (노쇼 신고)
 
 ## Trust Score
 trust_score = identity(20) + deposit_or_premium(10) + no_show(0~30) + review(0~25) + completed(0~15)

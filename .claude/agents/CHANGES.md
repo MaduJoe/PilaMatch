@@ -126,3 +126,36 @@ Claude Code는 description과 현재 작업을 매칭하므로, 구체적 경로
 
 **결과**: 8개 중 4개 에이전트의 모델을 다운그레이드하여 비용 절감.
 opus가 정당한 곳(payment-trust)만 유지.
+
+---
+
+## 2026-02-28 리뷰: 실제 프로젝트 구조와 동기화
+
+### 배경
+프로젝트가 Streamlit → Next.js 15로 전환된 이후 에이전트/커맨드 파일이 업데이트되지 않았음.
+model은 전체 opus 유지 (사용자 결정).
+
+### 변경 사항
+
+| 파일 | 심각도 | 변경 내용 |
+|------|--------|----------|
+| `agents/frontend-ui.md` | Critical | Streamlit → Next.js 15 (App Router) + TypeScript + Tailwind CSS + shadcn/ui 전면 재작성. Context Discovery, 스택, App Router 패턴 추가 |
+| `agents/backend-api.md` | Critical | `app/tasks/` 제거, Celery 관련 전체 삭제 (미구현), 라우터 20개/서비스 28개 실제 반영 |
+| `agents/payment-trust.md` | Critical | `services/penalty.py` → `services/report.py` (실제 파일명), 노쇼/분쟁 코드 위치 주석 추가 |
+| `agents/devops.md` | Critical | `k8s/`, `monitoring/` 제거 (미구현), `color: gray` 추가, Docker Compose 기반으로 현실화 |
+| `agents/test-qa.md` | High | `tests/unit/`, `tests/integration/`, `tests/e2e/` → flat 구조 (`tests/test_*.py`) 반영 |
+| `commands/test-e2e.md` | High | `localhost:8501` → `localhost:3000`, Streamlit 셀렉터 → Next.js/React 셀렉터 전면 교체 |
+| `commands/verify-app.md` | Medium | `localhost:8501` → `localhost:3000` |
+| `commands/commit-push-pr.md` | Low | `git add -A` → 개별 `git add` 권장으로 보안 개선 |
+| `CLAUDE.md` | Medium | 13→20 routers, 18→28 services, verify-app 행 제거, `services/penalty.py` → `services/report.py` |
+
+### 삭제 확정
+- `agents/verify-app.md` — test-qa와 역할 중복, commands/verify-app.md로 충분 (이미 삭제 완료)
+
+### 변경 없음 (양호)
+- `agents/database.md` — 실제 구조와 일치
+- `agents/doc-writer.md` — 역할 명확
+- `agents/security-reviewer.md` — 읽기 전용 강제 적절
+- `commands/test-and-fix.md` — 내용 적절
+- `commands/test-payment.md` — 내용 적절
+- `commands/test-coverage.md` — 내용 적절

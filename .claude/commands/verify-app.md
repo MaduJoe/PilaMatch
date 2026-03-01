@@ -4,7 +4,7 @@
    ```bash
    docker-compose ps
    curl -s http://localhost:8000/api/v1/docs | head -5
-   curl -s http://localhost:8501 | head -5
+   curl -s http://localhost:3000 | head -5
    ```
 
 2. **핵심 API 헬스체크**:

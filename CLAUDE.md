@@ -37,10 +37,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **devops** | Docker, docker-compose, CI/CD, 배포 스크립트, 인프라 설정 |
 | **doc-writer** | README, API 문서, `docs/` 하위 파일, 세션 요약 문서 작성 |
 | **frontend-ui** | Next.js UI, `frontend-next/` 하위 코드, 화면 레이아웃, UX 개선 |
-| **payment-trust** | 결제(Toss), 에스크로, 보증금, 패널티, `services/escrow.py`, `services/penalty.py`, `services/deposit.py` |
+| **payment-trust** | 결제(Toss), 에스크로, 보증금, 패널티, `services/escrow.py`, `services/report.py`, `services/deposit.py` |
 | **security-reviewer** | 인증/인가, JWT, CORS, 입력 검증, 보안 취약점 리뷰, `core/security.py`, `core/deps.py` |
 | **test-qa** | 테스트 작성/수정, 커버리지 분석, `tests/` 하위 작업, pytest 실행 |
-| **verify-app** | 앱 전체 동작 검증, 배포 전 체크, 서비스 헬스체크, 통합 검증 |
 
 ### 라우팅 판단 기준
 
@@ -117,8 +116,8 @@ Job Posting → Matching Score → Application → Offer → Contract → Paymen
 ```
 backend/
 ├── app/
-│   ├── api/v1/endpoints/  # 13 REST routers
-│   ├── services/          # 18 business logic services
+│   ├── api/v1/endpoints/  # 20 REST routers
+│   ├── services/          # 28 business logic services
 │   ├── models/            # SQLAlchemy models with GUID type
 │   ├── schemas/           # Pydantic validation
 │   └── core/              # Config, security, deps

@@ -9,7 +9,8 @@
 
 3. **테스트 통과 시에만 진행**:
    - 변경 내용 분석하여 conventional commit 메시지 생성
-   - `git add -A && git commit -m "{message}"`
+   - `git status`로 변경 파일 확인 후 개별 `git add {파일}` (민감 파일 .env 등 제외)
+   - `git commit -m "{message}"`
    - `git push origin HEAD`
    - PR 생성 (가능하면 gh CLI 사용)
 
