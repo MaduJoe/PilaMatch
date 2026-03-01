@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:8501",
         "http://localhost:3000",
+        "http://localhost",
+        "capacitor://localhost",
+        "https://pilamatch.com",
+        "https://www.pilamatch.com",
+        "https://app.pilamatch.com",
     ]
 
     # Frontend

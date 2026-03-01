@@ -45,6 +45,7 @@ import type {
   DailyUsageResponse,
   APIErrorResponse,
 } from './api-types';
+import { isNativePlatform, getAccessToken } from './token-manager';
 
 export class APIError extends Error {
   status: number;
@@ -66,16 +67,28 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${BASE_URL}${path}`;
+  const native = isNativePlatform();
+  const baseUrl = native
+    ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + '/api/v1'
+    : BASE_URL;
+  const url = `${baseUrl}${path}`;
 
   const defaultHeaders: Record<string, string> = {};
   if (options.body && typeof options.body === 'string') {
     defaultHeaders['Content-Type'] = 'application/json';
   }
 
+  // Native app: add Bearer token; Web: use cookies
+  if (native) {
+    const token = await getAccessToken();
+    if (token) {
+      defaultHeaders['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
   const config: RequestInit = {
     ...options,
-    credentials: 'include',
+    ...(native ? {} : { credentials: 'include' as RequestCredentials }),
     headers: {
       ...defaultHeaders,
       ...options.headers,
