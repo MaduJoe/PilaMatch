@@ -117,7 +117,6 @@ export default function SignupPage() {
               type="email"
               placeholder="example@email.com"
               autoFocus
-              className="min-h-[48px] rounded-xl"
               {...register('email')}
             />
             {errors.email && (
@@ -131,7 +130,6 @@ export default function SignupPage() {
               id="password"
               type="password"
               placeholder="8자 이상"
-              className="min-h-[48px] rounded-xl"
               {...register('password')}
             />
             {errors.password && (
@@ -148,14 +146,12 @@ export default function SignupPage() {
               <Input
                 id="display_name"
                 placeholder="홍길동"
-                className="min-h-[48px] rounded-xl"
                 {...register('display_name')}
               />
             ) : (
               <Input
                 id="business_name"
                 placeholder="OO필라테스"
-                className="min-h-[48px] rounded-xl"
                 {...register('business_name')}
               />
             )}
@@ -191,7 +187,7 @@ export default function SignupPage() {
         <div className="flex flex-col gap-3 pt-1">
           <Button
             type="submit"
-            className="w-full min-h-[48px] rounded-xl text-base font-bold"
+            className="w-full min-h-[48px] text-base font-bold"
             disabled={signup.isPending || !allAgreed}
           >
             {signup.isPending ? '가입 중...' : '가입하기'}

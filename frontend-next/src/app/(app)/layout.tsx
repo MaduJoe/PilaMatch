@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Header } from '@/components/layout/header';
 import { BottomTabBar } from '@/components/layout/bottom-tab-bar';
 import { VerificationRequiredScreen } from '@/components/layout/verification-required-screen';
+import { isUserVerified } from '@/lib/utils';
 
 /** Pages that bypass the verification gate */
 const VERIFICATION_BYPASS_PATHS = ['/steps/profile', '/settings'];
@@ -43,21 +44,14 @@ export default function AppLayout({
   // Verification gate: block unverified users except on bypass pages
   const isBypassPath = VERIFICATION_BYPASS_PATHS.some((p) => pathname.startsWith(p));
 
-  if (!isBypassPath) {
-    const isInstructor = user.role === 'instructor';
-    const needsVerification = isInstructor
-      ? !user.phone_verified && !user.identity_verified
-      : !user.business_verified;
-
-    if (needsVerification) {
-      return (
-        <div className="min-h-screen bg-background">
-          <Header />
-          <VerificationRequiredScreen role={isInstructor ? 'instructor' : 'studio'} />
-          <BottomTabBar />
-        </div>
-      );
-    }
+  if (!isBypassPath && !isUserVerified(user)) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <VerificationRequiredScreen role={user.role === 'instructor' ? 'instructor' : 'studio'} />
+        <BottomTabBar />
+      </div>
+    );
   }
 
   return (

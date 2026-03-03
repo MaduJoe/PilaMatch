@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { Search, ClipboardList, User, Megaphone, Users } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, isUserVerified } from '@/lib/utils';
 
 const INSTRUCTOR_TABS = [
   { key: 'jobs', label: '일 찾기', icon: Search, path: '/steps/jobs' },
@@ -24,11 +24,8 @@ export function BottomTabBar() {
 
   if (!user) return null;
 
-  const isInstructor = user.role === 'instructor';
-  const tabs = isInstructor ? INSTRUCTOR_TABS : STUDIO_TABS;
-  const isVerified = isInstructor
-    ? user.phone_verified || user.identity_verified
-    : user.business_verified;
+  const tabs = user.role === 'instructor' ? INSTRUCTOR_TABS : STUDIO_TABS;
+  const isVerified = isUserVerified(user);
 
   return (
     <nav

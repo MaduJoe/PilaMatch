@@ -37,7 +37,6 @@ export default function LoginPage() {
               id="email"
               type="email"
               placeholder="example@email.com"
-              className="min-h-[48px] rounded-xl"
               {...register('email')}
             />
             {errors.email && (
@@ -51,7 +50,6 @@ export default function LoginPage() {
               id="password"
               type="password"
               placeholder="8자 이상"
-              className="min-h-[48px] rounded-xl"
               {...register('password')}
             />
             {errors.password && (
@@ -63,7 +61,7 @@ export default function LoginPage() {
         <div className="flex flex-col gap-4">
           <Button
             type="submit"
-            className="w-full min-h-[48px] rounded-xl text-base font-bold"
+            className="w-full min-h-[48px] text-base font-bold"
             disabled={login.isPending}
           >
             {login.isPending ? '로그인 중...' : '로그인'}

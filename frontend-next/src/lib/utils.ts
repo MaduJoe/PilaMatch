@@ -116,6 +116,22 @@ export function getApplicationStatusDisplay(status: string): {
 }
 
 // ---------------------------------------------------------------------------
+// User verification helpers
+// ---------------------------------------------------------------------------
+
+/** Check if a user has completed the required verification for their role */
+export function isUserVerified(user: {
+  role: string;
+  phone_verified: boolean;
+  identity_verified: boolean;
+  business_verified: boolean;
+}): boolean {
+  return user.role === 'instructor'
+    ? user.phone_verified || user.identity_verified
+    : user.business_verified;
+}
+
+// ---------------------------------------------------------------------------
 // Date calculation
 // ---------------------------------------------------------------------------
 

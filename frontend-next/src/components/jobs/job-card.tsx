@@ -19,10 +19,13 @@ const JOB_TYPE_MAP: Record<string, { label: string; emoji: string }> = {
   contract: { label: '계약', emoji: '\u{1F4DD}' },
 };
 
+const SCORE_THRESHOLDS = [
+  { min: 80, color: 'bg-green-500' },
+  { min: 60, color: 'bg-amber-500' },
+] as const;
+
 function scoreColor(score: number): string {
-  if (score >= 80) return 'bg-green-500';
-  if (score >= 60) return 'bg-amber-500';
-  return 'bg-gray-400';
+  return SCORE_THRESHOLDS.find((t) => score >= t.min)?.color ?? 'bg-gray-400';
 }
 
 // ---------------------------------------------------------------------------
@@ -192,7 +195,7 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
         <Button
           variant={isApplied ? 'secondary' : is_urgent && !isPast ? 'destructive' : 'default'}
           size="sm"
-          className="min-h-[44px] w-full rounded-xl font-bold"
+          className="min-h-[44px] w-full font-bold"
           disabled={isApplied || isPast}
           onClick={(e) => {
             e.stopPropagation();

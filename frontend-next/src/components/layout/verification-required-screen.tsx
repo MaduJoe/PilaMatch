@@ -26,7 +26,7 @@ export function VerificationRequiredScreen({ role }: VerificationRequiredScreenP
             ? '서비스 이용을 위해 본인인증을 완료해주세요.'
             : '서비스 이용을 위해 사업자 인증을 완료해주세요.'}
         </p>
-        <Button asChild className="mt-2 min-h-[48px] rounded-xl">
+        <Button asChild className="mt-2 min-h-[48px]">
           <Link href="/steps/profile">인증하러 가기</Link>
         </Button>
       </div>
