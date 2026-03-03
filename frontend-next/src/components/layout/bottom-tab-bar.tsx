@@ -24,7 +24,11 @@ export function BottomTabBar() {
 
   if (!user) return null;
 
-  const tabs = user.role === 'instructor' ? INSTRUCTOR_TABS : STUDIO_TABS;
+  const isInstructor = user.role === 'instructor';
+  const tabs = isInstructor ? INSTRUCTOR_TABS : STUDIO_TABS;
+  const isVerified = isInstructor
+    ? user.phone_verified || user.identity_verified
+    : user.business_verified;
 
   return (
     <nav
@@ -38,28 +42,26 @@ export function BottomTabBar() {
             pathname === tab.path ||
             (tab.key === 'profile' && pathname === '/settings');
           const Icon = tab.icon;
+          const isDisabled = !isVerified && tab.key !== 'profile';
 
-          return (
-            <Link
-              key={tab.key}
-              href={tab.path}
-              className={cn(
-                'relative flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors',
-                'min-h-[56px] justify-center',
-                isActive
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-              aria-current={isActive ? 'page' : undefined}
-              aria-label={tab.label}
-            >
+          const sharedClassName = cn(
+            'relative flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors',
+            'min-h-[56px] justify-center',
+            isActive
+              ? 'text-primary'
+              : 'text-muted-foreground hover:text-foreground',
+            isDisabled && 'opacity-40 pointer-events-none',
+          );
+
+          const content = (
+            <>
               {isActive && (
-                <span className="absolute inset-x-3 top-0 h-[2.5px] rounded-full bg-foreground" />
+                <span className="absolute inset-x-3 top-0 h-[2.5px] rounded-full bg-primary" />
               )}
               <div
                 className={cn(
                   'flex size-8 items-center justify-center rounded-full transition-colors',
-                  isActive && 'bg-foreground/10',
+                  isActive && 'bg-primary/10',
                 )}
               >
                 <Icon
@@ -68,6 +70,31 @@ export function BottomTabBar() {
                 />
               </div>
               <span className={cn(isActive && 'font-semibold')}>{tab.label}</span>
+            </>
+          );
+
+          if (isDisabled) {
+            return (
+              <span
+                key={tab.key}
+                className={sharedClassName}
+                aria-label={tab.label}
+                aria-disabled="true"
+              >
+                {content}
+              </span>
+            );
+          }
+
+          return (
+            <Link
+              key={tab.key}
+              href={tab.path}
+              className={sharedClassName}
+              aria-current={isActive ? 'page' : undefined}
+              aria-label={tab.label}
+            >
+              {content}
             </Link>
           );
         })}

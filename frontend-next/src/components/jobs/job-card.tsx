@@ -19,10 +19,10 @@ const JOB_TYPE_MAP: Record<string, { label: string; emoji: string }> = {
   contract: { label: '계약', emoji: '\u{1F4DD}' },
 };
 
-function scoreLabel(score: number): { text: string; className: string } {
-  if (score >= 80) return { text: `최적 ${score}%`, className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' };
-  if (score >= 60) return { text: `적합 ${score}%`, className: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' };
-  return { text: `${score}%`, className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' };
+function scoreColor(score: number): string {
+  if (score >= 80) return 'bg-green-500';
+  if (score >= 60) return 'bg-amber-500';
+  return 'bg-gray-400';
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +47,6 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
   const isPast = job.is_past;
   const typeInfo = JOB_TYPE_MAP[job.job_type] ?? { label: job.job_type, emoji: '' };
   const breakdown = matching.breakdown;
-  const matchLabel = scoreLabel(score);
 
   return (
     <Card
@@ -58,7 +57,7 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
       )}
     >
       <CardContent className="flex flex-col gap-2.5 pb-3">
-        {/* Row 1: Status badges + Score */}
+        {/* Row 1: Badges (max 3) + Score dot */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             {is_urgent && !isPast && (
@@ -69,38 +68,43 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
             <Badge variant={isPast ? 'outline' : 'secondary'} className="text-xs">
               {typeInfo.emoji} {typeInfo.label}
             </Badge>
-            {isPast && (
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                마감
-              </Badge>
-            )}
-            {job.has_handoff_note && (
-              <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:border-blue-600 dark:text-blue-300">
-                인수인계
-              </Badge>
-            )}
           </div>
           <span
-            className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', matchLabel.className)}
+            className="flex items-center gap-1 text-xs font-bold text-muted-foreground"
             aria-label={`매칭 점수 ${score}%`}
           >
-            {matchLabel.text}
+            <span className={cn('inline-block size-2 rounded-full', scoreColor(score))} />
+            {score}
           </span>
         </div>
 
-        {/* Row 2: Title + Region */}
-        <h3
-          className={cn(
-            'text-base font-bold leading-tight cursor-pointer hover:underline',
-            isPast && 'line-through text-muted-foreground',
-          )}
-          onClick={() => onDetail(item)}
-          role="link"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter') onDetail(item); }}
-        >
-          {job.title}
-        </h3>
+        {/* Row 2: Title + Expand toggle */}
+        <div className="flex items-start justify-between gap-2">
+          <h3
+            className={cn(
+              'text-base font-bold leading-tight cursor-pointer hover:underline flex-1',
+              isPast && 'line-through text-muted-foreground',
+            )}
+            onClick={() => onDetail(item)}
+            role="link"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter') onDetail(item); }}
+          >
+            {job.title}
+          </h3>
+          <button
+            className="shrink-0 p-1 text-muted-foreground hover:text-foreground"
+            onClick={() => setExpanded(!expanded)}
+            aria-label={expanded ? '상세 접기' : '상세 펼치기'}
+            aria-expanded={expanded}
+          >
+            {expanded ? (
+              <ChevronUp className="size-4" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="size-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
 
         {/* Row 3: Date + Time */}
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -111,22 +115,28 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
           )}
         </div>
 
-        {/* Row 4: Distance + Rate (key decision factors) */}
-        <div className="flex items-center gap-3 text-sm">
+        {/* Row 4: Distance · Rate in one line */}
+        <div className="flex items-center gap-1 text-sm">
           {job.distance_text && (
-            <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium">
-              <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
-              {job.distance_text}
-              {job.travel_time_min && (
-                <span className="text-muted-foreground font-normal">({job.travel_time_min}분)</span>
-              )}
-            </span>
+            <>
+              <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium">
+                <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+                {job.distance_text}
+                {job.travel_time_min && (
+                  <span className="text-muted-foreground font-normal">({job.travel_time_min}분)</span>
+                )}
+              </span>
+              <span className="text-muted-foreground">·</span>
+            </>
           )}
           {!job.distance_text && job.region && (
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
-              {job.region}
-            </span>
+            <>
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+                {job.region}
+              </span>
+              <span className="text-muted-foreground">·</span>
+            </>
           )}
           <span className="flex items-center gap-1 font-bold">
             <Banknote className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -164,6 +174,12 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
               </div>
             </div>
           )}
+          {/* Handoff note indicator */}
+          {job.has_handoff_note && (
+            <Badge variant="outline" className="mb-2 text-xs border-blue-300 text-blue-700 dark:border-blue-600 dark:text-blue-300">
+              인수인계 노트 있음
+            </Badge>
+          )}
           {/* Description */}
           {job.description && (
             <p className="text-xs text-muted-foreground whitespace-pre-wrap">{job.description}</p>
@@ -171,12 +187,12 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
         </div>
       )}
 
-      {/* Action area */}
-      <div className="flex gap-2 px-6 pb-4 pt-1">
+      {/* Action area - single apply button */}
+      <div className="px-6 pb-4 pt-1">
         <Button
           variant={isApplied ? 'secondary' : is_urgent && !isPast ? 'destructive' : 'default'}
           size="sm"
-          className="min-h-[44px] flex-1 font-bold"
+          className="min-h-[44px] w-full rounded-xl font-bold"
           disabled={isApplied || isPast}
           onClick={(e) => {
             e.stopPropagation();
@@ -185,20 +201,6 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
           aria-label={isApplied ? '지원 완료' : isPast ? '마감' : is_urgent ? '지금 지원하기' : '지원하기'}
         >
           {isApplied ? '지원완료' : isPast ? '마감' : is_urgent ? '지금 지원하기' : '지원하기'}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="min-h-[44px] px-3"
-          onClick={() => setExpanded(!expanded)}
-          aria-label={expanded ? '상세 접기' : '상세 펼치기'}
-          aria-expanded={expanded}
-        >
-          {expanded ? (
-            <ChevronUp className="size-4" aria-hidden="true" />
-          ) : (
-            <ChevronDown className="size-4" aria-hidden="true" />
-          )}
         </Button>
       </div>
     </Card>
