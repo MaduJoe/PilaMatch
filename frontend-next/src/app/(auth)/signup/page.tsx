@@ -9,13 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { User, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -51,164 +44,154 @@ export default function SignupPage() {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-4">
-        <CardTitle className="text-center text-xl">시작하기</CardTitle>
-      </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="space-y-5">
-          {/* Step 1: Role selection - large cards */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-muted-foreground">어떤 분이신가요?</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setValue('role', 'instructor')}
-                className={cn(
-                  'flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all',
-                  'hover:border-primary/50 hover:bg-primary/5',
-                  role === 'instructor'
-                    ? 'border-primary bg-primary/10 shadow-sm'
-                    : 'border-muted',
-                )}
-                aria-pressed={role === 'instructor'}
-              >
-                <div className={cn(
-                  'flex size-12 items-center justify-center rounded-full',
-                  role === 'instructor' ? 'bg-primary text-primary-foreground' : 'bg-muted',
-                )}>
-                  <User className="size-6" aria-hidden="true" />
-                </div>
-                <span className={cn(
-                  'text-sm font-semibold',
-                  role === 'instructor' ? 'text-primary' : 'text-muted-foreground',
-                )}>
-                  강사
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  대타/일자리 찾기
-                </span>
-              </button>
+    <div className="space-y-6">
+      <h2 className="text-center text-xl font-bold">시작하기</h2>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        {/* Step 1: Role selection - compact pill */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-muted-foreground">어떤 분이신가요?</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setValue('role', 'instructor')}
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-xl border-2 p-3 transition-all',
+                'hover:border-primary/50 hover:bg-primary/5',
+                role === 'instructor'
+                  ? 'border-primary bg-primary/10 shadow-sm'
+                  : 'border-muted',
+              )}
+              aria-pressed={role === 'instructor'}
+            >
+              <div className={cn(
+                'flex size-8 items-center justify-center rounded-full',
+                role === 'instructor' ? 'bg-primary text-primary-foreground' : 'bg-muted',
+              )}>
+                <User className="size-4" aria-hidden="true" />
+              </div>
+              <span className={cn(
+                'text-sm font-semibold',
+                role === 'instructor' ? 'text-primary' : 'text-muted-foreground',
+              )}>
+                강사
+              </span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => setValue('role', 'studio')}
-                className={cn(
-                  'flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all',
-                  'hover:border-primary/50 hover:bg-primary/5',
-                  role === 'studio'
-                    ? 'border-primary bg-primary/10 shadow-sm'
-                    : 'border-muted',
-                )}
-                aria-pressed={role === 'studio'}
-              >
-                <div className={cn(
-                  'flex size-12 items-center justify-center rounded-full',
-                  role === 'studio' ? 'bg-primary text-primary-foreground' : 'bg-muted',
-                )}>
-                  <Building2 className="size-6" aria-hidden="true" />
-                </div>
-                <span className={cn(
-                  'text-sm font-semibold',
-                  role === 'studio' ? 'text-primary' : 'text-muted-foreground',
-                )}>
-                  스튜디오
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  대타/강사 찾기
-                </span>
-              </button>
-            </div>
-            {errors.role && (
-              <p className="text-sm text-destructive">{errors.role.message}</p>
+            <button
+              type="button"
+              onClick={() => setValue('role', 'studio')}
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-xl border-2 p-3 transition-all',
+                'hover:border-primary/50 hover:bg-primary/5',
+                role === 'studio'
+                  ? 'border-primary bg-primary/10 shadow-sm'
+                  : 'border-muted',
+              )}
+              aria-pressed={role === 'studio'}
+            >
+              <div className={cn(
+                'flex size-8 items-center justify-center rounded-full',
+                role === 'studio' ? 'bg-primary text-primary-foreground' : 'bg-muted',
+              )}>
+                <Building2 className="size-4" aria-hidden="true" />
+              </div>
+              <span className={cn(
+                'text-sm font-semibold',
+                role === 'studio' ? 'text-primary' : 'text-muted-foreground',
+              )}>
+                스튜디오
+              </span>
+            </button>
+          </div>
+          {errors.role && (
+            <p className="text-sm text-destructive">{errors.role.message}</p>
+          )}
+        </div>
+
+        {/* Step 2: Credentials */}
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="email" className="text-sm">이메일</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="example@email.com"
+              autoFocus
+              className="min-h-[48px] rounded-xl"
+              {...register('email')}
+            />
+            {errors.email && (
+              <p className="text-xs text-destructive">{errors.email.message}</p>
             )}
           </div>
 
-          {/* Step 2: Credentials */}
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm">이메일</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="example@email.com"
-                autoFocus
-                className="min-h-[44px]"
-                {...register('email')}
-              />
-              {errors.email && (
-                <p className="text-xs text-destructive">{errors.email.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm">비밀번호</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="8자 이상"
-                className="min-h-[44px]"
-                {...register('password')}
-              />
-              {errors.password && (
-                <p className="text-xs text-destructive">{errors.password.message}</p>
-              )}
-            </div>
-
-            {/* Name field - role-dependent */}
-            <div className="space-y-1.5">
-              <Label htmlFor={role === 'instructor' ? 'display_name' : 'business_name'} className="text-sm">
-                {role === 'instructor' ? '이름' : '업체명'}
-              </Label>
-              {role === 'instructor' ? (
-                <Input
-                  id="display_name"
-                  placeholder="홍길동"
-                  className="min-h-[44px]"
-                  {...register('display_name')}
-                />
-              ) : (
-                <Input
-                  id="business_name"
-                  placeholder="OO필라테스"
-                  className="min-h-[44px]"
-                  {...register('business_name')}
-                />
-              )}
-              {errors.display_name && (
-                <p className="text-xs text-destructive">{errors.display_name.message}</p>
-              )}
-              {errors.business_name && (
-                <p className="text-xs text-destructive">{errors.business_name.message}</p>
-              )}
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="text-sm">비밀번호</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="8자 이상"
+              className="min-h-[48px] rounded-xl"
+              {...register('password')}
+            />
+            {errors.password && (
+              <p className="text-xs text-destructive">{errors.password.message}</p>
+            )}
           </div>
 
-          {/* Step 3: Terms - simplified */}
-          <div className="space-y-2.5 rounded-lg border bg-muted/30 p-3">
-            <label className="flex cursor-pointer items-center gap-2.5">
-              <Checkbox
-                id="agree-all"
-                checked={allAgreed}
-                onCheckedChange={(checked) => handleAllAgree(checked === true)}
+          {/* Name field - role-dependent */}
+          <div className="space-y-1.5">
+            <Label htmlFor={role === 'instructor' ? 'display_name' : 'business_name'} className="text-sm">
+              {role === 'instructor' ? '이름' : '업체명'}
+            </Label>
+            {role === 'instructor' ? (
+              <Input
+                id="display_name"
+                placeholder="홍길동"
+                className="min-h-[48px] rounded-xl"
+                {...register('display_name')}
               />
-              <span className="text-sm font-semibold">전체 동의하고 시작하기</span>
-            </label>
-            <div className="flex gap-3 pl-7 text-xs text-muted-foreground">
-              <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-foreground">
-                이용약관
-              </Link>
-              <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-foreground">
-                개인정보 처리방침
-              </Link>
-            </div>
+            ) : (
+              <Input
+                id="business_name"
+                placeholder="OO필라테스"
+                className="min-h-[48px] rounded-xl"
+                {...register('business_name')}
+              />
+            )}
+            {errors.display_name && (
+              <p className="text-xs text-destructive">{errors.display_name.message}</p>
+            )}
+            {errors.business_name && (
+              <p className="text-xs text-destructive">{errors.business_name.message}</p>
+            )}
           </div>
-        </CardContent>
+        </div>
 
-        <CardFooter className="flex flex-col gap-3 pt-2">
+        {/* Step 3: Terms - simplified */}
+        <div className="space-y-2.5 rounded-xl border bg-muted/30 p-3">
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <Checkbox
+              id="agree-all"
+              checked={allAgreed}
+              onCheckedChange={(checked) => handleAllAgree(checked === true)}
+            />
+            <span className="text-sm font-semibold">전체 동의하고 시작하기</span>
+          </label>
+          <div className="flex gap-3 pl-7 text-xs text-muted-foreground">
+            <Link href="/terms" target="_blank" className="underline underline-offset-2 hover:text-foreground">
+              이용약관
+            </Link>
+            <Link href="/privacy" target="_blank" className="underline underline-offset-2 hover:text-foreground">
+              개인정보 처리방침
+            </Link>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 pt-1">
           <Button
             type="submit"
-            className="w-full min-h-[48px] text-base font-bold"
+            className="w-full min-h-[48px] rounded-xl text-base font-bold"
             disabled={signup.isPending || !allAgreed}
           >
             {signup.isPending ? '가입 중...' : '가입하기'}
@@ -219,8 +202,8 @@ export default function SignupPage() {
               로그인
             </Link>
           </p>
-        </CardFooter>
+        </div>
       </form>
-    </Card>
+    </div>
   );
 }

@@ -1,26 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { Eye, EyeOff } from 'lucide-react';
 import { loginSchema, type LoginFormData } from '@/lib/validators';
 import { useLogin } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 
 export default function LoginPage() {
-  const [showPassword, setShowPassword] = useState(false);
   const login = useLogin();
   const {
     register,
@@ -35,54 +24,46 @@ export default function LoginPage() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>로그인</CardTitle>
-        <CardDescription>이메일과 비밀번호로 로그인하세요</CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold">로그인</h2>
+        <p className="mt-1 text-sm text-muted-foreground">이메일과 비밀번호로 로그인하세요</p>
+      </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <div className="space-y-3">
+          <div className="space-y-1.5">
             <Label htmlFor="email">이메일</Label>
             <Input
               id="email"
               type="email"
               placeholder="example@email.com"
+              className="min-h-[48px] rounded-xl"
               {...register('email')}
             />
             {errors.email && (
-              <p className="text-sm text-red-500">{errors.email.message}</p>
+              <p className="text-sm text-destructive">{errors.email.message}</p>
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="password">비밀번호</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="8자 이상"
-                {...register('password')}
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
-                tabIndex={-1}
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder="8자 이상"
+              className="min-h-[48px] rounded-xl"
+              {...register('password')}
+            />
             {errors.password && (
-              <p className="text-sm text-red-500">{errors.password.message}</p>
+              <p className="text-sm text-destructive">{errors.password.message}</p>
             )}
           </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-4">
+        </div>
+
+        <div className="flex flex-col gap-4">
           <Button
             type="submit"
-            className="w-full"
+            className="w-full min-h-[48px] rounded-xl text-base font-bold"
             disabled={login.isPending}
           >
             {login.isPending ? '로그인 중...' : '로그인'}
@@ -93,14 +74,14 @@ export default function LoginPage() {
           >
             비밀번호를 잊으셨나요?
           </Link>
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-muted-foreground">
             계정이 없으신가요?{' '}
             <Link href="/signup" className="font-medium text-primary hover:underline">
               회원가입
             </Link>
           </p>
-        </CardFooter>
+        </div>
       </form>
-    </Card>
+    </div>
   );
 }
