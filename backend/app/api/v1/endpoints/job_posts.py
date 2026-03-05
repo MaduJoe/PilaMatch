@@ -345,13 +345,23 @@ async def list_job_posts_with_matching(
     end = start + page_size
     paginated = jobs_with_scores[start:end]
 
+    # Bulk-check which paginated jobs have handoff notes
+    from app.models.handoff_note import HandoffNote
+    paginated_job_ids = [item["job"].id for item in paginated]
+    hn_result = await db.execute(
+        select(HandoffNote.job_post_id).where(HandoffNote.job_post_id.in_(paginated_job_ids))
+    )
+    handoff_job_ids = set(hn_result.scalars().all())
+
     response_items = []
     for item in paginated:
         dist = item["distance_km"]
+        job_resp = JobPostResponse.model_validate(item["job"]).model_copy(
+            update={"is_past": item["job"].date < date.today() if item["job"].date else False}
+        )
+        job_resp.has_handoff_note = item["job"].id in handoff_job_ids
         resp = JobPostWithMatchingResponse(
-            job=JobPostResponse.model_validate(item["job"]).model_copy(
-                update={"is_past": item["job"].date < date.today() if item["job"].date else False}
-            ),
+            job=job_resp,
             matching=MatchingScore(
                 total=item["score"],
                 label=get_match_label(item["score"]),

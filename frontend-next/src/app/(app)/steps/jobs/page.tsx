@@ -136,7 +136,7 @@ function StudioJobCard({ job }: { job: JobPostResponse }) {
             variant="outline"
             size="sm"
             className="min-h-[36px] text-xs"
-            onClick={() => router.push('/steps/offers')}
+            onClick={() => router.push(`/steps/offers?jobId=${job.id}`)}
             aria-label={`${job.title} 지원자 보기`}
           >
             지원자 보기

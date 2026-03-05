@@ -1,21 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import type { JobPostWithMatchingItem } from '@/lib/api-types';
+import { useQuery } from '@tanstack/react-query';
+import type { JobPostWithMatchingItem, HandoffNotePublicResponse, HandoffNoteFullResponse } from '@/lib/api-types';
+import api from '@/lib/api-client';
 import { formatCurrency } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Clock, Banknote, ChevronDown, ChevronUp } from 'lucide-react';
+import { MapPin, Clock, Banknote, ChevronDown, ChevronUp, FileText, Lock, Loader2 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const JOB_TYPE_MAP: Record<string, { label: string; emoji: string }> = {
-  substitute: { label: '1회성', emoji: '\u{1F504}' },
-  regular: { label: '여러 회', emoji: '\u{1F4C5}' },
+  substitute: { label: '1회성', emoji: '☝️' },
+  // substitute: { label: '1회성', emoji: '\u{1F504}' },
+  regular: { label: '여러 회', emoji: '\u{1F504}' },
+  // regular: { label: '여러 회', emoji: '\u{1F4C5}' },
   contract: { label: '계약', emoji: '\u{1F4DD}' },
 };
 
@@ -26,6 +30,73 @@ const SCORE_THRESHOLDS = [
 
 function scoreColor(score: number): string {
   return SCORE_THRESHOLDS.find((t) => score >= t.min)?.color ?? 'bg-gray-400';
+}
+
+// ---------------------------------------------------------------------------
+// Handoff Note Read-only View
+// ---------------------------------------------------------------------------
+
+function NoteRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-2 text-xs">
+      <span className="shrink-0 w-[52px] text-muted-foreground">{label}</span>
+      <span className="flex-1 whitespace-pre-wrap">{children}</span>
+    </div>
+  );
+}
+
+function HandoffNoteView({ note }: { note: HandoffNotePublicResponse | HandoffNoteFullResponse }) {
+  const fullNote = note as HandoffNoteFullResponse;
+  const hasSensitive = 'member_notes' in note || 'equipment_notes' in note;
+  const isFull = hasSensitive && !!(fullNote.member_notes || fullNote.equipment_notes);
+
+  return (
+    <div className="space-y-2.5">
+      <p className="flex items-center gap-1.5 text-xs font-semibold">
+        <FileText className="size-3.5 text-primary" />
+        인수인계 노트
+      </p>
+
+      <div className="rounded-lg border bg-background p-3 space-y-2">
+        {note.class_topic && (
+          <NoteRow label="주제">{note.class_topic}</NoteRow>
+        )}
+        {note.class_sequence_info && (
+          <NoteRow label="진도">{note.class_sequence_info}</NoteRow>
+        )}
+        {note.atmosphere_preference && (
+          <NoteRow label="분위기">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+              {note.atmosphere_preference}
+            </Badge>
+          </NoteRow>
+        )}
+        {note.additional_notes && (
+          <NoteRow label="안내">{note.additional_notes}</NoteRow>
+        )}
+      </div>
+
+      {/* Sensitive fields — shown after acceptance */}
+      {isFull ? (
+        <div className="rounded-lg border border-green-200 bg-green-50/60 p-3 space-y-2 dark:border-green-800 dark:bg-green-950/20">
+          <p className="text-[10px] font-medium text-green-700 dark:text-green-300 mb-1">수락 후 공개 정보</p>
+          {fullNote.member_notes && (
+            <NoteRow label="회원">{fullNote.member_notes}</NoteRow>
+          )}
+          {fullNote.equipment_notes && (
+            <NoteRow label="기구">{fullNote.equipment_notes}</NoteRow>
+          )}
+        </div>
+      ) : note.has_sensitive_info ? (
+        <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2.5 dark:border-amber-700 dark:bg-amber-950/20">
+          <p className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+            <Lock className="size-3" />
+            회원 정보·기구 세팅은 수락 후 공개됩니다
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -44,12 +115,18 @@ interface JobCardProps {
 // ---------------------------------------------------------------------------
 
 export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const { job, matching, is_urgent } = item;
   const score = matching.total;
   const isPast = job.is_past;
   const typeInfo = JOB_TYPE_MAP[job.job_type] ?? { label: job.job_type, emoji: '' };
-  const breakdown = matching.breakdown;
+
+  const handoffQuery = useQuery({
+    queryKey: ['handoff-note', job.id],
+    queryFn: () => api.handoffNotes.get(job.id),
+    enabled: expanded && !!job.has_handoff_note,
+    retry: false,
+  });
 
   return (
     <Card
@@ -148,44 +225,26 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
         </div>
       </CardContent>
 
-      {/* Expandable detail section */}
+      {/* Expandable detail section — Handoff Note */}
       {expanded && (
         <div className="border-t px-6 py-3 bg-muted/30">
-          {/* Matching breakdown */}
-          {breakdown && (
-            <div className="mb-2">
-              <p className="text-xs font-medium text-muted-foreground mb-1">매칭 상세</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
-                {breakdown.distance && (
-                  <span>거리: <strong>{breakdown.distance.score}점</strong></span>
-                )}
-                {breakdown.region && (
-                  <span>지역: <strong>{breakdown.region.score}점</strong></span>
-                )}
-                {breakdown.experience && (
-                  <span>경력: <strong>{breakdown.experience.score}점</strong></span>
-                )}
-                {breakdown.certifications && (
-                  <span>자격: <strong>{breakdown.certifications.score}점</strong></span>
-                )}
-                {breakdown.hourly_rate && (
-                  <span>시급: <strong>{breakdown.hourly_rate.score}점</strong></span>
-                )}
-                {breakdown.style && (
-                  <span>스타일: <strong>{breakdown.style.score}점</strong></span>
-                )}
+          {job.has_handoff_note ? (
+            handoffQuery.isLoading ? (
+              <div className="flex items-center gap-2 py-2">
+                <Loader2 className="size-4 animate-spin" />
+                <span className="text-xs text-muted-foreground">인수인계 노트 불러오는 중...</span>
               </div>
-            </div>
-          )}
-          {/* Handoff note indicator */}
-          {job.has_handoff_note && (
-            <Badge variant="outline" className="mb-2 text-xs border-blue-300 text-blue-700 dark:border-blue-600 dark:text-blue-300">
-              인수인계 노트 있음
-            </Badge>
+            ) : handoffQuery.data ? (
+              <HandoffNoteView note={handoffQuery.data} />
+            ) : (
+              <p className="text-xs text-muted-foreground">인수인계 노트를 불러올 수 없습니다.</p>
+            )
+          ) : (
+            <p className="text-xs text-muted-foreground">인수인계 노트가 없습니다.</p>
           )}
           {/* Description */}
           {job.description && (
-            <p className="text-xs text-muted-foreground whitespace-pre-wrap">{job.description}</p>
+            <p className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">{job.description}</p>
           )}
         </div>
       )}

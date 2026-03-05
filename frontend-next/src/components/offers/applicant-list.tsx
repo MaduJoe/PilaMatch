@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { Clock, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -40,9 +41,11 @@ function buildJobLabel(job: JobPostResponse): string {
 
 export function ApplicantList() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const jobIdFromQuery = searchParams.get('jobId');
 
   // ---- State ---------------------------------------------------------------
-  const [selectedJobId, setSelectedJobId] = useState<string | undefined>(undefined);
+  const [selectedJobId, setSelectedJobId] = useState<string | undefined>(jobIdFromQuery ?? undefined);
   const [contactReveal, setContactReveal] = useState<ContactRevealResponse | null>(null);
   const [contactRevealJob, setContactRevealJob] = useState<JobPostResponse | null>(null);
 

@@ -112,7 +112,7 @@ export function HandoffNoteForm({ jobPostId, isUrgentSubstitute }: HandoffNoteFo
                 <label className="text-sm font-medium">수업 분위기</label>
                 <Select
                   value={watch('atmosphere_preference') ?? ''}
-                  onValueChange={(val) => setValue('atmosphere_preference', val)}
+                  onValueChange={(val) => setValue('atmosphere_preference', val, { shouldDirty: true })}
                 >
                   <SelectTrigger className="min-h-[44px]">
                     <SelectValue placeholder="분위기 선택" />
