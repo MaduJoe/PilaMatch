@@ -181,6 +181,12 @@ export interface JobPostCreate {
   payment_method?: string;
   terms_agreed?: boolean;
   preferred_style?: Record<string, string>;
+  // Handoff note (required)
+  handoff_class_topic: string;
+  handoff_class_sequence_info: string;
+  handoff_atmosphere_preference: string;
+  handoff_member_notes: string;
+  handoff_equipment_notes: string;
 }
 
 export interface JobPostResponse {
@@ -237,6 +243,10 @@ export interface JobPostWithMatchingItem {
   distance_km?: number | null;
   distance_text?: string | null;
   travel_time_min?: number | null;
+  // Premium-gated fields
+  application_count: number;
+  early_access_locked: boolean;
+  studio_avg_response_hours?: number | null;
 }
 
 export interface JobPostListResponse {

@@ -45,6 +45,10 @@ class JobPostWithMatchingResponse(BaseModel):
     distance_km: Optional[float] = None
     distance_text: Optional[str] = None  # e.g. "2.3km"
     travel_time_min: Optional[int] = None  # e.g. 15
+    # Premium-gated fields
+    application_count: int = 0  # visible to premium only (frontend hides for free)
+    early_access_locked: bool = False  # True = urgent post < 10min, free user can't see yet
+    studio_avg_response_hours: Optional[float] = None  # avg hours to accept/reject
 
 
 class JobPostWithMatchingListResponse(BaseModel):
@@ -82,6 +86,22 @@ async def create_job_post(
         )
 
     job_post = await service.create(studio_id, data)
+
+    # Create mandatory handoff note
+    from app.services.handoff_note import HandoffNoteService
+    from app.schemas.handoff_note import HandoffNoteCreate
+    hn_service = HandoffNoteService(db)
+    await hn_service.create_or_update(
+        job_post_id=job_post.id,
+        author_user_id=current_user.id,
+        data=HandoffNoteCreate(
+            class_topic=data.handoff_class_topic,
+            class_sequence_info=data.handoff_class_sequence_info,
+            atmosphere_preference=data.handoff_atmosphere_preference,
+            member_notes=data.handoff_member_notes,
+            equipment_notes=data.handoff_equipment_notes,
+        ),
+    )
 
     # PMF pivot: Send urgent substitute notifications to nearby instructors
     if data.job_type == JobType.SUBSTITUTE or getattr(data, "is_urgent", False):
@@ -353,6 +373,42 @@ async def list_job_posts_with_matching(
     )
     handoff_job_ids = set(hn_result.scalars().all())
 
+    # Bulk-count applications per job
+    from app.models import Application
+    app_count_result = await db.execute(
+        select(Application.job_post_id, func.count(Application.id))
+        .where(Application.job_post_id.in_(paginated_job_ids))
+        .group_by(Application.job_post_id)
+    )
+    app_counts = dict(app_count_result.all())
+
+    # Bulk-compute studio avg response hours (time from application to accept/reject)
+    from app.models.enums import ApplicationStatus
+    studio_ids = list({item["job"].studio_id for item in paginated})
+    avg_resp_result = await db.execute(
+        select(
+            JobPost.studio_id,
+            func.avg(
+                func.extract("epoch", Application.updated_at) -
+                func.extract("epoch", Application.created_at)
+            ),
+        )
+        .join(JobPost, JobPost.id == Application.job_post_id)
+        .where(
+            JobPost.studio_id.in_(studio_ids),
+            Application.status.in_([ApplicationStatus.ACCEPTED.value, ApplicationStatus.REJECTED.value]),
+        )
+        .group_by(JobPost.studio_id)
+    )
+    studio_avg_seconds = dict(avg_resp_result.all())
+
+    # Check if current user is premium (for early_access_locked)
+    from app.services.subscription import SubscriptionService
+    sub_service = SubscriptionService(db)
+    is_user_premium = await sub_service.is_premium_user(current_user.id)
+
+    now = datetime.utcnow()
+
     response_items = []
     for item in paginated:
         dist = item["distance_km"]
@@ -360,6 +416,21 @@ async def list_job_posts_with_matching(
             update={"is_past": item["job"].date < date.today() if item["job"].date else False}
         )
         job_resp.has_handoff_note = item["job"].id in handoff_job_ids
+
+        # Early access: urgent posts < 10 min old are locked for free users
+        created = item["job"].created_at
+        is_early = (
+            item["is_urgent"]
+            and created
+            and (now - created) < timedelta(minutes=10)
+        )
+        early_locked = is_early and not is_user_premium
+
+        # Studio avg response hours
+        sid = item["job"].studio_id
+        avg_secs = studio_avg_seconds.get(sid)
+        avg_hours = round(avg_secs / 3600, 1) if avg_secs else None
+
         resp = JobPostWithMatchingResponse(
             job=job_resp,
             matching=MatchingScore(
@@ -372,6 +443,9 @@ async def list_job_posts_with_matching(
             distance_km=round(dist, 1) if dist is not None else None,
             distance_text=format_distance(dist) if dist is not None else None,
             travel_time_min=estimate_travel_time(dist) if dist is not None else None,
+            application_count=app_counts.get(item["job"].id, 0),
+            early_access_locked=early_locked,
+            studio_avg_response_hours=avg_hours,
         )
         response_items.append(resp)
 

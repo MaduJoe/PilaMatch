@@ -66,11 +66,10 @@ export function JobList() {
     queryFn: () => api.applications.getMyApplications(),
   });
 
-  // PMF pivot: subscription query removed
-  // const subscriptionQuery = useQuery({
-  //   queryKey: ['subscription-status'],
-  //   queryFn: () => api.subscriptions.getStatus(),
-  // });
+  const subscriptionQuery = useQuery({
+    queryKey: ['subscription-status'],
+    queryFn: () => api.subscriptions.getStatus(),
+  });
 
   const profileQuery = useQuery({
     queryKey: ['profile', 'completeness'],
@@ -110,6 +109,8 @@ export function JobList() {
 
   const total = jobsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const isPremium = subscriptionQuery.data?.has_subscription === true;
 
   const appliedCount = sortedJobs.filter((item) =>
     appliedJobIds.has(item.job.id),
@@ -246,6 +247,7 @@ export function JobList() {
                 key={item.job.id}
                 item={item}
                 isApplied={appliedJobIds.has(item.job.id)}
+                isPremium={isPremium}
                 onApply={handleApply}
                 onDetail={handleDetail}
               />

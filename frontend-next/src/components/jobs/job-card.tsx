@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Clock, Banknote, ChevronDown, ChevronUp, FileText, Lock, Loader2 } from 'lucide-react';
+import { MapPin, Clock, Banknote, ChevronDown, ChevronUp, FileText, Lock, Loader2, Users, Timer } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,6 +106,7 @@ function HandoffNoteView({ note }: { note: HandoffNotePublicResponse | HandoffNo
 interface JobCardProps {
   item: JobPostWithMatchingItem;
   isApplied: boolean;
+  isPremium?: boolean;
   onApply: (jobId: string) => void;
   onDetail: (item: JobPostWithMatchingItem) => void;
 }
@@ -114,11 +115,12 @@ interface JobCardProps {
 // Component
 // ---------------------------------------------------------------------------
 
-export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
+export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail }: JobCardProps) {
   const [expanded, setExpanded] = useState(true);
   const { job, matching, is_urgent } = item;
   const score = matching.total;
   const isPast = job.is_past;
+  const isEarlyLocked = item.early_access_locked;
   const typeInfo = JOB_TYPE_MAP[job.job_type] ?? { label: job.job_type, emoji: '' };
 
   const handoffQuery = useQuery({
@@ -131,11 +133,21 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
   return (
     <Card
       className={cn(
-        'flex flex-col transition-shadow hover:shadow-md overflow-hidden',
+        'relative flex flex-col transition-shadow hover:shadow-md overflow-hidden',
         isPast && 'opacity-60',
+        isEarlyLocked && 'opacity-50',
         is_urgent && !isPast && 'border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-950/20',
       )}
     >
+      {isEarlyLocked && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
+          <div className="flex flex-col items-center gap-1.5 text-center px-4">
+            <Lock className="size-5 text-primary" />
+            <p className="text-xs font-semibold">프리미엄 회원 전용</p>
+            <p className="text-[10px] text-muted-foreground">긴급 공고를 10분 먼저 확인하세요</p>
+          </div>
+        </div>
+      )}
       <CardContent className="flex flex-col gap-2.5 pb-3">
         {/* Row 1: Badges (max 3) + Score dot */}
         <div className="flex items-center justify-between gap-2">
@@ -223,6 +235,35 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
             {formatCurrency(job.hourly_rate)}/시간
           </span>
         </div>
+
+        {/* Row 5: Premium info — 경쟁률 + 응답률 */}
+        <div className="flex items-center gap-3 text-xs">
+          {isPremium ? (
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Users className="size-3" />
+              {item.application_count}명 지원 중
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-muted-foreground/60">
+              <Lock className="size-3" />
+              ?명 지원 중
+            </span>
+          )}
+          <span className="text-muted-foreground/30">·</span>
+          {isPremium && item.studio_avg_response_hours != null ? (
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Timer className="size-3" />
+              평균 {item.studio_avg_response_hours < 1
+                ? `${Math.round(item.studio_avg_response_hours * 60)}분`
+                : `${item.studio_avg_response_hours.toFixed(1)}시간`} 내 응답
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-muted-foreground/60">
+              <Lock className="size-3" />
+              응답 시간
+            </span>
+          )}
+        </div>
       </CardContent>
 
       {/* Expandable detail section — Handoff Note */}
@@ -242,10 +283,6 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
           ) : (
             <p className="text-xs text-muted-foreground">인수인계 노트가 없습니다.</p>
           )}
-          {/* Description */}
-          {job.description && (
-            <p className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">{job.description}</p>
-          )}
         </div>
       )}
 
@@ -255,7 +292,7 @@ export function JobCard({ item, isApplied, onApply, onDetail }: JobCardProps) {
           variant={isApplied ? 'secondary' : is_urgent && !isPast ? 'destructive' : 'default'}
           size="sm"
           className="min-h-[44px] w-full font-bold"
-          disabled={isApplied || isPast}
+          disabled={isApplied || isPast || isEarlyLocked}
           onClick={(e) => {
             e.stopPropagation();
             onApply(job.id);
