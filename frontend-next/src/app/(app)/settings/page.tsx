@@ -2,8 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 import { useLogout } from '@/hooks/use-auth';
+import api from '@/lib/api-client';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +28,75 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Crown, Check, Loader2 } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Premium (Pro) benefits — shared for instructor & studio
+// ---------------------------------------------------------------------------
+
+const PRO_BENEFITS = [
+  '모든 지역 지원/공고 등록 가능 (Basic: 내 위치+1개, Verified: +2개)',
+  '긴급건 무제한 지원/등록 (Basic: 1건, Verified: 2건)',
+  '일일 지원 무제한',
+];
+
+// ---------------------------------------------------------------------------
+// Upgrade button with depositor name dialog
+// ---------------------------------------------------------------------------
+
+function UpgradeButton({ onUpgrade, isPending }: { onUpgrade: (name: string) => void; isPending: boolean }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [depositorName, setDepositorName] = useState('');
+
+  return (
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogTrigger asChild>
+        <Button className="min-h-[48px] w-full text-base font-semibold">
+          프리미엄 구독하기
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>프리미엄 구독 — 무통장 입금</DialogTitle>
+          <DialogDescription>
+            입금자명을 입력하면 계좌 정보를 안내해드립니다. 입금 확인 후 자동 활성화됩니다.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="depositor-name">입금자명</Label>
+            <Input
+              id="depositor-name"
+              placeholder="홍길동"
+              className="min-h-[44px]"
+              value={depositorName}
+              onChange={(e) => setDepositorName(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            취소
+          </Button>
+          <Button
+            disabled={isPending || !depositorName.trim()}
+            onClick={() => {
+              onUpgrade(depositorName.trim());
+              setDialogOpen(false);
+            }}
+          >
+            {isPending ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
+            {isPending ? '처리 중...' : '입금 신청'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
@@ -35,6 +107,36 @@ export default function SettingsPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Tier & subscription queries
+  const tierQuery = useQuery({
+    queryKey: ['my-tier'],
+    queryFn: () => api.tier.getMyTier(),
+  });
+  const subQuery = useQuery({
+    queryKey: ['my-subscription'],
+    queryFn: () => api.subscriptions.getStatus(),
+  });
+
+  const bankTransferMutation = useMutation({
+    mutationFn: (name: string) => api.subscriptions.initBankTransfer({ depositor_name: name }),
+    onSuccess: () => {
+      toast.success('무통장 입금 신청 완료! 입금 확인 후 자동 활성화됩니다.');
+    },
+    onError: () => toast.error('신청 중 오류가 발생했습니다.'),
+  });
+
+  const cancelSubMutation = useMutation({
+    mutationFn: () => api.subscriptions.cancel(),
+    onSuccess: () => {
+      toast.success('구독이 해지되었습니다.');
+      subQuery.refetch();
+      tierQuery.refetch();
+    },
+    onError: () => toast.error('해지 중 오류가 발생했습니다.'),
+  });
+
+  const isPremium = subQuery.data?.has_subscription === true;
 
   const handleDelete = async () => {
     if (!password.trim()) {
@@ -90,6 +192,68 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Subscription / Premium section */}
+      <Card className={isPremium ? 'border-amber-300 dark:border-amber-700' : 'border-primary/30'}>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Crown className="size-5 text-amber-500" />
+              Premium Subscription
+            </CardTitle>
+            {isPremium ? (
+              <Badge className="bg-amber-500 text-white hover:bg-amber-600">구독 중</Badge>
+            ) : (
+              <Badge variant="outline">미구독</Badge>
+            )}
+          </div>
+          {tierQuery.data && (
+            <p className="text-sm text-muted-foreground">
+              현재 등급: <span className="font-medium">{tierQuery.data.tier_label_ko}({tierQuery.data.tier_label})</span>
+            </p>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isPremium ? (
+            /* Already subscribed — show status & cancel */
+            <div className="space-y-3">
+              <p className="text-sm">
+                월 <span className="text-lg font-bold">9,900원</span>
+                <span className="ml-1 text-muted-foreground">/ 다음 결제일: {subQuery.data?.subscription?.next_billing_date?.slice(0, 10) ?? '-'}</span>
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[44px]"
+                onClick={() => cancelSubMutation.mutate()}
+                disabled={cancelSubMutation.isPending}
+              >
+                {cancelSubMutation.isPending ? '해지 처리 중...' : '구독 해지'}
+              </Button>
+            </div>
+          ) : (
+            /* Not subscribed — show benefits & CTA */
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-4 space-y-2">
+                {PRO_BENEFITS.map((b) => (
+                  <div key={b} className="flex items-start gap-2 text-sm">
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <span>{b}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground mb-1">월 구독료</p>
+                <p className="text-2xl font-bold">9,900<span className="text-base font-normal text-muted-foreground">원</span></p>
+              </div>
+              <UpgradeButton
+                onUpgrade={(name) => bankTransferMutation.mutate(name)}
+                isPending={bankTransferMutation.isPending}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Button
         variant="outline"
         className="w-full"
@@ -100,7 +264,7 @@ export default function SettingsPage() {
 
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-destructive">위험 구역</CardTitle>
+          <CardTitle className="text-destructive">계정 삭제</CardTitle>
           <CardDescription>
             회원 탈퇴 시 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
           </CardDescription>

@@ -536,15 +536,15 @@ class TestGetTierLimits:
     """Tests for the get_tier_limits helper."""
 
     def test_teacher_t1_limits(self) -> None:
-        """T1 Basic teacher has 3 daily application limit."""
+        """T1 Basic teacher has 2 daily application limit."""
         limits = get_tier_limits(TeacherTier.T1_BASIC.value)
-        assert limits["daily_applications"] == 3
+        assert limits["daily_applications"] == 2
         assert limits["label"] == "Basic"
 
     def test_teacher_t2_limits(self) -> None:
-        """T2 Verified teacher has 20 daily application limit."""
+        """T2 Verified teacher has 3 daily application limit."""
         limits = get_tier_limits(TeacherTier.T2_VERIFIED.value)
-        assert limits["daily_applications"] == 20
+        assert limits["daily_applications"] == 3
 
     def test_teacher_t3_limits(self) -> None:
         """T3 Pro teacher has unlimited daily applications."""
@@ -566,7 +566,7 @@ class TestGetTierLimits:
     def test_unknown_tier_returns_t1_fallback(self) -> None:
         """Unknown tier string returns T1 Basic as fallback."""
         limits = get_tier_limits("unknown_tier")
-        assert limits["daily_applications"] == 3
+        assert limits["daily_applications"] == 2
 
 
 # ===========================================================================
@@ -577,11 +577,11 @@ class TestCheckCanApply:
     """Tests for check_can_apply function."""
 
     async def test_check_can_apply_respects_daily_limit(self) -> None:
-        """T1 user with 3 applications today is blocked."""
+        """T1 user with 2 applications today is blocked."""
         user = _make_user(
             role="instructor",
             tier=TeacherTier.T1_BASIC.value,
-            daily_applications_today=3,
+            daily_applications_today=2,
             last_usage_reset_date=date.today(),
         )
 
@@ -644,11 +644,11 @@ class TestCheckCanApply:
         assert "User not found" in reason
 
     async def test_check_can_apply_under_limit(self) -> None:
-        """T1 user with 2 applications today can still apply."""
+        """T1 user with 1 application today can still apply."""
         user = _make_user(
             role="instructor",
             tier=TeacherTier.T1_BASIC.value,
-            daily_applications_today=2,
+            daily_applications_today=1,
             last_usage_reset_date=date.today(),
         )
 

@@ -2,7 +2,15 @@
 
 import type { TierResponse } from '@/lib/api-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { HelpCircle } from 'lucide-react';
 import { TierBadge } from './tier-badge';
+
+const TIER_BENEFITS = [
+  { tier: 'Basic', daily: '하루 2회', region: '내 위치 + 1개 지역', urgent: '긴급 1건' },
+  { tier: 'Verified', daily: '하루 3회', region: '내 위치 + 2개 지역', urgent: '긴급 2건' },
+  { tier: 'Pro', daily: '무제한', region: '모든 지역', urgent: '긴급 무제한' },
+];
 
 interface TierCardProps {
   data: TierResponse;
@@ -15,6 +23,28 @@ export function TierCard({ data }: TierCardProps) {
         <div className="flex items-center gap-2">
           <CardTitle className="text-lg">내 등급</CardTitle>
           <TierBadge tier={data.tier} label={data.tier_label} size="md" />
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="text-muted-foreground hover:text-foreground" aria-label="등급별 혜택 보기">
+                <HelpCircle className="size-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-3" side="bottom" align="start">
+              <p className="text-xs font-semibold mb-2.5">등급별 혜택</p>
+              <div className="space-y-3">
+                {TIER_BENEFITS.map((b) => (
+                  <div key={b.tier} className="space-y-1">
+                    <p className="text-xs font-semibold">{b.tier}</p>
+                    <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span>지원</span><span>{b.daily}</span>
+                      <span>지역</span><span>{b.region}</span>
+                      <span>긴급</span><span>{b.urgent}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

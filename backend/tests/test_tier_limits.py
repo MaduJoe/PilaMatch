@@ -78,29 +78,10 @@ def _make_user(
 # ===========================================================================
 
 class TestInstructorDailyLimitT1:
-    """T1 instructor is blocked after 3 daily applications."""
+    """T1 instructor is blocked after 2 daily applications."""
 
     async def test_instructor_daily_limit_t1_blocked(self) -> None:
-        """T1 instructor with 3 applications today is blocked."""
-        user = _make_user(
-            role="instructor",
-            tier=TeacherTier.T1_BASIC.value,
-            daily_applications_today=3,
-            last_usage_reset_date=date.today(),
-        )
-
-        db = AsyncMock()
-        user_result = MagicMock()
-        user_result.scalar_one_or_none.return_value = user
-        db.execute = AsyncMock(return_value=user_result)
-        db.commit = AsyncMock()
-
-        can_apply, reason = await check_can_apply(db, user.id)
-        assert can_apply is False
-        assert "3" in reason
-
-    async def test_instructor_daily_limit_t1_allowed(self) -> None:
-        """T1 instructor with 2 applications today can still apply."""
+        """T1 instructor with 2 applications today is blocked."""
         user = _make_user(
             role="instructor",
             tier=TeacherTier.T1_BASIC.value,
@@ -115,14 +96,33 @@ class TestInstructorDailyLimitT1:
         db.commit = AsyncMock()
 
         can_apply, reason = await check_can_apply(db, user.id)
+        assert can_apply is False
+        assert "2" in reason
+
+    async def test_instructor_daily_limit_t1_allowed(self) -> None:
+        """T1 instructor with 1 application today can still apply."""
+        user = _make_user(
+            role="instructor",
+            tier=TeacherTier.T1_BASIC.value,
+            daily_applications_today=1,
+            last_usage_reset_date=date.today(),
+        )
+
+        db = AsyncMock()
+        user_result = MagicMock()
+        user_result.scalar_one_or_none.return_value = user
+        db.execute = AsyncMock(return_value=user_result)
+        db.commit = AsyncMock()
+
+        can_apply, reason = await check_can_apply(db, user.id)
         assert can_apply is True
 
     async def test_instructor_daily_limit_t2_higher(self) -> None:
-        """T2 instructor has higher limit (20), not blocked at 3."""
+        """T2 instructor has higher limit (3), not blocked at 2."""
         user = _make_user(
             role="instructor",
             tier=TeacherTier.T2_VERIFIED.value,
-            daily_applications_today=3,
+            daily_applications_today=2,
             last_usage_reset_date=date.today(),
         )
 
@@ -136,11 +136,11 @@ class TestInstructorDailyLimitT1:
         assert can_apply is True
 
     async def test_instructor_no_tier_defaults_to_t1(self) -> None:
-        """Instructor with no tier set defaults to T1 limits (3)."""
+        """Instructor with no tier set defaults to T1 limits (2)."""
         user = _make_user(
             role="instructor",
             tier=None,  # No tier set
-            daily_applications_today=3,
+            daily_applications_today=2,
             last_usage_reset_date=date.today(),
         )
 

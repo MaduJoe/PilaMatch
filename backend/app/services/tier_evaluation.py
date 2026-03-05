@@ -26,14 +26,18 @@ logger = logging.getLogger(__name__)
 
 TEACHER_TIER_LIMITS: Dict[str, Dict[str, Any]] = {
     TeacherTier.T1_BASIC.value: {
-        "daily_applications": 3,
+        "daily_applications": 2,
+        "extra_regions": 1,       # GPS + 1 region
+        "urgent_limit": 1,        # 1 urgent per day
         "matching_boost": 1.0,
         "label": "Basic",
         "label_ko": "기본",
         "color": "gray",
     },
     TeacherTier.T2_VERIFIED.value: {
-        "daily_applications": 20,
+        "daily_applications": 3,
+        "extra_regions": 2,       # GPS + 2 regions
+        "urgent_limit": 2,        # 2 urgent per day
         "matching_boost": 1.0,
         "label": "Verified",
         "label_ko": "인증",
@@ -41,6 +45,8 @@ TEACHER_TIER_LIMITS: Dict[str, Dict[str, Any]] = {
     },
     TeacherTier.T3_PRO.value: {
         "daily_applications": -1,  # unlimited
+        "extra_regions": -1,       # all regions
+        "urgent_limit": -1,        # unlimited urgent
         "matching_boost": 1.3,
         "label": "Pro",
         "label_ko": "프로",
@@ -51,6 +57,8 @@ TEACHER_TIER_LIMITS: Dict[str, Dict[str, Any]] = {
 CENTER_TIER_LIMITS: Dict[str, Dict[str, Any]] = {
     CenterTier.C1_BASIC.value: {
         "active_posts": 2,
+        "extra_regions": 1,       # GPS + 1 region
+        "urgent_limit": 1,        # 1 urgent per day
         "matching_boost": 1.0,
         "label": "Basic",
         "label_ko": "기본",
@@ -58,6 +66,8 @@ CENTER_TIER_LIMITS: Dict[str, Dict[str, Any]] = {
     },
     CenterTier.C2_VERIFIED.value: {
         "active_posts": 10,
+        "extra_regions": 2,       # GPS + 2 regions
+        "urgent_limit": 2,        # 2 urgent per day
         "matching_boost": 1.15,
         "label": "Verified",
         "label_ko": "인증",
