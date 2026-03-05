@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Loader2, FileSearch, Phone, MapPin, MessageSquare } from 'lucide-react';
@@ -11,6 +12,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // ---------------------------------------------------------------------------
 // Status badge color mapping
@@ -38,11 +47,9 @@ function statusBadgeVariant(status: string): 'default' | 'secondary' | 'destruct
 function ApplicationCard({
   application,
   onWithdraw,
-  isWithdrawing,
 }: {
   application: ApplicationWithJobResponse;
-  onWithdraw: (id: string) => void;
-  isWithdrawing: boolean;
+  onWithdraw?: (id: string) => void;
 }) {
   const statusDisplay = getApplicationStatusDisplay(application.status);
   const isAccepted = application.status === 'accepted';
@@ -132,24 +139,16 @@ function ApplicationCard({
         )}
 
         {/* Withdraw button for pending applications */}
-        {isPending && (
+        {isPending && onWithdraw && (
           <div className="flex justify-end pt-1">
             <Button
               variant="outline"
               size="sm"
               className="min-h-[44px]"
-              disabled={isWithdrawing}
               onClick={() => onWithdraw(application.id)}
               aria-label={`${application.job_title ?? '공고'} 지원 철회`}
             >
-              {isWithdrawing ? (
-                <>
-                  <Loader2 className="mr-1 size-4 animate-spin" aria-hidden="true" />
-                  철회 중...
-                </>
-              ) : (
-                '지원 철회'
-              )}
+              지원 철회
             </Button>
           </div>
         )}
@@ -164,6 +163,7 @@ function ApplicationCard({
 
 export function InstructorApplicationList() {
   const queryClient = useQueryClient();
+  const [withdrawTargetId, setWithdrawTargetId] = useState<string | null>(null);
 
   // ---- Query: my applications ------------------------------------------------
   const applicationsQuery = useQuery({
@@ -177,9 +177,11 @@ export function InstructorApplicationList() {
     mutationFn: (applicationId: string) => api.applications.withdraw(applicationId),
     onSuccess: () => {
       toast.success('지원이 철회되었습니다.');
+      setWithdrawTargetId(null);
       void queryClient.invalidateQueries({ queryKey: ['my-applications'] });
     },
     onError: (error: Error) => {
+      setWithdrawTargetId(null);
       if (error instanceof APIError) {
         toast.error(error.message);
       } else {
@@ -187,6 +189,21 @@ export function InstructorApplicationList() {
       }
     },
   });
+
+  // ---- Separate by status: accepted first, then pending, then others ----------
+  // NOTE: useMemo must be called before any early returns (Rules of Hooks)
+  const items = applicationsQuery.data?.items ?? [];
+  const { accepted, pending, others } = useMemo(() => {
+    const acc: ApplicationWithJobResponse[] = [];
+    const pend: ApplicationWithJobResponse[] = [];
+    const rest: ApplicationWithJobResponse[] = [];
+    for (const a of items) {
+      if (a.status === 'accepted') acc.push(a);
+      else if (a.status === 'pending') pend.push(a);
+      else rest.push(a);
+    }
+    return { accepted: acc, pending: pend, others: rest };
+  }, [items]);
 
   // ---- Render: loading state --------------------------------------------------
   if (applicationsQuery.isLoading) {
@@ -222,8 +239,6 @@ export function InstructorApplicationList() {
     );
   }
 
-  const items = applicationsQuery.data?.items ?? [];
-
   // ---- Render: empty state ----------------------------------------------------
   if (items.length === 0) {
     return (
@@ -242,11 +257,6 @@ export function InstructorApplicationList() {
     );
   }
 
-  // ---- Separate by status: accepted first, then pending, then others ----------
-  const accepted = items.filter((a) => a.status === 'accepted');
-  const pending = items.filter((a) => a.status === 'pending');
-  const others = items.filter((a) => a.status !== 'accepted' && a.status !== 'pending');
-
   return (
     <div className="flex flex-col gap-6">
       {/* Accepted applications */}
@@ -257,12 +267,7 @@ export function InstructorApplicationList() {
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {accepted.map((app) => (
-              <ApplicationCard
-                key={app.id}
-                application={app}
-                onWithdraw={() => {}}
-                isWithdrawing={false}
-              />
+              <ApplicationCard key={app.id} application={app} />
             ))}
           </div>
         </section>
@@ -279,8 +284,7 @@ export function InstructorApplicationList() {
               <ApplicationCard
                 key={app.id}
                 application={app}
-                onWithdraw={(id) => withdrawMutation.mutate(id)}
-                isWithdrawing={withdrawMutation.isPending && withdrawMutation.variables === app.id}
+                onWithdraw={setWithdrawTargetId}
               />
             ))}
           </div>
@@ -295,16 +299,56 @@ export function InstructorApplicationList() {
           </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {others.map((app) => (
-              <ApplicationCard
-                key={app.id}
-                application={app}
-                onWithdraw={() => {}}
-                isWithdrawing={false}
-              />
+              <ApplicationCard key={app.id} application={app} />
             ))}
           </div>
         </section>
       )}
+
+      {/* Withdraw confirmation dialog */}
+      <Dialog
+        open={withdrawTargetId !== null}
+        onOpenChange={(open) => {
+          if (!open) setWithdrawTargetId(null);
+        }}
+      >
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>지원을 철회하시겠습니까?</DialogTitle>
+            <DialogDescription>
+              철회 시 해당 공고에 재지원할 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="min-h-[44px]"
+              onClick={() => setWithdrawTargetId(null)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              className="min-h-[44px]"
+              disabled={withdrawMutation.isPending}
+              onClick={() => {
+                if (withdrawTargetId) {
+                  withdrawMutation.mutate(withdrawTargetId);
+                }
+              }}
+            >
+              {withdrawMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-1 size-4 animate-spin" aria-hidden="true" />
+                  철회 중...
+                </>
+              ) : (
+                '철회하기'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
