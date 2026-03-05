@@ -105,7 +105,7 @@ export const jobPostSchema = z.object({
   required_certifications: z.array(z.string()).default([]),
   region: z.string().optional(),
   address: z.string().optional(),
-  is_urgent: z.boolean().default(true),
+  is_urgent: z.boolean().default(false),
   latitude: z.number().nullable().optional(),
   longitude: z.number().nullable().optional(),
   payment_method: z.string().optional(),

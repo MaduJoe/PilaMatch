@@ -45,7 +45,7 @@ export default function SettingsPage() {
     setError(null);
     setIsDeleting(true);
     try {
-      const res = await fetch('/api/v1/users/me', {
+      const res = await fetch('/api/v1/auth/users/me', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -89,6 +89,14 @@ export default function SettingsPage() {
           </p>
         </CardContent>
       </Card>
+
+      <Button
+        variant="outline"
+        className="w-full"
+        onClick={() => logout.mutate()}
+      >
+        로그아웃
+      </Button>
 
       <Card className="border-destructive/50">
         <CardHeader>

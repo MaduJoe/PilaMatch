@@ -57,7 +57,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   } = useForm<JobFormValues>({
     resolver: zodResolver(jobPostSchema) as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- Zod v4 input/output type gap
     defaultValues: {
-      is_urgent: true,
+      is_urgent: false,
       category: undefined,
       job_type: undefined,
       region: '',
