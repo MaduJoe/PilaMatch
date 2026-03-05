@@ -9,6 +9,7 @@ import api from '@/lib/api-client';
 import { jobPostSchema } from '@/lib/validators';
 import type { JobPostCreate } from '@/lib/api-types';
 import {
+  ATMOSPHERE_OPTIONS,
   CATEGORIES,
   JOB_TYPES,
   RATE_OPTIONS,
@@ -16,9 +17,10 @@ import {
   SEOUL_REGIONS,
 } from '@/lib/constants';
 import { cn, formatCurrency } from '@/lib/utils';
-import { HelpCircle } from 'lucide-react';
+import { HelpCircle, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
@@ -73,6 +75,11 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
       terms_agreed: true,
       latitude: null,
       longitude: null,
+      handoff_class_topic: '',
+      handoff_class_sequence_info: '',
+      handoff_atmosphere_preference: '',
+      handoff_member_notes: '',
+      handoff_equipment_notes: '',
     },
   });
 
@@ -454,10 +461,112 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         </div>
       </div>
 
-      {/* Step 7: Preferred Style (optional) */}
+      {/* Step 7: Handoff Note (required) */}
+      <div className="space-y-4 rounded-xl border-2 border-primary/30 bg-primary/5 p-5">
+        <div>
+          <label className="text-sm font-semibold">
+            7. 인수인계 노트 <span className="text-destructive">*</span>
+          </label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            회원과의 신뢰를 위해 필수 작성 항목입니다.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">
+              수업 주제 <span className="text-destructive">*</span>
+            </label>
+            <Input
+              placeholder="예: 허리 재활 시퀀스 3주차"
+              className="min-h-[44px]"
+              {...register('handoff_class_topic')}
+            />
+            {errors.handoff_class_topic && (
+              <p className="mt-1 text-sm text-destructive">{errors.handoff_class_topic.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">
+              수업 진도 / 내용 <span className="text-destructive">*</span>
+            </label>
+            <Textarea
+              placeholder="이전 수업에서 다룬 내용, 다음에 이어갈 내용"
+              rows={3}
+              {...register('handoff_class_sequence_info')}
+            />
+            {errors.handoff_class_sequence_info && (
+              <p className="mt-1 text-sm text-destructive">{errors.handoff_class_sequence_info.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">
+              수업 분위기 <span className="text-destructive">*</span>
+            </label>
+            <Select
+              value={watch('handoff_atmosphere_preference') ?? ''}
+              onValueChange={(val) => setValue('handoff_atmosphere_preference', val, { shouldValidate: true })}
+            >
+              <SelectTrigger className="min-h-[44px]">
+                <SelectValue placeholder="분위기 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {ATMOSPHERE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.handoff_atmosphere_preference && (
+              <p className="mt-1 text-sm text-destructive">{errors.handoff_atmosphere_preference.message}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Sensitive fields */}
+        <div className="space-y-3 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-300">
+            <Lock className="size-3.5" />
+            아래 정보는 수락 후에만 대타 강사에게 공개됩니다
+          </p>
+
+          <div>
+            <label className="text-sm font-medium">
+              회원 주의사항 <span className="text-destructive">*</span>
+            </label>
+            <Textarea
+              placeholder="특정 회원 특이사항, 주의할 점"
+              rows={2}
+              {...register('handoff_member_notes')}
+            />
+            {errors.handoff_member_notes && (
+              <p className="mt-1 text-sm text-destructive">{errors.handoff_member_notes.message}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">
+              기구 세팅 <span className="text-destructive">*</span>
+            </label>
+            <Textarea
+              placeholder="리포머/캐딜락 세팅, 소도구 위치 등"
+              rows={2}
+              {...register('handoff_equipment_notes')}
+            />
+            {errors.handoff_equipment_notes && (
+              <p className="mt-1 text-sm text-destructive">{errors.handoff_equipment_notes.message}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Step 8: Preferred Style (optional) */}
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          7. 원하는 수업 스타일 <span className="text-xs text-muted-foreground">(선택)</span>
+          8. 원하는 수업 스타일 <span className="text-xs text-muted-foreground">(선택)</span>
         </label>
         <TeachingStyleSelector
           value={preferredStyle}

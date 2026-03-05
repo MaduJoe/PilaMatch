@@ -20,9 +20,11 @@ class JobPostService:
         return result.scalar_one_or_none()
 
     async def create(self, studio_id: UUID, data: JobPostCreate) -> JobPost:
+        # Exclude handoff_* fields — they belong to the HandoffNote, not JobPost
+        exclude_fields = {f for f in data.model_fields if f.startswith("handoff_")}
         job_post = JobPost(
             studio_id=studio_id,
-            **data.model_dump(),
+            **data.model_dump(exclude=exclude_fields),
         )
         self.db.add(job_post)
         await self.db.commit()

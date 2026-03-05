@@ -110,6 +110,12 @@ export const jobPostSchema = z.object({
   longitude: z.number().nullable().optional(),
   payment_method: z.string().optional(),
   terms_agreed: z.boolean().optional(),
+  // Handoff note (필수 — 신뢰 기반 매칭)
+  handoff_class_topic: z.string().min(1, '수업 주제를 입력해주세요'),
+  handoff_class_sequence_info: z.string().min(1, '수업 진도/내용을 입력해주세요'),
+  handoff_atmosphere_preference: z.string().min(1, '수업 분위기를 선택해주세요'),
+  handoff_member_notes: z.string().min(1, '회원 주의사항을 입력해주세요'),
+  handoff_equipment_notes: z.string().min(1, '기구 세팅을 입력해주세요'),
 });
 
 export type JobPostFormData = z.infer<typeof jobPostSchema>;

@@ -27,6 +27,12 @@ class JobPostCreate(BaseModel):
     payment_method: Optional[str] = None  # bank_transfer/cash/etc
     terms_agreed: bool = False  # Checklist 6+7 agreement
     preferred_style: Optional[dict] = None  # {correction_style, class_atmosphere, intensity_level}
+    # Handoff note (required for trust — embedded at creation)
+    handoff_class_topic: str = Field(..., max_length=200)
+    handoff_class_sequence_info: str = Field(...)
+    handoff_atmosphere_preference: str = Field(..., max_length=50)
+    handoff_member_notes: str = Field(...)
+    handoff_equipment_notes: str = Field(...)
 
 
 class JobPostUpdate(BaseModel):
