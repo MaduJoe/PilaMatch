@@ -22,7 +22,7 @@ import { StarRating } from './star-rating';
 // ---------------------------------------------------------------------------
 
 interface WriteReviewDialogProps {
-  contractId: string | null;
+  applicationId: string | null;
   partnerName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,11 +30,55 @@ interface WriteReviewDialogProps {
 }
 
 // ---------------------------------------------------------------------------
+// Checklist toggle
+// ---------------------------------------------------------------------------
+
+function ChecklistToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean | null;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm">{label}</span>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          className={`min-h-[36px] rounded-l-md border px-3 text-sm font-medium transition-colors ${
+            value === true
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border bg-background text-muted-foreground hover:bg-muted'
+          }`}
+          onClick={() => onChange(true)}
+        >
+          Yes
+        </button>
+        <button
+          type="button"
+          className={`min-h-[36px] rounded-r-md border border-l-0 px-3 text-sm font-medium transition-colors ${
+            value === false
+              ? 'border-destructive bg-destructive text-destructive-foreground'
+              : 'border-border bg-background text-muted-foreground hover:bg-muted'
+          }`}
+          onClick={() => onChange(false)}
+        >
+          No
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function WriteReviewDialog({
-  contractId,
+  applicationId,
   partnerName,
   open,
   onOpenChange,
@@ -43,23 +87,29 @@ export function WriteReviewDialog({
   const queryClient = useQueryClient();
   const [rating, setRating] = useState<number>(0);
   const [comment, setComment] = useState<string>('');
+  const [timePunctuality, setTimePunctuality] = useState<boolean | null>(null);
+  const [professionalism, setProfessionalism] = useState<boolean | null>(null);
+  const [wouldRehire, setWouldRehire] = useState<boolean | null>(null);
 
   // ---- Mutation ------------------------------------------------------------
   const createMutation = useMutation({
     mutationFn: () => {
-      if (!contractId) throw new Error('계약 ID가 없습니다.');
-      return api.reviews.create(contractId, {
+      if (!applicationId) throw new Error('지원 ID가 없습니다.');
+      return api.reviews.create(applicationId, {
         rating,
         comment: comment.trim() || undefined,
+        time_punctuality: timePunctuality ?? undefined,
+        professionalism: professionalism ?? undefined,
+        would_rehire: wouldRehire ?? undefined,
       });
     },
     onSuccess: () => {
       toast.success('리뷰가 작성되었습니다.');
-      void queryClient.invalidateQueries({ queryKey: ['my-contracts'] });
+      void queryClient.invalidateQueries({ queryKey: ['review-eligibility'] });
       void queryClient.invalidateQueries({ queryKey: ['written-reviews'] });
       void queryClient.invalidateQueries({ queryKey: ['received-reviews'] });
-      setRating(0);
-      setComment('');
+      void queryClient.invalidateQueries({ queryKey: ['my-applications'] });
+      resetForm();
       onOpenChange(false);
       onSuccess();
     },
@@ -73,6 +123,14 @@ export function WriteReviewDialog({
   });
 
   // ---- Handlers ------------------------------------------------------------
+  function resetForm() {
+    setRating(0);
+    setComment('');
+    setTimePunctuality(null);
+    setProfessionalism(null);
+    setWouldRehire(null);
+  }
+
   function handleSubmit() {
     if (rating === 0) {
       toast.error('별점을 선택해주세요.');
@@ -82,10 +140,7 @@ export function WriteReviewDialog({
   }
 
   function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen) {
-      setRating(0);
-      setComment('');
-    }
+    if (!nextOpen) resetForm();
     onOpenChange(nextOpen);
   }
 
@@ -112,6 +167,28 @@ export function WriteReviewDialog({
                 {rating}점을 선택했습니다
               </p>
             )}
+          </div>
+
+          {/* Checklist fields */}
+          <div className="flex flex-col gap-3 rounded-md border p-3">
+            <p className="text-sm font-medium text-muted-foreground">
+              간단 평가 (선택사항)
+            </p>
+            <ChecklistToggle
+              label="시간 준수"
+              value={timePunctuality}
+              onChange={setTimePunctuality}
+            />
+            <ChecklistToggle
+              label="전문성"
+              value={professionalism}
+              onChange={setProfessionalism}
+            />
+            <ChecklistToggle
+              label="재고용 의향"
+              value={wouldRehire}
+              onChange={setWouldRehire}
+            />
           </div>
 
           {/* Comment */}

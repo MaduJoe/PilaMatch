@@ -24,6 +24,7 @@ import type {
   ReviewCreate,
   ReviewResponse,
   ReviewListResponse,
+  ReviewEligibility,
   SubscriptionStatusResponse,
   UpgradeInitializeResponse,
   BillingKeyRegisterResponse,
@@ -310,11 +311,14 @@ export const contracts = {
 // --- Reviews ---------------------------------------------
 
 export const reviews = {
-  create: (contractId: string, data: ReviewCreate) =>
-    post<ReviewResponse>(`/contracts/${contractId}/reviews`, data),
+  create: (applicationId: string, data: ReviewCreate) =>
+    post<ReviewResponse>(`/applications/${applicationId}/reviews`, data),
 
-  getMyReviewForContract: (contractId: string) =>
-    get<ReviewResponse>(`/contracts/${contractId}/reviews/my`),
+  getEligibility: (applicationId: string) =>
+    get<ReviewEligibility>(`/applications/${applicationId}/reviews`),
+
+  getMyReviewForApplication: (applicationId: string) =>
+    get<ReviewResponse>(`/applications/${applicationId}/reviews/my`),
 
   update: (id: string, data: ReviewCreate) =>
     put<ReviewResponse>(`/reviews/${id}`, data),

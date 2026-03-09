@@ -401,26 +401,45 @@ export interface ContractCancelRequest {
 export interface ReviewCreate {
   rating: number;
   comment?: string;
+  time_punctuality?: boolean;
+  professionalism?: boolean;
+  would_rehire?: boolean;
 }
 
 export interface ReviewResponse {
   id: string;
-  contract_id: string;
+  application_id?: string | null;
+  contract_id?: string | null;
   reviewer_user_id: string;
   reviewee_instructor_id?: string | null;
   reviewee_studio_id?: string | null;
   rating: number;
   comment?: string | null;
+  time_punctuality?: boolean | null;
+  professionalism?: boolean | null;
+  would_rehire?: boolean | null;
   created_at: string;
   updated_at?: string | null;
-  // Populated
+  // Populated by backend
   reviewer_name?: string | null;
+  reviewee_name?: string | null;
+  job_date?: string | null;
 }
 
 export interface ReviewListResponse {
   items: ReviewResponse[];
   total: number;
   average_rating?: number | null;
+}
+
+export interface ReviewEligibility {
+  application_id: string;
+  review_eligible: boolean;
+  review_expired: boolean;
+  has_written: boolean;
+  both_reviewed: boolean;
+  my_review?: ReviewResponse | null;
+  partner_review?: ReviewResponse | null;
 }
 
 // ---------------------------------------------------------------------------
