@@ -124,7 +124,7 @@ PilaMatch는 "점수"가 아니라 "행동 조건"으로 등급을 판정한다.
 |------|------|------|----------|------------|
 | **T1** | Basic | 본인인증 + 프로필 기본정보 | 3건 | 1.0x |
 | **T2** | Verified | T1 + 신분증 인증 + 자격증 1개+ + 최근 30일 완료 2건+ + 노쇼 0 | 20건 | 1.0x |
-| **T3** | Pro | T2 + 최근 30일 완료 5건+ + 노쇼 0 + 당일취소 0 + 지각 1회 이하 | 무제한 | 1.3x |
+| **T3** | Premium | T2 + 최근 30일 완료 5건+ + 노쇼 0 + 당일취소 0 + 지각 1회 이하 | 무제한 | 1.3x |
 
 ### 센터 등급 (Center Tier)
 
@@ -139,7 +139,7 @@ PilaMatch는 "점수"가 아니라 "행동 조건"으로 등급을 판정한다.
 |--------|------|----------|
 | **노쇼** | 14일 정지, 3회 누적 시 영구 정지 | T1 강등 |
 | **당일 취소** | 7일 당일급구 제한 | T3 유지 불가 |
-| **지각** | 기록 (월 2회 이상 시 T3 유지 불가) | Pro 조건 영향 |
+| **지각** | 기록 (월 2회 이상 시 T3 유지 불가) | Premium 조건 영향 |
 | **확정 후 취소** (센터) | 기록 | C2 유지 불가 |
 
 ---
@@ -375,7 +375,7 @@ pie title 매칭 점수 가중치 (GPS + 스타일)
 
 일치하는 스타일 키의 비율 × 100. 데이터 없으면 중립 50점.
 
-> T3 Pro 강사는 매칭 점수 1.3x 부스트, C2 Verified 센터 공고는 1.15x 부스트가 적용된다.
+> T3 Premium 강사는 매칭 점수 1.3x 부스트, C2 Verified 센터 공고는 1.15x 부스트가 적용된다.
 
 ---
 
@@ -500,7 +500,7 @@ PilaMatch는 긴급 대타 매칭 특성상 모바일 사용이 90%+ 예상되�
 | **Instructor App List** | `components/applications/instructor-application-list.tsx` | 강사 지원 현황 (매칭 완료 시 연락처 표시) |
 | **Backup Instructor List** | `components/backup/backup-instructor-list.tsx` | 백업 강사 목록/관리 (CRUD, 우선순위 배지) |
 | **Backup Suggest Prompt** | `components/backup/backup-suggest-prompt.tsx` | 수락 후 "백업 강사 등록" 프롬프트 |
-| **Tier Badge** | `components/trust/tier-badge.tsx` | 등급 뱃지 (T1 Basic / T2 Verified / T3 Pro) |
+| **Tier Badge** | `components/trust/tier-badge.tsx` | 등급 뱃지 (T1 Basic / T2 Verified / T3 Premium) |
 
 ### 핵심 UX 패턴
 
