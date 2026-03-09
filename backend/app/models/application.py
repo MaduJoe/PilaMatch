@@ -23,3 +23,4 @@ class Application(Base, UUIDMixin, TimestampMixin):
     job_post = relationship("JobPost", back_populates="applications")
     instructor = relationship("InstructorProfile", back_populates="applications")
     offer = relationship("Offer", back_populates="application", uselist=False)
+    reviews = relationship("Review", back_populates="application")

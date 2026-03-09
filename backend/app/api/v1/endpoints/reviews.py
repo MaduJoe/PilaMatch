@@ -1,37 +1,50 @@
 from uuid import UUID
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from app.db.session import get_db
 from app.core.deps import get_current_user
-from app.models import User
-from app.schemas.review import ReviewCreate, ReviewResponse, ReviewUpdate
+from app.models import (
+    User, Application, InstructorProfile, StudioProfile, UserRole, Review
+)
+from app.schemas.review import (
+    ReviewCreate, ReviewResponse, ReviewUpdate, ReviewEligibilityResponse
+)
 from app.services.review import ReviewService
 
 router = APIRouter()
 
 
-@router.post("/contracts/{contract_id}/reviews", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
+# ---------------------------------------------------------------------------
+# Create review (application-anchored)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/applications/{application_id}/reviews",
+    response_model=ReviewResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_review(
-    contract_id: UUID,
+    application_id: UUID,
     data: ReviewCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a review for a completed contract."""
+    """Create a review for a completed class session."""
     service = ReviewService(db)
 
     try:
         review = await service.create_review(
-            contract_id, current_user.id, current_user.role, data
+            application_id, current_user.id, current_user.role, data
         )
         return ReviewResponse.model_validate(review)
     except PermissionError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to review this contract"},
+            detail={"code": "PERMISSION_DENIED", "message": "Not authorized to review this application"},
         )
     except ValueError as e:
         raise HTTPException(
@@ -40,56 +53,105 @@ async def create_review(
         )
 
 
-@router.get("/contracts/{contract_id}/reviews/my")
-async def get_my_review(
-    contract_id: UUID,
+# ---------------------------------------------------------------------------
+# Get my review for an application
+# ---------------------------------------------------------------------------
+
+@router.get("/applications/{application_id}/reviews/my")
+async def get_my_review_for_application(
+    application_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current user's review for a specific contract."""
-    from sqlalchemy import select
-    from app.models import Contract, InstructorProfile, StudioProfile
-
-    # Verify current user is a party to the contract (IDOR protection)
-    contract = await db.execute(
-        select(Contract).where(Contract.id == contract_id)
+    """Get current user's review for a specific application."""
+    # Verify the application exists and user is a party
+    app_result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.job_post))
+        .where(Application.id == application_id)
     )
-    contract = contract.scalar_one_or_none()
-    if not contract:
+    application = app_result.unique().scalar_one_or_none()
+    if not application:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "NOT_FOUND", "message": "Contract not found"},
+            detail={"code": "NOT_FOUND", "message": "Application not found"},
         )
 
-    # Check if user owns the studio or instructor profile on this contract
-    user_profile_ids = set()
-    for ProfileModel in (InstructorProfile, StudioProfile):
-        result = await db.execute(
-            select(ProfileModel.id).where(ProfileModel.user_id == current_user.id)
-        )
-        pid = result.scalar_one_or_none()
-        if pid:
-            user_profile_ids.add(str(pid))
-
-    if (
-        str(contract.studio_id) not in user_profile_ids
-        and str(contract.instructor_id) not in user_profile_ids
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "FORBIDDEN", "message": "Not a party to this contract"},
-        )
+    # IDOR check
+    await _verify_party(db, current_user, application)
 
     service = ReviewService(db)
-    review = await service.get_user_review_for_contract(contract_id, current_user.id)
+    review = await service.get_user_review_for_application(application_id, current_user.id)
     if review:
         return ReviewResponse.model_validate(review)
-    # Return 404 instead of None for clearer client handling
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail={"code": "REVIEW_NOT_FOUND", "message": "Review not found for this contract"}
+        detail={"code": "REVIEW_NOT_FOUND", "message": "Review not found for this application"},
     )
 
+
+# ---------------------------------------------------------------------------
+# Get review eligibility + mutual reviews for an application
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/applications/{application_id}/reviews",
+    response_model=ReviewEligibilityResponse,
+)
+async def get_review_eligibility(
+    application_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get review eligibility and reviews for an application.
+
+    Partner review is only visible when both parties have written.
+    """
+    app_result = await db.execute(
+        select(Application)
+        .options(joinedload(Application.job_post))
+        .where(Application.id == application_id)
+    )
+    application = app_result.unique().scalar_one_or_none()
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "Application not found"},
+        )
+
+    # IDOR check
+    await _verify_party(db, current_user, application)
+
+    service = ReviewService(db)
+    job_post = application.job_post
+
+    is_eligible, is_expired = service.check_review_window(job_post)
+    my_review = await service.get_user_review_for_application(application_id, current_user.id)
+    both_reviewed = await service.get_both_reviewed(application_id)
+
+    # Partner review: only visible when both have written
+    partner_review = None
+    if both_reviewed:
+        all_reviews = await service.get_reviews_for_application(application_id)
+        for r in all_reviews:
+            if r.reviewer_user_id != current_user.id:
+                partner_review = r
+                break
+
+    return ReviewEligibilityResponse(
+        application_id=application_id,
+        review_eligible=is_eligible,
+        review_expired=is_expired,
+        has_written=my_review is not None,
+        both_reviewed=both_reviewed,
+        my_review=ReviewResponse.model_validate(my_review) if my_review else None,
+        partner_review=ReviewResponse.model_validate(partner_review) if partner_review else None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Update / Delete (unchanged, by review ID)
+# ---------------------------------------------------------------------------
 
 @router.put("/reviews/{review_id}", response_model=ReviewResponse)
 async def update_review(
@@ -139,21 +201,19 @@ async def delete_review(
         )
 
 
+# ---------------------------------------------------------------------------
+# Received / Written reviews
+# ---------------------------------------------------------------------------
+
 @router.get("/reviews/received")
 async def get_received_reviews(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Get reviews received by the current user."""
-    from app.models import InstructorProfile, StudioProfile, UserRole
-    from sqlalchemy import select
-
     service = ReviewService(db)
 
-    # Determine user type and get appropriate profile
     if current_user.role == UserRole.INSTRUCTOR:
-        # Get instructor profile
-        from sqlalchemy import select
         result = await db.execute(
             select(InstructorProfile).where(InstructorProfile.user_id == current_user.id)
         )
@@ -161,14 +221,11 @@ async def get_received_reviews(
         if not profile:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail={"code": "PROFILE_NOT_FOUND", "message": "Instructor profile not found"}
+                detail={"code": "PROFILE_NOT_FOUND", "message": "Instructor profile not found"},
             )
-
         reviews, avg_rating = await service.get_reviews_for_instructor(profile.id)
 
     elif current_user.role == UserRole.STUDIO:
-        # Get studio profile
-        from sqlalchemy import select
         result = await db.execute(
             select(StudioProfile).where(StudioProfile.user_id == current_user.id)
         )
@@ -176,32 +233,31 @@ async def get_received_reviews(
         if not profile:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"}
+                detail={"code": "PROFILE_NOT_FOUND", "message": "Studio profile not found"},
             )
-
         reviews, avg_rating = await service.get_reviews_for_studio(profile.id)
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "INVALID_ROLE", "message": "Invalid user role"}
+            detail={"code": "INVALID_ROLE", "message": "Invalid user role"},
         )
 
-    # Format response with reviewer information
     review_list = []
     for review in reviews:
         review_dict = {
             "id": str(review.id),
-            "contract_id": str(review.contract_id),
+            "application_id": str(review.application_id) if review.application_id else None,
+            "contract_id": str(review.contract_id) if review.contract_id else None,
             "rating": review.rating,
             "comment": review.comment,
+            "time_punctuality": review.time_punctuality,
+            "professionalism": review.professionalism,
+            "would_rehire": review.would_rehire,
             "created_at": review.created_at.isoformat() if review.created_at else None,
-            "reviewer_name": None  # Will be populated below
+            "reviewer_name": None,
         }
 
-        # Get reviewer name based on who wrote the review
         if review.reviewer_user_id:
-            # Get reviewer user
-            from app.models import User
             reviewer_result = await db.execute(
                 select(User).where(User.id == review.reviewer_user_id)
             )
@@ -209,7 +265,6 @@ async def get_received_reviews(
 
             if reviewer_user:
                 if current_user.role == UserRole.INSTRUCTOR:
-                    # Reviews are from studios
                     studio_result = await db.execute(
                         select(StudioProfile).where(StudioProfile.user_id == reviewer_user.id)
                     )
@@ -217,7 +272,6 @@ async def get_received_reviews(
                     if studio_profile:
                         review_dict["reviewer_name"] = studio_profile.business_name
                 else:
-                    # Reviews are from instructors
                     instructor_result = await db.execute(
                         select(InstructorProfile).where(InstructorProfile.user_id == reviewer_user.id)
                     )
@@ -231,9 +285,6 @@ async def get_received_reviews(
         "items": review_list,
         "total": len(reviews),
         "average_rating": float(avg_rating) if avg_rating else 0,
-        # Legacy keys for Streamlit frontend
-        "reviews": review_list,
-        "total_count": len(reviews),
     }
 
 
@@ -243,10 +294,6 @@ async def get_written_reviews(
     db: AsyncSession = Depends(get_db),
 ):
     """Get all reviews written by the current user."""
-    from sqlalchemy import select
-    from app.models import Review, Contract, InstructorProfile, StudioProfile, UserRole
-
-    # Query all reviews written by the current user with contract details
     query = (
         select(Review)
         .where(Review.reviewer_user_id == current_user.id)
@@ -255,29 +302,35 @@ async def get_written_reviews(
     result = await db.execute(query)
     reviews = result.scalars().all()
 
-    # Format response with contract and reviewee information
     review_list = []
     for review in reviews:
-        # Get contract details
-        contract_result = await db.execute(
-            select(Contract).where(Contract.id == review.contract_id)
-        )
-        contract = contract_result.scalar_one_or_none()
-
         review_dict = {
             "id": str(review.id),
-            "contract_id": str(review.contract_id),
+            "application_id": str(review.application_id) if review.application_id else None,
+            "contract_id": str(review.contract_id) if review.contract_id else None,
             "rating": review.rating,
             "comment": review.comment,
+            "time_punctuality": review.time_punctuality,
+            "professionalism": review.professionalism,
+            "would_rehire": review.would_rehire,
             "created_at": review.created_at.isoformat() if review.created_at else None,
-            "contract_date": contract.date.isoformat() if contract and contract.date else None,
-            "contract_amount": float(contract.total_amount) if contract else None,
-            "reviewee_name": None  # Will be populated below
+            "reviewee_name": None,
+            "job_date": None,
         }
 
-        # Get reviewee name based on current user role
+        # Enrich with application/job data
+        if review.application_id:
+            app_result = await db.execute(
+                select(Application)
+                .options(joinedload(Application.job_post))
+                .where(Application.id == review.application_id)
+            )
+            app = app_result.unique().scalar_one_or_none()
+            if app and app.job_post:
+                review_dict["job_date"] = app.job_post.date.isoformat()
+
+        # Get reviewee name
         if current_user.role == UserRole.INSTRUCTOR:
-            # Instructor wrote review for studio
             if review.reviewee_studio_id:
                 studio_result = await db.execute(
                     select(StudioProfile).where(StudioProfile.id == review.reviewee_studio_id)
@@ -286,7 +339,6 @@ async def get_written_reviews(
                 if studio:
                     review_dict["reviewee_name"] = studio.business_name
         else:
-            # Studio wrote review for instructor
             if review.reviewee_instructor_id:
                 instructor_result = await db.execute(
                     select(InstructorProfile).where(InstructorProfile.id == review.reviewee_instructor_id)
@@ -300,7 +352,36 @@ async def get_written_reviews(
     return {
         "items": review_list,
         "total": len(reviews),
-        # Legacy keys for Streamlit frontend
-        "reviews": review_list,
-        "total_count": len(reviews),
     }
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _verify_party(
+    db: AsyncSession, current_user: User, application: Application
+) -> None:
+    """Verify the current user is either the instructor or studio on this application."""
+    job_post = application.job_post
+
+    if current_user.role == UserRole.INSTRUCTOR:
+        result = await db.execute(
+            select(InstructorProfile.id).where(InstructorProfile.user_id == current_user.id)
+        )
+        instructor_id = result.scalar_one_or_none()
+        if not instructor_id or str(application.instructor_id) != str(instructor_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "FORBIDDEN", "message": "Not a party to this application"},
+            )
+    else:
+        result = await db.execute(
+            select(StudioProfile.id).where(StudioProfile.user_id == current_user.id)
+        )
+        studio_id = result.scalar_one_or_none()
+        if not studio_id or not job_post or str(job_post.studio_id) != str(studio_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": "FORBIDDEN", "message": "Not a party to this application"},
+            )
