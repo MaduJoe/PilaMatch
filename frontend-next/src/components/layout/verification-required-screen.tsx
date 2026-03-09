@@ -12,22 +12,27 @@ export function VerificationRequiredScreen({ role }: VerificationRequiredScreenP
   const isInstructor = role === 'instructor';
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <Shield
-          className="size-16 text-primary/40"
-          aria-hidden="true"
-        />
-        <h1 className="text-xl font-semibold">
-          {isInstructor ? '본인인증이 필요합니다' : '사업자 인증이 필요합니다'}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {isInstructor
-            ? '서비스 이용을 위해 본인인증을 완료해주세요.'
-            : '서비스 이용을 위해 사업자 인증을 완료해주세요.'}
-        </p>
-        <Button asChild className="mt-2 min-h-[48px]">
-          <Link href="/steps/profile">인증하러 가기</Link>
+    <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 animate-fade-up">
+      <div className="flex flex-col items-center gap-5 text-center max-w-sm">
+        <div className="flex size-20 items-center justify-center rounded-2xl bg-primary/10">
+          <Shield
+            className="size-10 text-primary"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          />
+        </div>
+        <div className="space-y-2">
+          <h1 className="font-display text-xl font-bold tracking-tight">
+            {isInstructor ? 'Verify Your Identity' : 'Business Verification'}
+          </h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {isInstructor
+              ? 'Complete identity verification to start finding jobs and connecting with studios.'
+              : 'Verify your business to post jobs and find qualified instructors.'}
+          </p>
+        </div>
+        <Button asChild className="mt-2 min-h-[48px] px-8 font-display font-semibold">
+          <Link href="/steps/profile">Get Verified</Link>
         </Button>
       </div>
     </div>

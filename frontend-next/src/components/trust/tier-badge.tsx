@@ -1,43 +1,75 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface TierBadgeProps {
   tier: string;
   label?: string;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
 }
 
-const TIER_COLORS: Record<string, string> = {
-  t1_basic: 'bg-gray-100 text-gray-700 border-gray-300',
-  t2_verified: 'bg-blue-100 text-blue-700 border-blue-300',
-  t3_pro: 'bg-amber-100 text-amber-700 border-amber-300',
-  c1_basic: 'bg-gray-100 text-gray-700 border-gray-300',
-  c2_verified: 'bg-blue-100 text-blue-700 border-blue-300',
-};
-
-const TIER_LABELS: Record<string, string> = {
-  t1_basic: 'Basic',
-  t2_verified: 'Verified',
-  t3_pro: 'Pro',
-  c1_basic: 'Basic',
-  c2_verified: 'Verified',
+const TIER_CONFIG: Record<string, { label: string; bg: string; text: string; border: string; icon: string }> = {
+  t1_basic: {
+    label: 'Basic',
+    bg: 'bg-gray-100 dark:bg-gray-800/50',
+    text: 'text-gray-600 dark:text-gray-400',
+    border: 'border-gray-200 dark:border-gray-700',
+    icon: '',
+  },
+  t2_verified: {
+    label: 'Verified',
+    bg: 'bg-primary/10 dark:bg-primary/15',
+    text: 'text-primary dark:text-primary',
+    border: 'border-primary/20 dark:border-primary/30',
+    icon: '\u2713',
+  },
+  t3_pro: {
+    label: 'Premium',
+    bg: 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30',
+    text: 'text-amber-700 dark:text-amber-400',
+    border: 'border-amber-200 dark:border-amber-700',
+    icon: '\u2605',
+  },
+  c1_basic: {
+    label: 'Basic',
+    bg: 'bg-gray-100 dark:bg-gray-800/50',
+    text: 'text-gray-600 dark:text-gray-400',
+    border: 'border-gray-200 dark:border-gray-700',
+    icon: '',
+  },
+  c2_verified: {
+    label: 'Verified',
+    bg: 'bg-primary/10 dark:bg-primary/15',
+    text: 'text-primary dark:text-primary',
+    border: 'border-primary/20 dark:border-primary/30',
+    icon: '\u2713',
+  },
 };
 
 export function TierBadge({ tier, label, size = 'sm' }: TierBadgeProps) {
-  const colorClass = TIER_COLORS[tier] ?? TIER_COLORS.t1_basic;
-  const displayLabel = label ?? TIER_LABELS[tier] ?? 'Basic';
+  const config = TIER_CONFIG[tier] ?? TIER_CONFIG.t1_basic;
+  const displayLabel = label ?? config.label;
+
+  const sizeClasses = {
+    sm: 'text-[10px] px-2 py-0.5 gap-0.5',
+    md: 'text-xs px-2.5 py-1 gap-1',
+    lg: 'text-sm px-3 py-1.5 gap-1',
+  };
 
   return (
-    <Badge
-      variant="outline"
+    <span
       className={cn(
-        colorClass,
-        size === 'sm' ? 'text-xs px-1.5 py-0.5' : 'text-sm px-2 py-1',
+        'inline-flex items-center font-display font-semibold rounded-md border whitespace-nowrap shrink-0 tracking-wide uppercase',
+        config.bg,
+        config.text,
+        config.border,
+        sizeClasses[size],
       )}
     >
+      {config.icon && (
+        <span className="leading-none" aria-hidden="true">{config.icon}</span>
+      )}
       {displayLabel}
-    </Badge>
+    </span>
   );
 }
