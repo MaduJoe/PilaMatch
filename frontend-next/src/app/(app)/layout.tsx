@@ -28,10 +28,13 @@ export default function AppLayout({
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center animate-fade-in">
         <div className="text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="mt-4 text-sm text-muted-foreground">로딩 중...</p>
+          <div className="relative mx-auto size-10">
+            <div className="absolute inset-0 rounded-full border-[3px] border-primary/20" />
+            <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
+          </div>
+          <p className="mt-4 font-display text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     );

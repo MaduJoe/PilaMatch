@@ -28,16 +28,17 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Crown, Check, Loader2 } from 'lucide-react';
+import { AlertTriangle, Crown, Check, Loader2, Mail, UserCircle } from 'lucide-react';
+import { TierCard } from '@/components/trust/tier-card';
 
 // ---------------------------------------------------------------------------
-// Premium (Pro) benefits — shared for instructor & studio
+// Premium benefits
 // ---------------------------------------------------------------------------
 
 const PRO_BENEFITS = [
-  '모든 지역 지원/공고 등록 가능 (Basic: 내 위치+1개, Verified: +2개)',
-  '긴급건 무제한 지원/등록 (Basic: 1건, Verified: 2건)',
-  '일일 지원 무제한',
+  'All regions for applications/posts',
+  'Unlimited urgent job access',
+  'Unlimited daily applications',
 ];
 
 // ---------------------------------------------------------------------------
@@ -51,23 +52,23 @@ function UpgradeButton({ onUpgrade, isPending }: { onUpgrade: (name: string) => 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
-        <Button className="min-h-[48px] w-full text-base font-semibold">
-          프리미엄 구독하기
+        <Button className="min-h-[48px] w-full text-base font-display font-semibold">
+          Subscribe to Premium
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>프리미엄 구독 — 무통장 입금</DialogTitle>
+          <DialogTitle className="font-display">Premium Subscription</DialogTitle>
           <DialogDescription>
-            입금자명을 입력하면 계좌 정보를 안내해드립니다. 입금 확인 후 자동 활성화됩니다.
+            Enter your depositor name to receive bank transfer instructions.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="depositor-name">입금자명</Label>
+            <Label htmlFor="depositor-name">Depositor Name</Label>
             <Input
               id="depositor-name"
-              placeholder="홍길동"
+              placeholder="Full name"
               className="min-h-[44px]"
               value={depositorName}
               onChange={(e) => setDepositorName(e.target.value)}
@@ -76,7 +77,7 @@ function UpgradeButton({ onUpgrade, isPending }: { onUpgrade: (name: string) => 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setDialogOpen(false)}>
-            취소
+            Cancel
           </Button>
           <Button
             disabled={isPending || !depositorName.trim()}
@@ -86,7 +87,7 @@ function UpgradeButton({ onUpgrade, isPending }: { onUpgrade: (name: string) => 
             }}
           >
             {isPending ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
-            {isPending ? '처리 중...' : '입금 신청'}
+            {isPending ? 'Processing...' : 'Request Transfer'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -108,7 +109,6 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Tier & subscription queries
   const tierQuery = useQuery({
     queryKey: ['my-tier'],
     queryFn: () => api.tier.getMyTier(),
@@ -121,26 +121,26 @@ export default function SettingsPage() {
   const bankTransferMutation = useMutation({
     mutationFn: (name: string) => api.subscriptions.initBankTransfer({ depositor_name: name }),
     onSuccess: () => {
-      toast.success('무통장 입금 신청 완료! 입금 확인 후 자동 활성화됩니다.');
+      toast.success('Transfer request submitted. Auto-activated after confirmation.');
     },
-    onError: () => toast.error('신청 중 오류가 발생했습니다.'),
+    onError: () => toast.error('Request failed. Please try again.'),
   });
 
   const cancelSubMutation = useMutation({
     mutationFn: () => api.subscriptions.cancel(),
     onSuccess: () => {
-      toast.success('구독이 해지되었습니다.');
+      toast.success('Subscription cancelled.');
       subQuery.refetch();
       tierQuery.refetch();
     },
-    onError: () => toast.error('해지 중 오류가 발생했습니다.'),
+    onError: () => toast.error('Cancellation failed.'),
   });
 
   const isPremium = subQuery.data?.has_subscription === true;
 
   const handleDelete = async () => {
     if (!password.trim()) {
-      setError('비밀번호를 입력해주세요.');
+      setError('Please enter your password.');
       return;
     }
 
@@ -159,66 +159,77 @@ export default function SettingsPage() {
         const message =
           typeof body.detail === 'string'
             ? body.detail
-            : body.detail?.message || '탈퇴 처리에 실패했습니다.';
+            : body.detail?.message || 'Account deletion failed.';
         throw new Error(message);
       }
 
       logout.mutate();
       router.push('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '탈퇴 처리에 실패했습니다.');
+      setError(err instanceof Error ? err.message : 'Account deletion failed.');
     } finally {
       setIsDeleting(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">설정</h1>
+    <div className="space-y-6 animate-fade-up">
+      <h1 className="font-display text-2xl font-bold tracking-tight">Settings</h1>
 
+      {/* Account info */}
       <Card>
         <CardHeader>
-          <CardTitle>계정 정보</CardTitle>
+          <CardTitle className="font-display">Account</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p>
-            <span className="text-muted-foreground">이메일: </span>
-            {user?.email}
-          </p>
-          <p>
-            <span className="text-muted-foreground">역할: </span>
-            {user?.role === 'instructor' ? '강사' : '스튜디오'}
-          </p>
+        <CardContent className="space-y-3 text-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+              <Mail className="size-4 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display">Email</p>
+              <p className="font-medium">{user?.email}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+              <UserCircle className="size-4 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display">Role</p>
+              <p className="font-medium">{user?.role === 'instructor' ? 'Instructor' : 'Studio'}</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Subscription / Premium section */}
-      <Card className={isPremium ? 'border-amber-300 dark:border-amber-700' : 'border-primary/30'}>
+      {/* Tier card */}
+      {tierQuery.data && <TierCard data={tierQuery.data} />}
+
+      {/* Subscription */}
+      <Card className={isPremium ? 'border-amber-300/50 dark:border-amber-700/50' : 'border-primary/20'}>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="font-display flex items-center gap-2">
               <Crown className="size-5 text-amber-500" />
-              Premium Subscription
+              Subscription
             </CardTitle>
             {isPremium ? (
-              <Badge className="bg-amber-500 text-white hover:bg-amber-600">구독 중</Badge>
+              <Badge className="bg-amber-500 text-white hover:bg-amber-600 font-display text-[10px] uppercase tracking-wider">Active</Badge>
             ) : (
-              <Badge variant="outline">미구독</Badge>
+              <Badge variant="outline" className="font-display text-[10px] uppercase tracking-wider">Free</Badge>
             )}
           </div>
-          {tierQuery.data && (
-            <p className="text-sm text-muted-foreground">
-              현재 등급: <span className="font-medium">{tierQuery.data.tier_label_ko}({tierQuery.data.tier_label})</span>
-            </p>
-          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {isPremium ? (
-            /* Already subscribed — show status & cancel */
             <div className="space-y-3">
               <p className="text-sm">
-                월 <span className="text-lg font-bold">9,900원</span>
-                <span className="ml-1 text-muted-foreground">/ 다음 결제일: {subQuery.data?.subscription?.next_billing_date?.slice(0, 10) ?? '-'}</span>
+                <span className="font-display text-2xl font-bold">9,900</span>
+                <span className="ml-1 text-muted-foreground">KRW/month</span>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  Next: {subQuery.data?.subscription?.next_billing_date?.slice(0, 10) ?? '-'}
+                </span>
               </p>
               <Button
                 variant="outline"
@@ -227,23 +238,24 @@ export default function SettingsPage() {
                 onClick={() => cancelSubMutation.mutate()}
                 disabled={cancelSubMutation.isPending}
               >
-                {cancelSubMutation.isPending ? '해지 처리 중...' : '구독 해지'}
+                {cancelSubMutation.isPending ? 'Cancelling...' : 'Cancel Subscription'}
               </Button>
             </div>
           ) : (
-            /* Not subscribed — show benefits & CTA */
             <div className="space-y-4">
-              <div className="rounded-lg bg-muted/50 p-4 space-y-2">
+              <div className="rounded-xl bg-muted/40 p-4 space-y-2.5">
                 {PRO_BENEFITS.map((b) => (
-                  <div key={b} className="flex items-start gap-2 text-sm">
-                    <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                  <div key={b} className="flex items-start gap-2.5 text-sm">
+                    <div className="mt-0.5 flex size-5 items-center justify-center rounded-md bg-primary/10">
+                      <Check className="size-3 text-primary" />
+                    </div>
                     <span>{b}</span>
                   </div>
                 ))}
               </div>
               <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-1">월 구독료</p>
-                <p className="text-2xl font-bold">9,900<span className="text-base font-normal text-muted-foreground">원</span></p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display mb-1">Monthly</p>
+                <p className="font-display text-3xl font-bold">9,900<span className="text-base font-normal text-muted-foreground ml-0.5">KRW</span></p>
               </div>
               <UpgradeButton
                 onUpgrade={(name) => bankTransferMutation.mutate(name)}
@@ -256,34 +268,35 @@ export default function SettingsPage() {
 
       <Button
         variant="outline"
-        className="w-full"
+        className="w-full min-h-[44px] font-display"
         onClick={() => logout.mutate()}
       >
-        로그아웃
+        Sign Out
       </Button>
 
-      <Card className="border-destructive/50">
+      {/* Danger zone */}
+      <Card className="border-destructive/30">
         <CardHeader>
-          <CardTitle className="text-destructive">계정 삭제</CardTitle>
+          <CardTitle className="font-display text-destructive">Delete Account</CardTitle>
           <CardDescription>
-            회원 탈퇴 시 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+            All data will be permanently deleted. This action cannot be undone.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button variant="destructive">회원 탈퇴</Button>
+              <Button variant="destructive" className="font-display">Delete Account</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>정말 탈퇴하시겠습니까?</DialogTitle>
+                <DialogTitle className="font-display">Confirm Deletion</DialogTitle>
                 <DialogDescription asChild>
                   <div className="space-y-2">
-                    <p>탈퇴 전 다음 사항을 확인해주세요:</p>
+                    <p>Please review before proceeding:</p>
                     <ul className="list-inside list-disc space-y-1 text-sm">
-                      <li>30일 내 로그인하면 복구 가능합니다</li>
-                      <li>활성 계약은 자동 취소됩니다</li>
-                      <li>작성한 공고 및 지원 내역은 삭제됩니다</li>
+                      <li>Recovery possible within 30 days</li>
+                      <li>Active contracts will be cancelled</li>
+                      <li>Posts and applications will be deleted</li>
                     </ul>
                   </div>
                 </DialogDescription>
@@ -293,23 +306,23 @@ export default function SettingsPage() {
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    본인 확인을 위해 비밀번호를 입력해주세요.
+                    Enter your password to confirm.
                   </AlertDescription>
                 </Alert>
 
                 <div className="space-y-2">
-                  <Label htmlFor="delete-password">비밀번호</Label>
+                  <Label htmlFor="delete-password">Password</Label>
                   <Input
                     id="delete-password"
                     type="password"
-                    placeholder="비밀번호 입력"
+                    placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-500">{error}</p>
+                  <p className="text-sm text-destructive">{error}</p>
                 )}
               </div>
 
@@ -322,14 +335,14 @@ export default function SettingsPage() {
                     setError(null);
                   }}
                 >
-                  취소
+                  Cancel
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={handleDelete}
                   disabled={isDeleting || !password.trim()}
                 >
-                  {isDeleting ? '처리 중...' : '탈퇴'}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
                 </Button>
               </DialogFooter>
             </DialogContent>

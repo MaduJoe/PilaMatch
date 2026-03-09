@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Noto_Sans_KR } from 'next/font/google';
+import { Noto_Sans_KR, Outfit } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
 import './globals.css';
 import { QueryProvider } from '@/providers/query-provider';
@@ -11,6 +11,13 @@ const notoSansKR = Noto_Sans_KR({
   weight: ['300', '400', '500', '700'],
   display: 'swap',
   variable: '--font-noto-sans-kr',
+});
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  display: 'swap',
+  variable: '--font-outfit',
 });
 
 export const metadata: Metadata = {
@@ -35,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko" className={notoSansKR.variable} suppressHydrationWarning>
+    <html lang="ko" className={`${notoSansKR.variable} ${outfit.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <QueryProvider>
