@@ -171,7 +171,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             aria-label="긴급 대타"
             className={`min-h-[44px] flex-1 text-base font-semibold ${
               isUrgent
-                ? 'border-pink-300 bg-pink-50 text-pink-600 data-[state=on]:!bg-pink-500 data-[state=on]:!text-white dark:border-pink-700 dark:bg-pink-950/30 dark:text-pink-400 dark:data-[state=on]:!bg-pink-600'
+                ? 'border-urgent/40 bg-urgent/10 text-urgent data-[state=on]:!bg-urgent data-[state=on]:!text-urgent-foreground dark:border-urgent/50 dark:bg-urgent/20 dark:text-urgent dark:data-[state=on]:!bg-urgent'
                 : ''
             }`}
           >
@@ -186,7 +186,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
           </ToggleGroupItem>
         </ToggleGroup>
         {isUrgent && (
-          <p className="text-sm text-pink-600 dark:text-pink-400">
+          <p className="text-sm text-urgent dark:text-urgent">
             급하게 강사가 필요할 때 사용하세요. 강사들에게 우선 노출됩니다.
           </p>
         )}
@@ -418,6 +418,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
                 <Input
                   id="job-start-time"
                   type="time"
+                  step={300}
                   className="min-h-[44px] text-base"
                   {...register('start_time')}
                 />
@@ -432,6 +433,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
                 <Input
                   id="job-end-time"
                   type="time"
+                  step={300}
                   className="min-h-[44px] text-base"
                   {...register('end_time')}
                 />
@@ -583,7 +585,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         disabled={createJob.isPending}
         className={cn(
           'min-h-[48px] w-full text-base font-semibold',
-          isUrgent && 'bg-pink-500 text-white hover:bg-pink-600 dark:bg-pink-600 dark:hover:bg-pink-700',
+          isUrgent && 'bg-urgent text-urgent-foreground hover:bg-urgent/90',
         )}
       >
         {createJob.isPending

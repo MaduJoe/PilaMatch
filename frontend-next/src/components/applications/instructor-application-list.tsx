@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Loader2, FileSearch, Phone, MapPin, MessageSquare } from 'lucide-react';
+import { Loader2, FileSearch, Phone, MapPin, MessageSquare, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import api, { APIError } from '@/lib/api-client';
 import type { ApplicationWithJobResponse } from '@/lib/api-types';
@@ -20,6 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { StarRating } from '@/components/reviews/star-rating';
+import { WriteReviewDialog } from '@/components/reviews/write-review-dialog';
 
 // ---------------------------------------------------------------------------
 // Status badge color mapping
@@ -54,106 +56,164 @@ function ApplicationCard({
   const statusDisplay = getApplicationStatusDisplay(application.status);
   const isAccepted = application.status === 'accepted';
   const isPending = application.status === 'pending';
+  const [writeDialogOpen, setWriteDialogOpen] = useState(false);
+
+  const eligibilityQuery = useQuery({
+    queryKey: ['review-eligibility', application.id],
+    queryFn: () => api.reviews.getEligibility(application.id),
+    enabled: isAccepted && application.contact_revealed,
+  });
+  const eligibility = eligibilityQuery.data;
 
   return (
-    <Card className={isAccepted ? 'border-green-300 dark:border-green-700' : undefined}>
-      <CardContent className="flex flex-col gap-3 p-5">
-        {/* Header: job title + status */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex flex-col gap-1">
-            <p className="text-base font-semibold leading-tight">
-              {application.job_title ?? '(제목 없음)'}
-            </p>
-            {application.studio_name && (
-              <p className="text-sm text-muted-foreground">
-                {application.studio_name}
-              </p>
-            )}
-          </div>
-          <Badge
-            variant={statusBadgeVariant(application.status)}
-            aria-label={`상태: ${statusDisplay.label}`}
-          >
-            {statusDisplay.label}
-          </Badge>
-        </div>
-
-        {/* Applied date */}
-        <p className="text-xs text-muted-foreground">
-          지원일: {formatDateTime(application.created_at)}
-        </p>
-
-        {/* Contact revealed section (for accepted applications) */}
-        {isAccepted && application.contact_revealed && (
-          <>
-            <Separator />
-            <div className="rounded-lg bg-green-50 p-4 dark:bg-green-950/30">
-              <p className="mb-3 text-sm font-medium text-green-800 dark:text-green-200">
-                매칭 완료!
+    <>
+      <Card className={isAccepted ? 'border-green-300 dark:border-green-700' : undefined}>
+        <CardContent className="flex flex-col gap-3 p-5">
+          {/* Header: job title + status */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-col gap-1">
+              <p className="text-base font-semibold leading-tight">
+                {application.job_title ?? '(제목 없음)'}
               </p>
               {application.studio_name && (
-                <p className="text-sm font-semibold mb-1">{application.studio_name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {application.studio_name}
+                </p>
               )}
-              {application.studio_phone && (
-                <div className="flex items-center gap-2 mb-2">
-                  <Phone className="size-4 text-green-600 dark:text-green-400" />
-                  <span className="font-mono text-lg font-bold">{application.studio_phone}</span>
-                </div>
-              )}
-              {application.studio_address && (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3">
-                  <MapPin className="size-3.5 shrink-0" />
-                  <span>{application.studio_address}</span>
-                </div>
-              )}
-              <div className="flex gap-2">
-                {application.studio_phone && (
-                  <>
-                    <Button asChild size="sm" className="min-h-[44px] flex-1 bg-green-600 hover:bg-green-700 text-white">
-                      <a href={`tel:${application.studio_phone}`}>
-                        <Phone className="size-4 mr-1" />
-                        전화하기
-                      </a>
-                    </Button>
-                    <Button asChild variant="outline" size="sm" className="min-h-[44px] flex-1 border-green-300 text-green-700">
-                      <a href={`sms:${application.studio_phone}`}>
-                        <MessageSquare className="size-4 mr-1" />
-                        문자
-                      </a>
-                    </Button>
-                  </>
-                )}
-              </div>
             </div>
-          </>
-        )}
-
-        {/* Accepted but contact not yet revealed -- unlikely but handle gracefully */}
-        {isAccepted && !application.contact_revealed && (
-          <>
-            <Separator />
-            <p className="text-sm text-green-700 dark:text-green-300">
-              수락되었습니다. 연락처 확인 중...
-            </p>
-          </>
-        )}
-
-        {/* Withdraw button for pending applications */}
-        {isPending && onWithdraw && (
-          <div className="flex justify-end pt-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="min-h-[44px]"
-              onClick={() => onWithdraw(application.id)}
-              aria-label={`${application.job_title ?? '공고'} 지원 철회`}
+            <Badge
+              variant={statusBadgeVariant(application.status)}
+              aria-label={`상태: ${statusDisplay.label}`}
             >
-              지원 철회
-            </Button>
+              {statusDisplay.label}
+            </Badge>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {/* Applied date */}
+          <p className="text-xs text-muted-foreground">
+            지원일: {formatDateTime(application.created_at)}
+          </p>
+
+          {/* Contact revealed section (for accepted applications) */}
+          {isAccepted && application.contact_revealed && (
+            <>
+              <Separator />
+              <div className="rounded-lg bg-green-50 p-4 dark:bg-green-950/30">
+                <p className="mb-3 text-sm font-medium text-green-800 dark:text-green-200">
+                  매칭 완료!
+                </p>
+                {application.studio_name && (
+                  <p className="text-sm font-semibold mb-1">{application.studio_name}</p>
+                )}
+                {application.studio_phone && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <Phone className="size-4 text-green-600 dark:text-green-400" />
+                    <span className="font-mono text-lg font-bold">{application.studio_phone}</span>
+                  </div>
+                )}
+                {application.studio_address && (
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-3">
+                    <MapPin className="size-3.5 shrink-0" />
+                    <span>{application.studio_address}</span>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  {application.studio_phone && (
+                    <>
+                      <Button asChild size="sm" className="min-h-[44px] flex-1 bg-green-600 hover:bg-green-700 text-white">
+                        <a href={`tel:${application.studio_phone}`}>
+                          <Phone className="size-4 mr-1" />
+                          전화하기
+                        </a>
+                      </Button>
+                      <Button asChild variant="outline" size="sm" className="min-h-[44px] flex-1 border-green-300 text-green-700">
+                        <a href={`sms:${application.studio_phone}`}>
+                          <MessageSquare className="size-4 mr-1" />
+                          문자
+                        </a>
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Review section */}
+              {eligibility && (
+                <div className="border-t pt-3">
+                  {eligibility.has_written && eligibility.my_review ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default" className="text-xs">리뷰 완료</Badge>
+                        <StarRating value={eligibility.my_review.rating} readonly size="sm" />
+                      </div>
+                      {eligibility.both_reviewed && eligibility.partner_review && (
+                        <div className="rounded-md bg-muted p-2">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">스튜디오 리뷰</p>
+                          <StarRating value={eligibility.partner_review.rating} readonly size="sm" />
+                          {eligibility.partner_review.comment && (
+                            <p className="text-xs mt-1">{eligibility.partner_review.comment}</p>
+                          )}
+                        </div>
+                      )}
+                      {!eligibility.both_reviewed && (
+                        <p className="text-xs text-muted-foreground">스튜디오가 리뷰를 작성하면 서로 확인할 수 있습니다.</p>
+                      )}
+                    </div>
+                  ) : eligibility.review_expired ? (
+                    <p className="text-xs text-muted-foreground">리뷰 작성 기간이 지났습니다.</p>
+                  ) : eligibility.review_eligible ? (
+                    <Button
+                      variant="outline"
+                      className="min-h-[44px] w-full gap-1"
+                      onClick={() => setWriteDialogOpen(true)}
+                    >
+                      <Pencil className="size-4" aria-hidden="true" />
+                      리뷰 작성
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">수업 종료 후 리뷰를 작성할 수 있습니다.</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Accepted but contact not yet revealed -- unlikely but handle gracefully */}
+          {isAccepted && !application.contact_revealed && (
+            <>
+              <Separator />
+              <p className="text-sm text-green-700 dark:text-green-300">
+                수락되었습니다. 연락처 확인 중...
+              </p>
+            </>
+          )}
+
+          {/* Withdraw button for pending applications */}
+          {isPending && onWithdraw && (
+            <div className="flex justify-end pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-[44px]"
+                onClick={() => onWithdraw(application.id)}
+                aria-label={`${application.job_title ?? '공고'} 지원 철회`}
+              >
+                지원 철회
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Write review dialog */}
+      <WriteReviewDialog
+        applicationId={application.id}
+        partnerName={application.studio_name ?? '스튜디오'}
+        open={writeDialogOpen}
+        onOpenChange={setWriteDialogOpen}
+        onSuccess={() => {}}
+      />
+    </>
   );
 }
 

@@ -26,13 +26,11 @@ interface ContactRevealScreenProps {
     studio_name: string;
     studio_address?: string | null;
   };
-  /** Job context for display */
   jobTitle?: string;
   jobDate?: string;
   jobTime?: string;
   jobRegion?: string;
   hourlyRate?: number;
-  /** Which role is viewing this */
   viewerRole: 'instructor' | 'studio';
 }
 
@@ -51,7 +49,6 @@ export function ContactRevealScreen({
   hourlyRate,
   viewerRole,
 }: ContactRevealScreenProps) {
-  // Determine which partner info to display based on viewer role
   const partnerName =
     viewerRole === 'studio'
       ? contactData.instructor_name
@@ -62,66 +59,61 @@ export function ContactRevealScreen({
       ? contactData.instructor_phone
       : contactData.studio_phone;
 
-  const partnerLabel = viewerRole === 'studio' ? '강사' : '스튜디오';
-
+  const partnerLabel = viewerRole === 'studio' ? 'Instructor' : 'Studio';
   const studioAddress = contactData.studio_address;
-
   const hasJobContext = jobTitle || jobDate || jobTime || jobRegion || hourlyRate;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
       <DialogContent
         showCloseButton={false}
-        className="fixed inset-0 z-50 flex h-dvh max-h-dvh w-full max-w-full translate-x-0 translate-y-0 top-0 left-0 flex-col items-center justify-center rounded-none border-none bg-green-50 p-6 dark:bg-green-950/30 sm:max-w-full data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+        className="fixed inset-0 z-50 flex h-dvh max-h-dvh w-full max-w-full translate-x-0 translate-y-0 top-0 left-0 flex-col items-center justify-center rounded-none border-none p-6 sm:max-w-full data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+        style={{
+          background: 'radial-gradient(ellipse 100% 80% at 50% 30%, oklch(0.55 0.16 155 / 12%) 0%, transparent 60%), var(--background)',
+        }}
       >
-        {/* Accessible dialog title and description */}
-        <DialogTitle className="sr-only">매칭 완료</DialogTitle>
+        <DialogTitle className="sr-only">Match Complete</DialogTitle>
         <DialogDescription className="sr-only">
-          {partnerLabel} {partnerName}님과 매칭이 완료되었습니다.
-          연락처가 공개되었습니다.
+          {partnerLabel} {partnerName} matched. Contact revealed.
         </DialogDescription>
 
-        {/* Scrollable content area */}
         <div className="flex w-full max-w-md flex-col items-center gap-6 overflow-y-auto py-4">
-          {/* --- Success icon & heading --- */}
-          <div className="flex flex-col items-center gap-3">
-            <div
-              className="flex items-center justify-center rounded-full bg-green-100 p-4 dark:bg-green-900/50"
-              aria-hidden="true"
-            >
-              <CheckCircle2 className="size-16 text-green-600 dark:text-green-400" />
+          {/* Success icon */}
+          <div className="flex flex-col items-center gap-4 animate-slide-up">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-success/20 blur-xl scale-150" />
+              <div className="relative flex items-center justify-center rounded-full bg-success/10 p-5 ring-2 ring-success/20">
+                <CheckCircle2 className="size-14 text-success" strokeWidth={1.5} />
+              </div>
             </div>
-            <h2 className="text-2xl font-bold text-green-800 dark:text-green-200">
-              매칭 완료!
+            <h2 className="font-display text-3xl font-extrabold tracking-tight text-foreground">
+              Match!
             </h2>
-            <p className="text-center text-sm text-green-700 dark:text-green-300">
-              {partnerLabel} {partnerName}님과 매칭되었습니다.
+            <p className="text-center text-sm text-muted-foreground leading-relaxed">
+              Connected with <span className="font-semibold text-foreground">{partnerName}</span>
               <br />
-              아래 연락처로 직접 연락해 주세요.
+              Reach out directly via phone or text.
             </p>
           </div>
 
-          {/* --- Contact card --- */}
-          <Card className="w-full border-green-200 bg-white shadow-lg dark:border-green-800 dark:bg-green-950/50">
-            <CardContent className="flex flex-col gap-4 p-5">
-              {/* Partner name */}
+          {/* Contact card */}
+          <Card className="w-full border-success/20 shadow-xl shadow-success/[0.06] animate-fade-up" style={{ animationDelay: '150ms' }}>
+            <CardContent className="flex flex-col gap-4 p-6">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">{partnerLabel}</p>
-                <p className="text-xl font-bold">{partnerName}</p>
+                <p className="font-display text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{partnerLabel}</p>
+                <p className="font-display text-xl font-bold mt-1">{partnerName}</p>
               </div>
 
-              {/* Phone number */}
               <div className="flex items-center justify-center gap-2">
-                <Phone className="size-5 text-green-600 dark:text-green-400" aria-hidden="true" />
+                <Phone className="size-5 text-success" aria-hidden="true" />
                 <span
-                  className="text-2xl font-bold font-mono tracking-wide"
-                  aria-label={`전화번호 ${partnerPhone}`}
+                  className="font-display text-2xl font-bold tracking-wide"
+                  aria-label={`Phone ${partnerPhone}`}
                 >
                   {partnerPhone}
                 </span>
               </div>
 
-              {/* Studio address (shown when instructor is viewing) */}
               {viewerRole === 'instructor' && studioAddress && (
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="size-4 shrink-0" aria-hidden="true" />
@@ -131,48 +123,39 @@ export function ContactRevealScreen({
 
               <Separator />
 
-              {/* Action buttons */}
               <div className="flex flex-col gap-3">
                 <Button
                   asChild
                   size="lg"
-                  className="min-h-[48px] w-full bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500"
+                  className="min-h-[48px] w-full bg-success text-success-foreground hover:bg-success/90 font-display font-semibold"
                 >
-                  <a
-                    href={`tel:${partnerPhone}`}
-                    aria-label={`${partnerName}님에게 전화하기`}
-                  >
+                  <a href={`tel:${partnerPhone}`} aria-label={`Call ${partnerName}`}>
                     <Phone className="size-5" aria-hidden="true" />
-                    전화하기
+                    Call
                   </a>
                 </Button>
                 <Button
                   asChild
                   variant="outline"
                   size="lg"
-                  className="min-h-[48px] w-full border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-950/50"
+                  className="min-h-[48px] w-full border-success/30 text-success hover:bg-success/5 font-display font-semibold"
                 >
-                  <a
-                    href={`sms:${partnerPhone}`}
-                    aria-label={`${partnerName}님에게 문자 보내기`}
-                  >
+                  <a href={`sms:${partnerPhone}`} aria-label={`Text ${partnerName}`}>
                     <MessageSquare className="size-5" aria-hidden="true" />
-                    문자 보내기
+                    Text
                   </a>
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* --- Job context --- */}
+          {/* Job context */}
           {hasJobContext && (
-            <div className="flex w-full flex-col gap-2 rounded-lg bg-green-100/50 p-4 dark:bg-green-900/20">
+            <div className="flex w-full flex-col gap-2 rounded-xl bg-muted/40 p-4 animate-fade-up" style={{ animationDelay: '300ms' }}>
               {jobTitle && (
-                <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                  {jobTitle}
-                </p>
+                <p className="text-sm font-semibold">{jobTitle}</p>
               )}
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-green-700 dark:text-green-300">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                 {jobDate && (
                   <span className="flex items-center gap-1">
                     <Calendar className="size-3.5 shrink-0" aria-hidden="true" />
@@ -194,22 +177,22 @@ export function ContactRevealScreen({
                 {hourlyRate != null && hourlyRate > 0 && (
                   <span className="flex items-center gap-1">
                     <Coins className="size-3.5 shrink-0" aria-hidden="true" />
-                    시급 {formatCurrency(hourlyRate)}
+                    {formatCurrency(hourlyRate)}/hr
                   </span>
                 )}
               </div>
             </div>
           )}
 
-          {/* --- Dismiss button --- */}
+          {/* Dismiss */}
           <Button
             variant="ghost"
             size="lg"
-            className="min-h-[48px] w-full max-w-md text-green-700 hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900/30"
+            className="min-h-[48px] w-full max-w-md font-display"
             onClick={onClose}
-            aria-label="확인하고 닫기"
+            aria-label="Dismiss"
           >
-            확인
+            Done
           </Button>
         </div>
       </DialogContent>

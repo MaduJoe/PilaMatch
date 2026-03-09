@@ -241,7 +241,7 @@ export function JobList() {
       ) : (
         <>
           {/* Job cards grid */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="stagger-list grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {sortedJobs.map((item) => (
               <JobCard
                 key={item.job.id}

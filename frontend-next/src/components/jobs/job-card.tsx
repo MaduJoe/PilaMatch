@@ -16,20 +16,22 @@ import { MapPin, Clock, Banknote, ChevronDown, ChevronUp, FileText, Lock, Loader
 // ---------------------------------------------------------------------------
 
 const JOB_TYPE_MAP: Record<string, { label: string; emoji: string }> = {
-  substitute: { label: '1회성', emoji: '☝️' },
-  // substitute: { label: '1회성', emoji: '\u{1F504}' },
+  substitute: { label: '1회성', emoji: '\u261D\uFE0F' },
   regular: { label: '여러 회', emoji: '\u{1F504}' },
-  // regular: { label: '여러 회', emoji: '\u{1F4C5}' },
   contract: { label: '계약', emoji: '\u{1F4DD}' },
 };
 
 const SCORE_THRESHOLDS = [
-  { min: 80, color: 'bg-green-500' },
-  { min: 60, color: 'bg-amber-500' },
+  { min: 80, bg: 'bg-success/15', text: 'text-success', ring: 'ring-success/20' },
+  { min: 60, bg: 'bg-amber-500/15', text: 'text-amber-600 dark:text-amber-400', ring: 'ring-amber-500/20' },
 ] as const;
 
-function scoreColor(score: number): string {
-  return SCORE_THRESHOLDS.find((t) => score >= t.min)?.color ?? 'bg-gray-400';
+function scoreStyle(score: number) {
+  return SCORE_THRESHOLDS.find((t) => score >= t.min) ?? {
+    bg: 'bg-gray-500/10',
+    text: 'text-muted-foreground',
+    ring: 'ring-gray-500/10',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -54,44 +56,44 @@ function HandoffNoteView({ note }: { note: HandoffNotePublicResponse | HandoffNo
     <div className="space-y-2.5">
       <p className="flex items-center gap-1.5 text-xs font-semibold">
         <FileText className="size-3.5 text-primary" />
-        인수인계 노트
+        Handoff Note
       </p>
 
       <div className="rounded-lg border bg-background p-3 space-y-2">
         {note.class_topic && (
-          <NoteRow label="주제">{note.class_topic}</NoteRow>
+          <NoteRow label="Topic">{note.class_topic}</NoteRow>
         )}
         {note.class_sequence_info && (
-          <NoteRow label="진도">{note.class_sequence_info}</NoteRow>
+          <NoteRow label="Progress">{note.class_sequence_info}</NoteRow>
         )}
         {note.atmosphere_preference && (
-          <NoteRow label="분위기">
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+          <NoteRow label="Vibe">
+            <span className="inline-flex items-center rounded-md border bg-muted/50 text-[10px] px-1.5 py-0 h-4 font-normal">
               {note.atmosphere_preference}
-            </Badge>
+            </span>
           </NoteRow>
         )}
         {note.additional_notes && (
-          <NoteRow label="안내">{note.additional_notes}</NoteRow>
+          <NoteRow label="Info">{note.additional_notes}</NoteRow>
         )}
       </div>
 
       {/* Sensitive fields — shown after acceptance */}
       {isFull ? (
-        <div className="rounded-lg border border-green-200 bg-green-50/60 p-3 space-y-2 dark:border-green-800 dark:bg-green-950/20">
-          <p className="text-[10px] font-medium text-green-700 dark:text-green-300 mb-1">수락 후 공개 정보</p>
+        <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-2">
+          <p className="text-[10px] font-medium text-success mb-1">After acceptance</p>
           {fullNote.member_notes && (
-            <NoteRow label="회원">{fullNote.member_notes}</NoteRow>
+            <NoteRow label="Members">{fullNote.member_notes}</NoteRow>
           )}
           {fullNote.equipment_notes && (
-            <NoteRow label="기구">{fullNote.equipment_notes}</NoteRow>
+            <NoteRow label="Equipment">{fullNote.equipment_notes}</NoteRow>
           )}
         </div>
       ) : note.has_sensitive_info ? (
         <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2.5 dark:border-amber-700 dark:bg-amber-950/20">
           <p className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300">
             <Lock className="size-3" />
-            회원 정보·기구 세팅은 수락 후 공개됩니다
+            Member info & equipment settings visible after acceptance
           </p>
         </div>
       ) : null}
@@ -122,6 +124,7 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
   const isPast = job.is_past;
   const isEarlyLocked = item.early_access_locked;
   const typeInfo = JOB_TYPE_MAP[job.job_type] ?? { label: job.job_type, emoji: '' };
+  const ss = scoreStyle(score);
 
   const handoffQuery = useQuery({
     queryKey: ['handoff-note', job.id],
@@ -133,40 +136,48 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
   return (
     <Card
       className={cn(
-        'relative flex flex-col transition-shadow hover:shadow-md overflow-hidden',
-        isPast && 'opacity-60',
+        'group relative flex flex-col overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5',
+        isPast && 'opacity-50',
         isEarlyLocked && 'opacity-50',
-        is_urgent && !isPast && 'border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-950/20',
+        is_urgent && !isPast && 'border-urgent/40 bg-urgent/[0.03] shadow-urgent/[0.06] shadow-md',
       )}
     >
+      {/* Urgent top bar */}
+      {is_urgent && !isPast && (
+        <div className="h-1 w-full bg-gradient-to-r from-urgent via-urgent/80 to-urgent/40" />
+      )}
+
       {isEarlyLocked && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
           <div className="flex flex-col items-center gap-1.5 text-center px-4">
             <Lock className="size-5 text-primary" />
-            <p className="text-xs font-semibold">프리미엄 회원 전용</p>
-            <p className="text-[10px] text-muted-foreground">긴급 공고를 10분 먼저 확인하세요</p>
+            <p className="font-display text-xs font-semibold">Premium Only</p>
+            <p className="text-[10px] text-muted-foreground">10-minute early access</p>
           </div>
         </div>
       )}
-      <CardContent className="flex flex-col gap-2.5 pb-3">
-        {/* Row 1: Badges (max 3) + Score dot */}
+
+      <CardContent className="flex flex-col gap-3 pb-3">
+        {/* Row 1: Badges + Score pill */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             {is_urgent && !isPast && (
-              <Badge variant="destructive" className="text-xs font-bold px-2 py-0.5">
-                긴급
-              </Badge>
+              <span className="inline-flex items-center rounded-md bg-urgent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-urgent-foreground font-display animate-pulse-soft">
+                Urgent
+              </span>
             )}
-            <Badge variant={isPast ? 'outline' : 'secondary'} className="text-xs">
+            <Badge variant={isPast ? 'outline' : 'secondary'} className="text-[10px] font-display tracking-wide">
               {typeInfo.emoji} {typeInfo.label}
             </Badge>
           </div>
           <span
-            className="flex items-center gap-1 text-xs font-bold text-muted-foreground"
-            aria-label={`매칭 점수 ${score}%`}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-bold font-display ring-1',
+              ss.bg, ss.text, ss.ring,
+            )}
+            aria-label={`Match score ${score}%`}
           >
-            <span className={cn('inline-block size-2 rounded-full', scoreColor(score))} />
-            {score}
+            {score}%
           </span>
         </div>
 
@@ -174,7 +185,7 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
         <div className="flex items-start justify-between gap-2">
           <h3
             className={cn(
-              'text-base font-bold leading-tight cursor-pointer hover:underline flex-1',
+              'text-[15px] font-bold leading-snug cursor-pointer hover:text-primary transition-colors flex-1',
               isPast && 'line-through text-muted-foreground',
             )}
             onClick={() => onDetail(item)}
@@ -185,9 +196,9 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
             {job.title}
           </h3>
           <button
-            className="shrink-0 p-1 text-muted-foreground hover:text-foreground"
+            className="shrink-0 p-1 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
             onClick={() => setExpanded(!expanded)}
-            aria-label={expanded ? '상세 접기' : '상세 펼치기'}
+            aria-label={expanded ? 'Collapse' : 'Expand'}
             aria-expanded={expanded}
           >
             {expanded ? (
@@ -203,22 +214,22 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
           <Clock className="size-3.5 shrink-0" aria-hidden="true" />
           <span>{job.date}</span>
           {job.start_time && job.end_time && (
-            <span>{job.start_time}~{job.end_time}</span>
+            <span className="font-medium text-foreground">{job.start_time}~{job.end_time}</span>
           )}
         </div>
 
-        {/* Row 4: Distance · Rate in one line */}
-        <div className="flex items-center gap-1 text-sm">
+        {/* Row 4: Distance + Rate */}
+        <div className="flex items-center gap-1.5 text-sm">
           {job.distance_text && (
             <>
-              <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium">
+              <span className="flex items-center gap-1 text-primary font-medium">
                 <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
                 {job.distance_text}
                 {job.travel_time_min && (
-                  <span className="text-muted-foreground font-normal">({job.travel_time_min}분)</span>
+                  <span className="text-muted-foreground font-normal">({job.travel_time_min}min)</span>
                 )}
               </span>
-              <span className="text-muted-foreground">·</span>
+              <span className="text-border">&middot;</span>
             </>
           )}
           {!job.distance_text && job.region && (
@@ -227,79 +238,83 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
                 <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
                 {job.region}
               </span>
-              <span className="text-muted-foreground">·</span>
+              <span className="text-border">&middot;</span>
             </>
           )}
           <span className="flex items-center gap-1 font-bold">
             <Banknote className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            {formatCurrency(job.hourly_rate)}/시간
+            {formatCurrency(job.hourly_rate)}/hr
           </span>
         </div>
 
-        {/* Row 5: Premium info — 경쟁률 + 응답률 */}
-        <div className="flex items-center gap-3 text-xs">
+        {/* Row 5: Premium info */}
+        <div className="flex items-center gap-3 text-[11px]">
           {isPremium ? (
             <span className="flex items-center gap-1 text-muted-foreground">
               <Users className="size-3" />
-              {item.application_count}명 지원 중
+              {item.application_count} applicants
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-muted-foreground/60">
+            <span className="flex items-center gap-1 text-muted-foreground/50">
               <Lock className="size-3" />
-              ?명 지원 중
+              ? applicants
             </span>
           )}
-          <span className="text-muted-foreground/30">·</span>
+          <span className="text-border">&middot;</span>
           {isPremium && item.studio_avg_response_hours != null ? (
             <span className="flex items-center gap-1 text-muted-foreground">
               <Timer className="size-3" />
-              평균 {item.studio_avg_response_hours < 1
-                ? `${Math.round(item.studio_avg_response_hours * 60)}분`
-                : `${item.studio_avg_response_hours.toFixed(1)}시간`} 내 응답
+              ~{item.studio_avg_response_hours < 1
+                ? `${Math.round(item.studio_avg_response_hours * 60)}m`
+                : `${item.studio_avg_response_hours.toFixed(1)}h`} response
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-muted-foreground/60">
+            <span className="flex items-center gap-1 text-muted-foreground/50">
               <Lock className="size-3" />
-              응답 시간
+              Response time
             </span>
           )}
         </div>
       </CardContent>
 
-      {/* Expandable detail section — Handoff Note */}
+      {/* Expandable detail section */}
       {expanded && (
-        <div className="border-t px-6 py-3 bg-muted/30">
+        <div className="border-t border-border/50 px-6 py-3 bg-muted/20 animate-fade-in">
           {job.has_handoff_note ? (
             handoffQuery.isLoading ? (
               <div className="flex items-center gap-2 py-2">
-                <Loader2 className="size-4 animate-spin" />
-                <span className="text-xs text-muted-foreground">인수인계 노트 불러오는 중...</span>
+                <Loader2 className="size-4 animate-spin text-primary" />
+                <span className="text-xs text-muted-foreground">Loading handoff note...</span>
               </div>
             ) : handoffQuery.data ? (
               <HandoffNoteView note={handoffQuery.data} />
             ) : (
-              <p className="text-xs text-muted-foreground">인수인계 노트를 불러올 수 없습니다.</p>
+              <p className="text-xs text-muted-foreground">Could not load handoff note.</p>
             )
           ) : (
-            <p className="text-xs text-muted-foreground">인수인계 노트가 없습니다.</p>
+            <p className="text-xs text-muted-foreground">No handoff note.</p>
           )}
         </div>
       )}
 
-      {/* Action area - single apply button */}
-      <div className="px-6 pb-4 pt-1">
+      {/* Action area */}
+      <div className="px-6 pb-4 pt-2">
         <Button
           variant={isApplied ? 'secondary' : is_urgent && !isPast ? 'destructive' : 'default'}
           size="sm"
-          className="min-h-[44px] w-full font-bold"
+          className={cn(
+            'min-h-[44px] w-full font-bold transition-all duration-200',
+            !isApplied && !isPast && !isEarlyLocked && 'hover:scale-[1.01] active:scale-[0.99]',
+            is_urgent && !isPast && !isApplied && 'bg-urgent text-urgent-foreground hover:bg-urgent/90',
+          )}
           disabled={isApplied || isPast || isEarlyLocked}
           onClick={(e) => {
             e.stopPropagation();
             onApply(job.id);
           }}
-          aria-label={isApplied ? '지원 완료' : isPast ? '마감' : is_urgent ? '지금 지원하기' : '지원하기'}
+          aria-label={isApplied ? 'Applied' : isPast ? 'Closed' : is_urgent ? 'Apply now' : 'Apply'}
         >
-          {isApplied ? '지원완료' : isPast ? '마감' : is_urgent ? '지금 지원하기' : '지원하기'}
+          {isApplied ? 'Applied' : isPast ? 'Closed' : is_urgent ? 'Apply Now' : 'Apply'}
         </Button>
       </div>
     </Card>
