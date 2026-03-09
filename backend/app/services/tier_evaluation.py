@@ -48,7 +48,7 @@ TEACHER_TIER_LIMITS: Dict[str, Dict[str, Any]] = {
         "extra_regions": -1,       # all regions
         "urgent_limit": -1,        # unlimited urgent
         "matching_boost": 1.3,
-        "label": "Pro",
+        "label": "Premium",
         "label_ko": "프로",
         "color": "gold",
     },

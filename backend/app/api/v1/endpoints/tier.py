@@ -87,7 +87,7 @@ async def get_tier_requirements(
         },
         {
             "tier": TeacherTier.T3_PRO.value,
-            "label": "Pro",
+            "label": "Premium",
             "label_ko": "프로",
             "requirements": [
                 "T2 조건 충족",

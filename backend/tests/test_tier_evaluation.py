@@ -547,7 +547,7 @@ class TestGetTierLimits:
         assert limits["daily_applications"] == 3
 
     def test_teacher_t3_limits(self) -> None:
-        """T3 Pro teacher has unlimited daily applications."""
+        """T3 Premium teacher has unlimited daily applications."""
         limits = get_tier_limits(TeacherTier.T3_PRO.value)
         assert limits["daily_applications"] == -1
         assert limits["matching_boost"] == 1.3
@@ -596,7 +596,7 @@ class TestCheckCanApply:
         assert "한도 초과" in reason
 
     async def test_check_can_apply_t3_unlimited(self) -> None:
-        """T3 Pro has no daily limit (returns True regardless of count)."""
+        """T3 Premium has no daily limit (returns True regardless of count)."""
         user = _make_user(
             role="instructor",
             tier=TeacherTier.T3_PRO.value,

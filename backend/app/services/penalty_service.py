@@ -127,10 +127,10 @@ async def record_same_day_cancel(
 async def record_late(
     db: AsyncSession, user_id: UUID, reported_by: UUID
 ) -> PenaltyRecord:
-    """Record a lateness report. Affects T3 Pro maintenance condition."""
+    """Record a lateness report. Affects T3 Premium maintenance condition."""
     record = await _create_record(
         db, user_id, PenaltyType.LATE, reported_by,
-        description="지각 신고 — Pro 유지 조건 영향",
+        description="지각 신고 — Premium 유지 조건 영향",
     )
     await db.commit()
     await db.refresh(record)
