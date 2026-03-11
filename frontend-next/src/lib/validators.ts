@@ -58,8 +58,14 @@ export type SignupFormData = z.infer<typeof signupSchema>;
 // ---------------------------------------------------------------------------
 
 export const instructorProfileSchema = z.object({
-  display_name: z.string().min(1, '이름을 입력해주세요').max(100),
-  bio: z.string().optional(),
+  display_name: z.string().min(1, '활동명을 입력해주세요').max(100),
+  bio: z
+    .string()
+    .min(1, '자기소개를 입력해주세요')
+    .refine(
+      (val) => val.split('\n').filter((line) => line.trim().length > 0).length >= 3,
+      '자기소개는 최소 3줄 이상 작성해주세요',
+    ),
   phone: z.string().optional(),
   categories: z.array(z.string()).min(1, '카테고리를 선택해주세요'),
   experience_years: z.number().min(0, '경력은 0년 이상이어야 합니다'),

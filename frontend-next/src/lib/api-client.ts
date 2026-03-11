@@ -134,6 +134,14 @@ async function request<T>(
     } catch (error) {
       lastError = error as Error;
 
+      // 401 Unauthorized → session expired, redirect to login
+      if (error instanceof APIError && error.status === 401) {
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = `/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`;
+        }
+        throw error;
+      }
+
       // Don't retry client errors (4xx)
       if (error instanceof APIError && error.status >= 400 && error.status < 500) {
         throw error;

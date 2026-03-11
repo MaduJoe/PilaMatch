@@ -7,17 +7,17 @@ import { Search, ClipboardList, User, Megaphone, Users, LayoutDashboard } from '
 import { cn, isUserVerified } from '@/lib/utils';
 
 const INSTRUCTOR_TABS = [
-  { key: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
-  { key: 'jobs', label: 'Find', icon: Search, path: '/steps/jobs' },
-  { key: 'offers', label: 'Applied', icon: ClipboardList, path: '/steps/offers' },
-  { key: 'profile', label: 'Profile', icon: User, path: '/steps/profile' },
+  { key: 'dashboard', label: '홈', icon: LayoutDashboard, path: '/dashboard' },
+  { key: 'jobs', label: '찾기', icon: Search, path: '/steps/jobs' },
+  { key: 'offers', label: '지원현황', icon: ClipboardList, path: '/steps/offers' },
+  { key: 'profile', label: '프로필', icon: User, path: '/steps/profile' },
 ] as const;
 
 const STUDIO_TABS = [
-  { key: 'dashboard', label: 'Home', icon: LayoutDashboard, path: '/dashboard' },
-  { key: 'jobs', label: 'Posts', icon: Megaphone, path: '/steps/jobs' },
-  { key: 'offers', label: 'Applicants', icon: Users, path: '/steps/offers' },
-  { key: 'profile', label: 'Profile', icon: User, path: '/steps/profile' },
+  { key: 'dashboard', label: '홈', icon: LayoutDashboard, path: '/dashboard' },
+  { key: 'jobs', label: '공고', icon: Megaphone, path: '/steps/jobs' },
+  { key: 'offers', label: '지원자', icon: Users, path: '/steps/offers' },
+  { key: 'profile', label: '프로필', icon: User, path: '/steps/profile' },
 ] as const;
 
 export function BottomTabBar() {

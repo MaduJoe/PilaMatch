@@ -325,3 +325,17 @@
 .animate-count-up {
   animation: count-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+/* Error highlight flash — used when validation fails to draw attention */
+@keyframes error-highlight {
+  0% { box-shadow: 0 0 0 0 oklch(0.65 0.2 25 / 0.5); }
+  25% { box-shadow: 0 0 0 4px oklch(0.65 0.2 25 / 0.35); }
+  50% { box-shadow: 0 0 0 2px oklch(0.65 0.2 25 / 0.2); }
+  75% { box-shadow: 0 0 0 4px oklch(0.65 0.2 25 / 0.35); }
+  100% { box-shadow: 0 0 0 0 oklch(0.65 0.2 25 / 0); }
+}
+
+.animate-error-highlight {
+  animation: error-highlight 1.2s ease-out;
+  border-color: oklch(0.65 0.2 25) !important;
+}

@@ -62,6 +62,11 @@ function ApplicationCard({
     queryKey: ['review-eligibility', application.id],
     queryFn: () => api.reviews.getEligibility(application.id),
     enabled: isAccepted && application.contact_revealed,
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      if (d && d.review_eligible && !d.review_expired && !d.both_reviewed) return 30000;
+      return false;
+    },
   });
   const eligibility = eligibilityQuery.data;
 

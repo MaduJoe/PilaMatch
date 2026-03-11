@@ -34,5 +34,5 @@ class JobPost(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     studio = relationship("StudioProfile", back_populates="job_posts")
-    applications = relationship("Application", back_populates="job_post")
-    handoff_note = relationship("HandoffNote", back_populates="job_post", uselist=False)
+    applications = relationship("Application", back_populates="job_post", cascade="all, delete-orphan", passive_deletes=True)
+    handoff_note = relationship("HandoffNote", back_populates="job_post", uselist=False, cascade="all, delete-orphan", passive_deletes=True)

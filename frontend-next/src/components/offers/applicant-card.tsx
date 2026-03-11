@@ -89,6 +89,12 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
     queryKey: ['review-eligibility', application.id],
     queryFn: () => api.reviews.getEligibility(application.id),
     enabled: isAccepted,
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      // Poll while review window is open and mutual review not yet complete
+      if (d && d.review_eligible && !d.review_expired && !d.both_reviewed) return 30000;
+      return false;
+    },
   });
 
   const eligibility = eligibilityQuery.data;

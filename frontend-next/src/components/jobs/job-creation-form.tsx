@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,7 +17,7 @@ import {
   SEOUL_REGIONS,
 } from '@/lib/constants';
 import { cn, formatCurrency } from '@/lib/utils';
-import { HelpCircle, Lock } from 'lucide-react';
+import { HelpCircle, Lock, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,9 +40,33 @@ import { TeachingStyleSelector } from '@/components/profile/teaching-style-selec
  */
 type JobFormValues = JobPostCreate;
 
+/** A single schedule row for "여러 회" multi-date support */
+interface ScheduleRow {
+  date: string;
+  start_time: string;
+  end_time: string;
+}
+
 interface JobCreationFormProps {
   onSuccess?: () => void;
 }
+
+/** Map form field keys to their step container element IDs */
+const FIELD_TO_STEP: Record<string, string> = {
+  category: 'step-1-category',
+  job_type: 'step-2-type',
+  region: 'step-3-region',
+  hourly_rate: 'step-4-rate',
+  date: 'step-5-when',
+  start_time: 'step-5-when',
+  end_time: 'step-5-when',
+  description: 'step-6-detail',
+  handoff_class_topic: 'step-7-handoff',
+  handoff_class_sequence_info: 'step-7-handoff',
+  handoff_atmosphere_preference: 'step-7-handoff',
+  handoff_member_notes: 'step-7-handoff',
+  handoff_equipment_notes: 'step-7-handoff',
+};
 
 export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   const queryClient = useQueryClient();
@@ -55,7 +79,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, submitCount },
   } = useForm<JobFormValues>({
     resolver: zodResolver(jobPostSchema) as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- Zod v4 input/output type gap
     defaultValues: {
@@ -87,14 +111,21 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   const [rateMin, setRateMin] = useState<number>(0);
   const [rateMax, setRateMax] = useState<number>(0);
 
+  // Multi-schedule rows for "여러 회"
+  const [schedules, setSchedules] = useState<ScheduleRow[]>([
+    { date: today, start_time: '', end_time: '' },
+  ]);
+
   // Preferred teaching style
   const [preferredStyle, setPreferredStyle] = useState<Record<string, string>>({});
+
+  // Track last submit count to detect new submission attempts
+  const lastSubmitRef = useRef(0);
 
   const isUrgent = watch('is_urgent');
   const category = watch('category');
   const jobType = watch('job_type');
   const region = watch('region');
-  const hourlyRate = watch('hourly_rate');
   const description = watch('description');
 
   // Build real-time title preview
@@ -119,17 +150,96 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         : `${formatCurrency(rateMin)}~${formatCurrency(rateMax)}`
       : '';
 
+  // ─── Error scroll & highlight ────────────────────────────────────────
+  useEffect(() => {
+    if (submitCount <= lastSubmitRef.current) return;
+    lastSubmitRef.current = submitCount;
+
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length === 0) return;
+
+    // Find the first errored field's step container
+    const firstKey = errorKeys[0];
+    const stepId = FIELD_TO_STEP[firstKey];
+    if (!stepId) return;
+
+    const el = document.getElementById(stepId);
+    if (!el) return;
+
+    // Scroll into view
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Add highlight animation
+    el.classList.add('animate-error-highlight');
+    const timer = setTimeout(() => {
+      el.classList.remove('animate-error-highlight');
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [submitCount, errors]);
+
+  // ─── Schedule helpers (multi-date for "여러 회") ─────────────────────
+  const addScheduleRow = useCallback(() => {
+    setSchedules((prev) => [...prev, { date: '', start_time: '', end_time: '' }]);
+  }, []);
+
+  const removeScheduleRow = useCallback((index: number) => {
+    setSchedules((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const updateScheduleRow = useCallback(
+    (index: number, field: keyof ScheduleRow, value: string) => {
+      setSchedules((prev) => {
+        const next = [...prev];
+        next[index] = { ...next[index], [field]: value };
+
+        // Sync first row to react-hook-form fields
+        if (index === 0) {
+          if (field === 'date') setValue('date', value, { shouldValidate: true });
+          if (field === 'start_time') setValue('start_time', value, { shouldValidate: true });
+          if (field === 'end_time') setValue('end_time', value, { shouldValidate: true });
+        }
+
+        // Always update total_sessions
+        setValue('total_sessions', next.length, { shouldValidate: false });
+
+        return next;
+      });
+    },
+    [setValue],
+  );
+
+  // When job type changes, reset schedules if switching away from regular
+  useEffect(() => {
+    if (jobType !== 'regular' && schedules.length > 1) {
+      setSchedules([schedules[0]]);
+      setValue('total_sessions', 1);
+    }
+  }, [jobType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isMultiSchedule = jobType === 'regular';
+
   const createJob = useMutation({
     mutationFn: (data: JobFormValues) => {
-      // Append rate range to description if a range was selected
+      // Append rate range + multi-schedule info to description
       let desc = data.description ?? '';
       if (rateMax > rateMin && rateMin > 0) {
         desc = desc ? `${desc} [시급 ${rateRangeText}]` : `시급 ${rateRangeText}`;
       }
+
+      // For multi-schedule, append schedule details
+      if (isMultiSchedule && schedules.length > 1) {
+        const scheduleText = schedules
+          .map((s, i) => `${i + 1}회: ${s.date} ${s.start_time}~${s.end_time}`)
+          .join(' / ');
+        desc = desc ? `${desc}\n[일정] ${scheduleText}` : `[일정] ${scheduleText}`;
+      }
+
       const payload: JobPostCreate = {
         ...data,
         title: titlePreview || data.title,
         description: desc,
+        total_sessions: schedules.length,
         preferred_style: Object.keys(preferredStyle).length > 0 ? preferredStyle : undefined,
       };
       return api.jobPosts.create(payload);
@@ -161,7 +271,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             const urgent = val === 'urgent';
             setValue('is_urgent', urgent);
             if (urgent) {
-              setValue('date', today);
+              updateScheduleRow(0, 'date', today);
             }
           }}
           className="w-full"
@@ -209,7 +319,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         {/* Left column: Steps 1-3 */}
         <div className="space-y-5">
           {/* Step 1: Category */}
-          <div className="space-y-2">
+          <div id="step-1-category" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
             <label className="text-sm font-medium">
               1. 종목 <span className="text-destructive">*</span>
             </label>
@@ -234,13 +344,13 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             </ToggleGroup>
             {errors.category && (
               <p className="text-sm text-destructive">
-                {errors.category.message}
+                {errors.category.message ?? '종목을 선택해주세요'}
               </p>
             )}
           </div>
 
           {/* Step 2: Job Type */}
-          <div className="space-y-2">
+          <div id="step-2-type" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
             <label className="text-sm font-medium">
               2. 유형 <span className="text-destructive">*</span>
             </label>
@@ -273,18 +383,18 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             </ToggleGroup>
             {jobType === 'regular' && (
               <p className="text-xs text-muted-foreground">
-                여러 날짜에 대타가 필요할 때 선택하세요 (예: 3/10, 3/11 총 2회)
+                여러 날짜에 대타가 필요할 때 선택하세요. 아래에서 일정을 추가할 수 있습니다.
               </p>
             )}
             {errors.job_type && (
               <p className="text-sm text-destructive">
-                {errors.job_type.message}
+                {errors.job_type.message ?? '유형을 선택해주세요'}
               </p>
             )}
           </div>
 
           {/* Step 3: Region + Map */}
-          <div className="space-y-2">
+          <div id="step-3-region" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
             <label className="text-sm font-medium">
               3. 지역 <span className="text-destructive">*</span>
             </label>
@@ -322,7 +432,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         {/* Right column: Steps 4-6 */}
         <div className="space-y-5">
           {/* Step 4: Rate Range */}
-          <div className="space-y-3">
+          <div id="step-4-rate" className="space-y-3 rounded-xl p-0.5 transition-all duration-300">
             <label className="text-sm font-medium">
               4. 시급 범위 <span className="text-destructive">*</span>
             </label>
@@ -382,89 +492,135 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             )}
             {errors.hourly_rate && (
               <p className="text-sm text-destructive">
-                {errors.hourly_rate.message}
+                {errors.hourly_rate.message ?? '시급을 선택해주세요'}
               </p>
             )}
           </div>
 
-          {/* Step 5: When */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              5. 언제 <span className="text-destructive">*</span>
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label
-                  htmlFor="job-date"
-                  className="mb-1 block text-xs text-muted-foreground"
-                >
-                  날짜
-                </label>
-                <Input
-                  id="job-date"
-                  type="date"
-                  min={today}
-                  className="min-h-[44px] text-base"
-                  {...register('date')}
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="job-start-time"
-                  className="mb-1 block text-xs text-muted-foreground"
-                >
-                  시작
-                </label>
-                <Input
-                  id="job-start-time"
-                  type="time"
-                  step={300}
-                  className="min-h-[44px] text-base"
-                  {...register('start_time')}
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="job-end-time"
-                  className="mb-1 block text-xs text-muted-foreground"
-                >
-                  종료
-                </label>
-                <Input
-                  id="job-end-time"
-                  type="time"
-                  step={300}
-                  className="min-h-[44px] text-base"
-                  {...register('end_time')}
-                />
-              </div>
+          {/* Step 5: When — single row or multi-row depending on job type */}
+          <div id="step-5-when" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">
+                5. 언제 <span className="text-destructive">*</span>
+              </label>
+              {isMultiSchedule && (
+                <span className="text-xs text-muted-foreground">
+                  {schedules.length}회
+                </span>
+              )}
             </div>
+
+            <div className="space-y-2">
+              {schedules.map((row, index) => (
+                <div key={index} className="flex items-end gap-2">
+                  {isMultiSchedule && schedules.length > 1 && (
+                    <span className="mb-2.5 text-xs font-medium text-muted-foreground tabular-nums w-5 shrink-0">
+                      {index + 1}.
+                    </span>
+                  )}
+                  <div className="grid flex-1 grid-cols-3 gap-2">
+                    <div>
+                      {index === 0 && (
+                        <label className="mb-1 block text-xs text-muted-foreground">날짜</label>
+                      )}
+                      <Input
+                        type="date"
+                        min={today}
+                        className="min-h-[44px] text-base"
+                        value={row.date}
+                        onChange={(e) => updateScheduleRow(index, 'date', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      {index === 0 && (
+                        <label className="mb-1 block text-xs text-muted-foreground">시작</label>
+                      )}
+                      <Input
+                        type="time"
+                        step={300}
+                        className="min-h-[44px] text-base"
+                        value={row.start_time}
+                        onChange={(e) => updateScheduleRow(index, 'start_time', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      {index === 0 && (
+                        <label className="mb-1 block text-xs text-muted-foreground">종료</label>
+                      )}
+                      <Input
+                        type="time"
+                        step={300}
+                        className="min-h-[44px] text-base"
+                        value={row.end_time}
+                        onChange={(e) => updateScheduleRow(index, 'end_time', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {isMultiSchedule && schedules.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mb-0.5 size-9 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeScheduleRow(index)}
+                      aria-label={`${index + 1}회차 삭제`}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add schedule row button — only for "여러 회" */}
+            {isMultiSchedule && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full border-dashed border-primary/40 text-primary hover:bg-primary/5"
+                onClick={addScheduleRow}
+              >
+                <Plus className="mr-1.5 size-4" />
+                일정 추가
+              </Button>
+            )}
+
+            {/* Hidden inputs for react-hook-form (synced from schedules[0]) */}
+            <input type="hidden" {...register('date')} />
+            <input type="hidden" {...register('start_time')} />
+            <input type="hidden" {...register('end_time')} />
+
             {(errors.date || errors.start_time || errors.end_time) && (
               <p className="text-sm text-destructive">
                 {errors.date?.message ||
                   errors.start_time?.message ||
-                  errors.end_time?.message}
+                  errors.end_time?.message ||
+                  '날짜와 시간을 입력해주세요'}
               </p>
             )}
           </div>
 
-          {/* Step 6: Memo */}
-          <div className="space-y-2">
-            <label htmlFor="job-memo" className="text-sm font-medium">
-              6. 한 줄 메모
+          {/* Step 6: Detail (was "한 줄 메모") */}
+          <div id="step-6-detail" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
+            <label htmlFor="job-detail" className="text-sm font-medium">
+              6. 세부 안내
             </label>
             <Input
-              id="job-memo"
-              placeholder="예: 오전 수업 대타"
+              id="job-detail"
+              placeholder="예: 오전 그룹 리포머 6명, 초급반"
               className="min-h-[44px] text-base"
               {...register('description')}
             />
+            <p className="text-[11px] text-muted-foreground">
+              공고 제목에 표시되는 추가 설명입니다
+            </p>
           </div>
         </div>
       </div>
 
       {/* Step 7: Handoff Note (required) */}
-      <div className="space-y-4 rounded-xl border-2 border-primary/30 bg-primary/5 p-5">
+      <div id="step-7-handoff" className="space-y-4 rounded-xl border-2 border-primary/30 bg-primary/5 p-5 transition-all duration-300">
         <div>
           <label className="text-sm font-semibold">
             7. 인수인계 노트 <span className="text-destructive">*</span>
@@ -581,7 +737,6 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
       <Button
         type="submit"
         size="lg"
-        variant={isUrgent ? 'default' : 'default'}
         disabled={createJob.isPending}
         className={cn(
           'min-h-[48px] w-full text-base font-semibold',
