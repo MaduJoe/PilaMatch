@@ -208,7 +208,7 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <Badge variant="default" className="text-xs">리뷰 완료</Badge>
-                    <StarRating value={eligibility.my_review.rating} readonly size="sm" />
+                    {/* <StarRating value={eligibility.my_review.rating} readonly size="sm" /> */}
                   </div>
                   {eligibility.both_reviewed && eligibility.partner_review && (
                     <div className="rounded-md bg-muted p-2">
@@ -249,6 +249,7 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
       <WriteReviewDialog
         applicationId={application.id}
         partnerName={instructorName}
+        reviewerRole="studio"
         open={writeDialogOpen}
         onOpenChange={setWriteDialogOpen}
         onSuccess={() => {}}

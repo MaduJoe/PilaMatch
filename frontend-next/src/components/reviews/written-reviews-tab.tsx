@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { StarRating } from './star-rating';
 import { EditReviewDialog } from './edit-review-dialog';
+import { CHECKLIST_LABELS_SHORT } from './review-constants';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -29,7 +30,7 @@ import { EditReviewDialog } from './edit-review-dialog';
 export function WrittenReviewsTab() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const userRole = user?.role ?? 'instructor';
+  const userRole: 'instructor' | 'studio' = user?.role === 'studio' ? 'studio' : 'instructor';
 
   // ---- State ---------------------------------------------------------------
   const [selectedReviewId, setSelectedReviewId] = useState<string>('');
@@ -131,7 +132,7 @@ export function WrittenReviewsTab() {
 
   // ---- Render --------------------------------------------------------------
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       {/* Metrics */}
       <Card>
         <CardContent className="flex flex-col items-center gap-1 py-4">
@@ -220,17 +221,17 @@ export function WrittenReviewsTab() {
                 <div className="flex gap-2 flex-wrap">
                   {selectedReview.time_punctuality != null && (
                     <Badge variant={selectedReview.time_punctuality ? 'default' : 'outline'} className="text-xs">
-                      시간 준수 {selectedReview.time_punctuality ? 'O' : 'X'}
+                      {CHECKLIST_LABELS_SHORT[userRole].timePunctuality} {selectedReview.time_punctuality ? 'O' : 'X'}
                     </Badge>
                   )}
                   {selectedReview.professionalism != null && (
                     <Badge variant={selectedReview.professionalism ? 'default' : 'outline'} className="text-xs">
-                      전문성 {selectedReview.professionalism ? 'O' : 'X'}
+                      {CHECKLIST_LABELS_SHORT[userRole].professionalism} {selectedReview.professionalism ? 'O' : 'X'}
                     </Badge>
                   )}
                   {selectedReview.would_rehire != null && (
                     <Badge variant={selectedReview.would_rehire ? 'default' : 'outline'} className="text-xs">
-                      재고용 {selectedReview.would_rehire ? 'O' : 'X'}
+                      {CHECKLIST_LABELS_SHORT[userRole].wouldRehire} {selectedReview.would_rehire ? 'O' : 'X'}
                     </Badge>
                   )}
                 </div>

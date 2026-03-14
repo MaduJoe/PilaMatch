@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { StarRating } from './star-rating';
+import { CHECKLIST_LABELS } from './review-constants';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -24,6 +25,7 @@ import { StarRating } from './star-rating';
 interface WriteReviewDialogProps {
   applicationId: string | null;
   partnerName: string;
+  reviewerRole: 'instructor' | 'studio';
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
@@ -48,7 +50,7 @@ function ChecklistToggle({
       <div className="flex gap-1">
         <button
           type="button"
-          className={`min-h-[36px] rounded-l-md border px-3 text-sm font-medium transition-colors ${
+          className={`min-h-[44px] rounded-l-xl border px-3 text-sm font-medium transition-colors ${
             value === true
               ? 'border-primary bg-primary text-primary-foreground'
               : 'border-border bg-background text-muted-foreground hover:bg-muted'
@@ -59,7 +61,7 @@ function ChecklistToggle({
         </button>
         <button
           type="button"
-          className={`min-h-[36px] rounded-r-md border border-l-0 px-3 text-sm font-medium transition-colors ${
+          className={`min-h-[44px] rounded-r-xl border border-l-0 px-3 text-sm font-medium transition-colors ${
             value === false
               ? 'border-destructive bg-destructive text-destructive-foreground'
               : 'border-border bg-background text-muted-foreground hover:bg-muted'
@@ -80,10 +82,12 @@ function ChecklistToggle({
 export function WriteReviewDialog({
   applicationId,
   partnerName,
+  reviewerRole,
   open,
   onOpenChange,
   onSuccess,
 }: WriteReviewDialogProps) {
+  const labels = CHECKLIST_LABELS[reviewerRole];
   const queryClient = useQueryClient();
   const [rating, setRating] = useState<number>(0);
   const [comment, setComment] = useState<string>('');
@@ -175,17 +179,17 @@ export function WriteReviewDialog({
               간단 평가 (선택사항)
             </p>
             <ChecklistToggle
-              label="시간 준수"
+              label={labels.timePunctuality}
               value={timePunctuality}
               onChange={setTimePunctuality}
             />
             <ChecklistToggle
-              label="전문성"
+              label={labels.professionalism}
               value={professionalism}
               onChange={setProfessionalism}
             />
             <ChecklistToggle
-              label="재고용 의향"
+              label={labels.wouldRehire}
               value={wouldRehire}
               onChange={setWouldRehire}
             />

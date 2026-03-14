@@ -149,7 +149,7 @@ function ApplicationCard({
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-2">
                         <Badge variant="default" className="text-xs">리뷰 완료</Badge>
-                        <StarRating value={eligibility.my_review.rating} readonly size="sm" />
+                        {/* <StarRating value={eligibility.my_review.rating} readonly size="sm" /> */}
                       </div>
                       {eligibility.both_reviewed && eligibility.partner_review && (
                         <div className="rounded-md bg-muted p-2">
@@ -214,6 +214,7 @@ function ApplicationCard({
       <WriteReviewDialog
         applicationId={application.id}
         partnerName={application.studio_name ?? '스튜디오'}
+        reviewerRole="instructor"
         open={writeDialogOpen}
         onOpenChange={setWriteDialogOpen}
         onSuccess={() => {}}
@@ -234,7 +235,8 @@ export function InstructorApplicationList() {
   const applicationsQuery = useQuery({
     queryKey: ['my-applications'],
     queryFn: () => api.applications.getMyApplications(),
-    refetchInterval: 30000, // Poll every 30 seconds for status updates
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   // ---- Withdraw mutation -----------------------------------------------------
