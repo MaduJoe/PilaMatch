@@ -28,15 +28,17 @@ TEST_ACCOUNTS = [
     {"email": "t3_premium@test.com",  "pw": "Test1234!", "role": "instructor", "tier": "T3", "name": "T3프로강사", "phone": "01012345673"},
     {"email": "c1_basic@test.com",    "pw": "Test1234!", "role": "studio",     "tier": "C1", "name": "C1기본센터", "phone": "01012345674"},
     {"email": "c2_verified@test.com", "pw": "Test1234!", "role": "studio",     "tier": "C2", "name": "C2인증센터", "phone": "01012345675"},
+    {"email": "c3_premium@test.com",  "pw": "Test1234!", "role": "studio",     "tier": "C3", "name": "C3프로센터", "phone": "01012345676"},
 ]
 
 # Tier → what flags/data to set AFTER account creation
 TIER_CONFIG = {
     "T1": {"phone_verified": True,  "identity_verified": False, "certs": "[]",                                      "completed": 0},
     "T2": {"phone_verified": True,  "identity_verified": True,  "certs": '[{"name":"PMA-CPT","is_verified":true}]', "completed": 2},
-    "T3": {"phone_verified": True,  "identity_verified": True,  "certs": '[{"name":"PMA-CPT","is_verified":true}]', "completed": 5},
+    "T3": {"phone_verified": True,  "identity_verified": True,  "certs": '[{"name":"PMA-CPT","is_verified":true}]', "completed": 5, "membership_tier": "premium"},
     "C1": {"phone_verified": True,  "identity_verified": False, "business_verified": False},
     "C2": {"phone_verified": True,  "identity_verified": True,  "business_verified": True},
+    "C3": {"phone_verified": True,  "identity_verified": True,  "business_verified": True, "membership_tier": "premium"},
 }
 
 
@@ -136,6 +138,7 @@ async def cmd_setup():
     print("  T3 Premium:  t3_premium@test.com   (identity + cert + 5 completed)")
     print("  C1 Basic:    c1_basic@test.com     (phone only, no biz verified)")
     print("  C2 Verified: c2_verified@test.com  (phone + identity + biz verified)")
+    print("  C3 Premium:  c3_premium@test.com   (phone + identity + biz verified + premium)")
 
 
 async def _apply_tier(email: str, tier: str):
@@ -160,7 +163,7 @@ async def _apply_tier(email: str, tier: str):
         uid = str(row["id"])
         role = row["role"]
 
-        # Update verification flags + phone
+        # Update verification flags + phone + membership_tier
         await db.execute(
             text("""
                 UPDATE users SET
@@ -168,7 +171,8 @@ async def _apply_tier(email: str, tier: str):
                     identity_verified = :identity,
                     business_verified = :biz,
                     is_verified = :identity,
-                    phone = COALESCE(NULLIF(:phone_num, ''), phone)
+                    phone = COALESCE(NULLIF(:phone_num, ''), phone),
+                    membership_tier = :mem_tier
                 WHERE id = :uid
             """), {
                 "uid": uid,
@@ -176,6 +180,7 @@ async def _apply_tier(email: str, tier: str):
                 "identity": cfg.get("identity_verified", False),
                 "biz": cfg.get("business_verified", False),
                 "phone_num": phone_num,
+                "mem_tier": cfg.get("membership_tier", "free"),
             }
         )
 

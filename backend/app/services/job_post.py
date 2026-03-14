@@ -8,6 +8,8 @@ from sqlalchemy import select, func, and_, case
 from app.models import JobPost, StudioProfile, JobPostStatus
 from app.schemas.job_post import JobPostCreate, JobPostUpdate, JobPostFilter
 
+_ALLOWED_SORT: frozenset[str] = frozenset({"created_at", "date", "hourly_rate", "title"})
+
 
 class JobPostService:
     def __init__(self, db: AsyncSession):
@@ -68,7 +70,12 @@ class JobPostService:
             # Default to open jobs only
             conditions.append(JobPost.status == JobPostStatus.OPEN)
         if filters.region:
-            conditions.append(JobPost.region == filters.region)
+            # Support comma-separated region list (e.g. "강남구,서초구")
+            region_list = [r.strip() for r in filters.region.split(",") if r.strip()]
+            if len(region_list) == 1:
+                conditions.append(JobPost.region == region_list[0])
+            elif region_list:
+                conditions.append(JobPost.region.in_(region_list))
         if filters.date_from:
             conditions.append(JobPost.date >= filters.date_from)
         if filters.date_to:
@@ -91,6 +98,9 @@ class JobPostService:
             (JobPost.date < date_type.today(), 1),
             else_=0
         )
+
+        if sort_by not in _ALLOWED_SORT:
+            sort_by = "created_at"
 
         # Apply sorting with premium priority (v3.0)
         if premium_first:

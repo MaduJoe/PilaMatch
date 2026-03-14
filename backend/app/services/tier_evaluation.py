@@ -16,7 +16,7 @@ from app.models import (
     Application, ApplicationStatus,
     PenaltyRecord,
 )
-from app.models.enums import TeacherTier, CenterTier, PenaltyType
+from app.models.enums import TeacherTier, CenterTier, MembershipTier, PenaltyType
 
 logger = logging.getLogger(__name__)
 
@@ -362,6 +362,10 @@ async def check_can_apply(db: AsyncSession, user_id: UUID) -> Tuple[bool, Option
     if user.suspension_until and user.suspension_until > now:
         return False, f"계정이 정지 상태입니다. ({user.suspension_until.strftime('%Y-%m-%d')}까지)"
 
+    # Premium subscribers bypass daily application limits
+    if user.membership_tier == MembershipTier.PREMIUM.value:
+        return True, None
+
     tier = user.tier or TeacherTier.T1_BASIC.value
     limits = get_tier_limits(tier)
     daily_limit = limits.get("daily_applications", 3)
@@ -396,6 +400,10 @@ async def check_can_post(db: AsyncSession, user_id: UUID) -> Tuple[bool, Optiona
     now = datetime.utcnow()
     if user.suspension_until and user.suspension_until > now:
         return False, f"계정이 정지 상태입니다. ({user.suspension_until.strftime('%Y-%m-%d')}까지)"
+
+    # Premium subscribers bypass active post limits
+    if user.membership_tier == MembershipTier.PREMIUM.value:
+        return True, None
 
     tier = user.tier or CenterTier.C1_BASIC.value
     limits = get_tier_limits(tier)

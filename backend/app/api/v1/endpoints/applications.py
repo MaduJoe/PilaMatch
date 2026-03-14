@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from uuid import UUID
 
@@ -7,7 +8,7 @@ from sqlalchemy import select
 
 from app.db.session import get_db
 from app.core.deps import require_role
-from app.models import User, UserRole, InstructorProfile, StudioProfile, JobPost, ApplicationStatus
+from app.models import User, UserRole, InstructorProfile, StudioProfile, JobPost, JobPostStatus, ApplicationStatus
 from app.schemas.application import (
     ApplicationCreate,
     ApplicationResponse,
@@ -19,6 +20,9 @@ from app.schemas.application import (
 )
 from app.services.application import ApplicationService
 from app.utils.masking import mask_phone
+
+logger = logging.getLogger(__name__)
+
 
 def _get_tier_label(tier: str) -> str:
     from app.services.tier_evaluation import get_tier_limits
@@ -54,6 +58,16 @@ async def create_application(
         return ApplicationResponse.model_validate(application)
     except ValueError as e:
         error_msg = str(e)
+        if error_msg == "Job post not found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "JOB_POST_NOT_FOUND", "message": "공고가 삭제되었거나 존재하지 않습니다."},
+            )
+        if error_msg == "Job post is not open for applications":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "JOB_POST_CLOSED", "message": "마감된 공고입니다."},
+            )
         if error_msg == "DUPLICATE_APPLICATION":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -72,9 +86,10 @@ async def create_application(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail={"code": "DAILY_LIMIT_REACHED", "message": reason},
             )
+        logger.warning("Application failed: %s", error_msg)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "APPLICATION_FAILED", "message": error_msg},
+            detail={"code": "APPLICATION_FAILED", "message": "지원 처리 중 오류가 발생했습니다."},
         )
 
 
@@ -321,7 +336,7 @@ async def accept_application(
         other_app.status = ApplicationStatus.REJECTED
 
     # Mark job as filled
-    job_post.status = "filled"
+    job_post.status = JobPostStatus.FILLED
 
     await db.commit()
     await db.refresh(application)
