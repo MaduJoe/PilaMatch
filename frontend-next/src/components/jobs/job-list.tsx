@@ -59,6 +59,8 @@ export function JobList() {
   const jobsQuery = useQuery({
     queryKey: ['jobs-with-matching', queryParams],
     queryFn: () => api.jobPosts.listWithMatching(queryParams),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   const applicationsQuery = useQuery({
@@ -135,7 +137,10 @@ export function JobList() {
     },
     onError: (error: Error) => {
       if (error instanceof APIError) {
-        if (error.code === 'ALREADY_APPLIED') {
+        if (error.code === 'JOB_POST_NOT_FOUND' || error.code === 'JOB_POST_CLOSED') {
+          toast.error(error.message);
+          void queryClient.invalidateQueries({ queryKey: ['jobs-with-matching'] });
+        } else if (error.code === 'ALREADY_APPLIED') {
           toast.warning('이미 지원한 공고입니다.');
         } else if (error.code === 'INCOMPLETE_PROFILE') {
           setShowProfileNudge(true);
@@ -248,7 +253,7 @@ export function JobList() {
       ) : (
         <>
           {/* Job cards grid */}
-          <div className="stagger-list grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="stagger-list grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             {sortedJobs.map((item) => (
               <JobCard
                 key={item.job.id}

@@ -67,7 +67,8 @@ export function ApplicantList() {
     queryKey: ['job-applications', effectiveJobId],
     queryFn: () => api.applications.getForJobPost(effectiveJobId!),
     enabled: !!effectiveJobId,
-    refetchInterval: 15000, // Poll every 15 seconds for new applicants
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
   });
 
   // ---- Selected job info ---------------------------------------------------

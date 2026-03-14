@@ -41,6 +41,7 @@ export function formatDate(date: string | Date): string {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
+    timeZone: 'Asia/Seoul',
   }).format(new Date(date));
 }
 
@@ -57,6 +58,7 @@ export function formatDateTime(date: string | Date): string {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Seoul',
   }).format(new Date(date));
 }
 
@@ -138,7 +140,9 @@ export function isUserVerified(user: {
 
 /** Calculate D-day from today (e.g., "D-3", "D-Day", "D+1") */
 export function getDDay(dateStr: string): string {
-  const target = new Date(dateStr);
+  // Parse YYYY-MM-DD directly to avoid UTC-to-local timezone shift
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const target = new Date(year, month - 1, day);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   target.setHours(0, 0, 0, 0);
