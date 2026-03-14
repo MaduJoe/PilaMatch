@@ -81,38 +81,9 @@ if (( DOMAIN_COUNT >= 3 )); then
   exit 2
 fi
 
-# --- Action verb check ---
-HAS_VERB=false
-ACTION_VERBS="add|fix|create|update|remove|implement|refactor|delete|move|rename|change|modify|write|build|setup|configure|enable|disable|integrate|migrate|test|debug|deploy|추가|수정|삭제|변경|구현|생성|이동|리팩|설정|배포|테스트|디버그|만들|고치|확인|분석|검토|작성|적용"
-
-if echo "$PROMPT_LOWER" | grep -qiE "($ACTION_VERBS)"; then
-  HAS_VERB=true
-fi
-
-# --- Target noun check ---
-HAS_TARGET=false
-TARGET_NOUNS="file|function|component|endpoint|model|service|page|route|hook|test|schema|table|column|field|config|setting|button|form|api|middleware|dependency|module|class|method|파일|함수|컴포넌트|엔드포인트|모델|서비스|페이지|라우트|훅|스키마|테이블|설정|버튼|폼|미들웨어|클래스|메서드"
-
-if echo "$PROMPT_LOWER" | grep -qiE "($TARGET_NOUNS)"; then
-  HAS_TARGET=true
-fi
-
-# --- Build error message ---
-ERRORS=""
-
-if [[ "$HAS_VERB" == "false" ]]; then
-  ERRORS+="- No action verb found. What should I DO? (add/fix/update/remove/implement/...)\n"
-fi
-
-if [[ "$HAS_TARGET" == "false" ]]; then
-  ERRORS+="- No target specified. WHAT should I modify? (file/endpoint/component/service/...)\n"
-fi
-
-if [[ -n "$ERRORS" ]]; then
-  echo "⚠️ PROMPT NEEDS CLARIFICATION:" >&2
-  echo -e "$ERRORS" >&2
-  echo "Tip: Use /dev for features, /fix for bugs, /review for code review." >&2
-  exit 2
+# --- Questions and explanations — always pass (no code change needed) ---
+if echo "$PROMPT_LOWER" | grep -qiE '(질문|설명|알려|뭐야|뭔가요|어떻게|왜|차이|비교|의미|궁금|이해|개념|원리|방법|\?|what|why|how|when|where|explain|difference|compare|mean|understand|which|should)'; then
+  exit 0
 fi
 
 # All checks passed
