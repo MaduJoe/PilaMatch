@@ -126,9 +126,10 @@ export function isUserVerified(user: {
   identity_verified: boolean;
   business_verified: boolean;
 }): boolean {
+  const phoneOk = user.phone_verified || user.identity_verified;
   return user.role === 'instructor'
-    ? user.phone_verified || user.identity_verified
-    : user.business_verified;
+    ? phoneOk
+    : phoneOk && user.business_verified;
 }
 
 // ---------------------------------------------------------------------------

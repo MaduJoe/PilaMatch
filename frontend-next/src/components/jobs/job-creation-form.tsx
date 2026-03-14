@@ -31,7 +31,6 @@ import {
 } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { KakaoMap } from '@/components/jobs/kakao-map';
-import { TeachingStyleSelector } from '@/components/profile/teaching-style-selector';
 
 /**
  * Form input type: matches what users fill in before Zod applies defaults.
@@ -115,9 +114,6 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   const [schedules, setSchedules] = useState<ScheduleRow[]>([
     { date: today, start_time: '', end_time: '' },
   ]);
-
-  // Preferred teaching style
-  const [preferredStyle, setPreferredStyle] = useState<Record<string, string>>({});
 
   // Track last submit count to detect new submission attempts
   const lastSubmitRef = useRef(0);
@@ -240,7 +236,6 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         title: titlePreview || data.title,
         description: desc,
         total_sessions: schedules.length,
-        preferred_style: Object.keys(preferredStyle).length > 0 ? preferredStyle : undefined,
       };
       return api.jobPosts.create(payload);
     },
@@ -319,7 +314,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         {/* Left column: Steps 1-3 */}
         <div className="space-y-5">
           {/* Step 1: Category */}
-          <div id="step-1-category" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
+          <div id="step-1-category" className="space-y-2 rounded-xl border border-border/60 bg-muted/10 p-4 transition-all duration-300">
             <label className="text-sm font-medium">
               1. 종목 <span className="text-destructive">*</span>
             </label>
@@ -350,7 +345,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
           </div>
 
           {/* Step 2: Job Type */}
-          <div id="step-2-type" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
+          <div id="step-2-type" className="space-y-2 rounded-xl border border-border/60 bg-muted/10 p-4 transition-all duration-300">
             <label className="text-sm font-medium">
               2. 유형 <span className="text-destructive">*</span>
             </label>
@@ -394,7 +389,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
           </div>
 
           {/* Step 3: Region + Map */}
-          <div id="step-3-region" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
+          <div id="step-3-region" className="space-y-2 rounded-xl border border-border/60 bg-muted/10 p-4 transition-all duration-300">
             <label className="text-sm font-medium">
               3. 지역 <span className="text-destructive">*</span>
             </label>
@@ -432,7 +427,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         {/* Right column: Steps 4-6 */}
         <div className="space-y-5">
           {/* Step 4: Rate Range */}
-          <div id="step-4-rate" className="space-y-3 rounded-xl p-0.5 transition-all duration-300">
+          <div id="step-4-rate" className="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-4 transition-all duration-300">
             <label className="text-sm font-medium">
               4. 시급 범위 <span className="text-destructive">*</span>
             </label>
@@ -498,7 +493,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
           </div>
 
           {/* Step 5: When — single row or multi-row depending on job type */}
-          <div id="step-5-when" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
+          <div id="step-5-when" className="space-y-2 rounded-xl border border-border/60 bg-muted/10 p-4 transition-all duration-300">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">
                 5. 언제 <span className="text-destructive">*</span>
@@ -602,7 +597,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
           </div>
 
           {/* Step 6: Detail (was "한 줄 메모") */}
-          <div id="step-6-detail" className="space-y-2 rounded-xl p-0.5 transition-all duration-300">
+          <div id="step-6-detail" className="space-y-2 rounded-xl border border-border/60 bg-muted/10 p-4 transition-all duration-300">
             <label htmlFor="job-detail" className="text-sm font-medium">
               6. 세부 안내
             </label>
@@ -663,21 +658,26 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             <label className="text-sm font-medium">
               수업 분위기 <span className="text-destructive">*</span>
             </label>
-            <Select
-              value={watch('handoff_atmosphere_preference') ?? ''}
-              onValueChange={(val) => setValue('handoff_atmosphere_preference', val, { shouldValidate: true })}
-            >
-              <SelectTrigger className="min-h-[44px]">
-                <SelectValue placeholder="분위기 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {ATMOSPHERE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
+            <div className="flex flex-wrap gap-2 mt-1.5">
+              {ATMOSPHERE_OPTIONS.map((opt) => {
+                const selected = watch('handoff_atmosphere_preference') === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={cn(
+                      'rounded-lg px-4 py-2 text-sm font-medium transition-all border min-h-[40px]',
+                      selected
+                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                        : 'bg-background border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                    )}
+                    onClick={() => setValue('handoff_atmosphere_preference', opt.value, { shouldValidate: true })}
+                  >
                     {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  </button>
+                );
+              })}
+            </div>
             {errors.handoff_atmosphere_preference && (
               <p className="mt-1 text-sm text-destructive">{errors.handoff_atmosphere_preference.message}</p>
             )}
@@ -719,18 +719,6 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Step 8: Preferred Style (optional) */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">
-          8. 원하는 수업 스타일 <span className="text-xs text-muted-foreground">(선택)</span>
-        </label>
-        <TeachingStyleSelector
-          value={preferredStyle}
-          onChange={(style) => setPreferredStyle(style)}
-          keys={['correction_style', 'class_atmosphere', 'intensity_level']}
-        />
       </div>
 
       {/* Submit */}

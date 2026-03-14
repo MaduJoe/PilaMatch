@@ -23,16 +23,16 @@ export function VerificationRequiredScreen({ role }: VerificationRequiredScreenP
         </div>
         <div className="space-y-2">
           <h1 className="font-display text-xl font-bold tracking-tight">
-            {isInstructor ? 'Verify Your Identity' : 'Business Verification'}
+            {isInstructor ? '본인 인증 필요' : '인증 필요'}
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
             {isInstructor
-              ? 'Complete identity verification to start finding jobs and connecting with studios.'
-              : 'Verify your business to post jobs and find qualified instructors.'}
+              ? '휴대폰 인증을 완료하면 공고에 지원할 수 있습니다.'
+              : '휴대폰 인증과 사업자 인증을 모두 완료해야 공고를 등록할 수 있습니다.'}
           </p>
         </div>
         <Button asChild className="mt-2 min-h-[48px] px-8 font-display font-semibold">
-          <Link href="/steps/profile">Get Verified</Link>
+          <Link href="/steps/profile">인증하러 가기</Link>
         </Button>
       </div>
     </div>

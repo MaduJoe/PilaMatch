@@ -163,8 +163,8 @@ async def get_job_post_applications(
             instructor_no_show_count=inst_user.no_show_count if inst_user else 0,
             instructor_review_count=instructor.review_count or 0,
             # Tier data
-            instructor_tier=inst_user.tier if inst_user else "t1_basic",
-            instructor_tier_label=_get_tier_label(inst_user.tier if inst_user else "t1_basic"),
+            instructor_tier=(inst_user.tier or "t1_basic") if inst_user else "t1_basic",
+            instructor_tier_label=_get_tier_label((inst_user.tier or "t1_basic") if inst_user else "t1_basic"),
         )
         items.append(item)
 

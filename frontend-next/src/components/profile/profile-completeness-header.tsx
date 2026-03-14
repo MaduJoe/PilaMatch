@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import api from '@/lib/api-client';
 import { useAuthStore } from '@/stores/auth-store';
+import { isUserVerified } from '@/lib/utils';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 /** Missing field key → Korean display label */
@@ -41,8 +42,19 @@ export function ProfileCompletenessHeader() {
     );
   }
 
-  const missingFields = data?.missing_fields ?? [];
-  const isComplete = missingFields.length === 0;
+  // Combine profile missing fields + verification missing fields
+  const profileMissing = data?.missing_fields ?? [];
+
+  const verificationMissing: string[] = [];
+  if (user) {
+    const phoneOk = user.phone_verified || user.identity_verified;
+    if (!phoneOk) verificationMissing.push('phone_verified');
+    if (user.role === 'studio' && !user.business_verified) verificationMissing.push('business_verified');
+  }
+
+  const allMissing = [...profileMissing, ...verificationMissing];
+  const verified = user ? isUserVerified(user) : false;
+  const isComplete = allMissing.length === 0 && verified;
 
   return (
     <div className="space-y-3">
@@ -53,16 +65,16 @@ export function ProfileCompletenessHeader() {
         )}
       </div>
 
-      {missingFields.length > 0 && (
+      {allMissing.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50/60 p-3 dark:border-red-900/40 dark:bg-red-950/20">
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-500" />
             <div className="space-y-1.5">
               <p className="text-sm font-medium text-red-700 dark:text-red-400">
-                아래 항목을 채워야 {isInstructor ? '지원' : '공고 등록'}이 가능합니다
+                아래 항목을 완료해야 {isInstructor ? '지원' : '공고 등록'}이 가능합니다
               </p>
               <ul className="space-y-0.5">
-                {missingFields.map((field: string) => (
+                {allMissing.map((field: string) => (
                   <li key={field} className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400">
                     <span className="size-1 shrink-0 rounded-full bg-red-400" />
                     {FIELD_DISPLAY_KO[field] ?? field}

@@ -36,9 +36,9 @@ import { TierCard } from '@/components/trust/tier-card';
 // ---------------------------------------------------------------------------
 
 const PRO_BENEFITS = [
-  'All regions for applications/posts',
-  'Unlimited urgent job access',
-  'Unlimited daily applications',
+  '전 지역 지원/공고 가능',
+  '긴급 공고 무제한 접근',
+  '일일 지원 횟수 무제한',
 ];
 
 // ---------------------------------------------------------------------------
@@ -53,22 +53,22 @@ function UpgradeButton({ onUpgrade, isPending }: { onUpgrade: (name: string) => 
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
         <Button className="min-h-[48px] w-full text-base font-display font-semibold">
-          Subscribe to Premium
+          프리미엄 구독하기
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="font-display">Premium Subscription</DialogTitle>
+          <DialogTitle className="font-display">프리미엄 구독</DialogTitle>
           <DialogDescription>
-            Enter your depositor name to receive bank transfer instructions.
+            입금자명을 입력하시면 계좌이체 안내를 받으실 수 있습니다.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="depositor-name">Depositor Name</Label>
+            <Label htmlFor="depositor-name">입금자명</Label>
             <Input
               id="depositor-name"
-              placeholder="Full name"
+              placeholder="홍길동"
               className="min-h-[44px]"
               value={depositorName}
               onChange={(e) => setDepositorName(e.target.value)}
@@ -77,7 +77,7 @@ function UpgradeButton({ onUpgrade, isPending }: { onUpgrade: (name: string) => 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setDialogOpen(false)}>
-            Cancel
+            취소
           </Button>
           <Button
             disabled={isPending || !depositorName.trim()}
@@ -87,7 +87,7 @@ function UpgradeButton({ onUpgrade, isPending }: { onUpgrade: (name: string) => 
             }}
           >
             {isPending ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
-            {isPending ? 'Processing...' : 'Request Transfer'}
+            {isPending ? '처리 중...' : '이체 요청'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -121,26 +121,26 @@ export default function SettingsPage() {
   const bankTransferMutation = useMutation({
     mutationFn: (name: string) => api.subscriptions.initBankTransfer({ depositor_name: name }),
     onSuccess: () => {
-      toast.success('Transfer request submitted. Auto-activated after confirmation.');
+      toast.success('이체 요청이 접수되었습니다. 확인 후 자동 활성화됩니다.');
     },
-    onError: () => toast.error('Request failed. Please try again.'),
+    onError: () => toast.error('요청에 실패했습니다. 다시 시도해주세요.'),
   });
 
   const cancelSubMutation = useMutation({
     mutationFn: () => api.subscriptions.cancel(),
     onSuccess: () => {
-      toast.success('Subscription cancelled.');
+      toast.success('구독이 해지되었습니다.');
       subQuery.refetch();
       tierQuery.refetch();
     },
-    onError: () => toast.error('Cancellation failed.'),
+    onError: () => toast.error('해지에 실패했습니다.'),
   });
 
   const isPremium = subQuery.data?.has_subscription === true;
 
   const handleDelete = async () => {
     if (!password.trim()) {
-      setError('Please enter your password.');
+      setError('비밀번호를 입력해주세요.');
       return;
     }
 
@@ -159,14 +159,14 @@ export default function SettingsPage() {
         const message =
           typeof body.detail === 'string'
             ? body.detail
-            : body.detail?.message || 'Account deletion failed.';
+            : body.detail?.message || '계정 삭제에 실패했습니다.';
         throw new Error(message);
       }
 
       logout.mutate();
       router.push('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Account deletion failed.');
+      setError(err instanceof Error ? err.message : '계정 삭제에 실패했습니다.');
     } finally {
       setIsDeleting(false);
     }
@@ -174,12 +174,12 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <h1 className="font-display text-2xl font-bold tracking-tight">Settings</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight">설정</h1>
 
       {/* Account info */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-display">Account</CardTitle>
+          <CardTitle className="font-display">계정 정보</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="flex items-center gap-3">
@@ -187,7 +187,7 @@ export default function SettingsPage() {
               <Mail className="size-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display">Email</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display">이메일</p>
               <p className="font-medium">{user?.email}</p>
             </div>
           </div>
@@ -196,8 +196,8 @@ export default function SettingsPage() {
               <UserCircle className="size-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display">Role</p>
-              <p className="font-medium">{user?.role === 'instructor' ? 'Instructor' : 'Studio'}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display">역할</p>
+              <p className="font-medium">{user?.role === 'instructor' ? '강사' : '스튜디오'}</p>
             </div>
           </div>
         </CardContent>
@@ -212,12 +212,12 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <CardTitle className="font-display flex items-center gap-2">
               <Crown className="size-5 text-amber-500" />
-              Subscription
+              구독
             </CardTitle>
             {isPremium ? (
-              <Badge className="bg-amber-500 text-white hover:bg-amber-600 font-display text-[10px] uppercase tracking-wider">Active</Badge>
+              <Badge className="bg-amber-500 text-white hover:bg-amber-600 font-display text-[10px] uppercase tracking-wider">이용 중</Badge>
             ) : (
-              <Badge variant="outline" className="font-display text-[10px] uppercase tracking-wider">Free</Badge>
+              <Badge variant="outline" className="font-display text-[10px] uppercase tracking-wider">무료</Badge>
             )}
           </div>
         </CardHeader>
@@ -226,9 +226,9 @@ export default function SettingsPage() {
             <div className="space-y-3">
               <p className="text-sm">
                 <span className="font-display text-2xl font-bold">9,900</span>
-                <span className="ml-1 text-muted-foreground">KRW/month</span>
+                <span className="ml-1 text-muted-foreground">원/월</span>
                 <span className="ml-2 text-xs text-muted-foreground">
-                  Next: {subQuery.data?.subscription?.next_billing_date?.slice(0, 10) ?? '-'}
+                  다음 결제: {subQuery.data?.subscription?.next_billing_date?.slice(0, 10) ?? '-'}
                 </span>
               </p>
               <Button
@@ -238,7 +238,7 @@ export default function SettingsPage() {
                 onClick={() => cancelSubMutation.mutate()}
                 disabled={cancelSubMutation.isPending}
               >
-                {cancelSubMutation.isPending ? 'Cancelling...' : 'Cancel Subscription'}
+                {cancelSubMutation.isPending ? '해지 중...' : '구독 해지'}
               </Button>
             </div>
           ) : (
@@ -254,8 +254,8 @@ export default function SettingsPage() {
                 ))}
               </div>
               <div className="text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display mb-1">Monthly</p>
-                <p className="font-display text-3xl font-bold">9,900<span className="text-base font-normal text-muted-foreground ml-0.5">KRW</span></p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-display mb-1">월 정기결제</p>
+                <p className="font-display text-3xl font-bold">9,900<span className="text-base font-normal text-muted-foreground ml-0.5">원</span></p>
               </div>
               <UpgradeButton
                 onUpgrade={(name) => bankTransferMutation.mutate(name)}
@@ -271,32 +271,32 @@ export default function SettingsPage() {
         className="w-full min-h-[44px] font-display"
         onClick={() => logout.mutate()}
       >
-        Sign Out
+        로그아웃
       </Button>
 
       {/* Danger zone */}
       <Card className="border-destructive/30">
         <CardHeader>
-          <CardTitle className="font-display text-destructive">Delete Account</CardTitle>
+          <CardTitle className="font-display text-destructive">계정 삭제</CardTitle>
           <CardDescription>
-            All data will be permanently deleted. This action cannot be undone.
+            모든 데이터가 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button variant="destructive" className="font-display">Delete Account</Button>
+              <Button variant="destructive" className="font-display">계정 삭제</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle className="font-display">Confirm Deletion</DialogTitle>
+                <DialogTitle className="font-display">삭제 확인</DialogTitle>
                 <DialogDescription asChild>
                   <div className="space-y-2">
-                    <p>Please review before proceeding:</p>
+                    <p>진행 전 아래 내용을 확인해주세요:</p>
                     <ul className="list-inside list-disc space-y-1 text-sm">
-                      <li>Recovery possible within 30 days</li>
-                      <li>Active contracts will be cancelled</li>
-                      <li>Posts and applications will be deleted</li>
+                      <li>30일 이내 복구 가능</li>
+                      <li>진행 중인 계약이 취소됩니다</li>
+                      <li>공고 및 지원 내역이 삭제됩니다</li>
                     </ul>
                   </div>
                 </DialogDescription>
@@ -306,16 +306,16 @@ export default function SettingsPage() {
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    Enter your password to confirm.
+                    비밀번호를 입력하여 확인해주세요.
                   </AlertDescription>
                 </Alert>
 
                 <div className="space-y-2">
-                  <Label htmlFor="delete-password">Password</Label>
+                  <Label htmlFor="delete-password">비밀번호</Label>
                   <Input
                     id="delete-password"
                     type="password"
-                    placeholder="Enter password"
+                    placeholder="비밀번호 입력"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -335,14 +335,14 @@ export default function SettingsPage() {
                     setError(null);
                   }}
                 >
-                  Cancel
+                  취소
                 </Button>
                 <Button
                   variant="destructive"
                   onClick={handleDelete}
                   disabled={isDeleting || !password.trim()}
                 >
-                  {isDeleting ? 'Deleting...' : 'Delete'}
+                  {isDeleting ? '삭제 중...' : '삭제'}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -41,7 +41,7 @@ function scoreStyle(score: number) {
 function NoteRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-2 text-xs">
-      <span className="shrink-0 w-[52px] text-muted-foreground">{label}</span>
+      <span className="shrink-0 w-[60px] text-muted-foreground">{label}</span>
       <span className="flex-1 whitespace-pre-wrap">{children}</span>
     </div>
   );
@@ -56,44 +56,44 @@ function HandoffNoteView({ note }: { note: HandoffNotePublicResponse | HandoffNo
     <div className="space-y-2.5">
       <p className="flex items-center gap-1.5 text-xs font-semibold">
         <FileText className="size-3.5 text-primary" />
-        Handoff Note
+        인수인계 노트
       </p>
 
       <div className="rounded-lg border bg-background p-3 space-y-2">
         {note.class_topic && (
-          <NoteRow label="Topic">{note.class_topic}</NoteRow>
+          <NoteRow label="수업 주제">{note.class_topic}</NoteRow>
         )}
         {note.class_sequence_info && (
-          <NoteRow label="Progress">{note.class_sequence_info}</NoteRow>
+          <NoteRow label="수업 진도">{note.class_sequence_info}</NoteRow>
         )}
         {note.atmosphere_preference && (
-          <NoteRow label="Vibe">
+          <NoteRow label="분위기">
             <span className="inline-flex items-center rounded-md border bg-muted/50 text-[10px] px-1.5 py-0 h-4 font-normal">
               {note.atmosphere_preference}
             </span>
           </NoteRow>
         )}
         {note.additional_notes && (
-          <NoteRow label="Info">{note.additional_notes}</NoteRow>
+          <NoteRow label="기타">{note.additional_notes}</NoteRow>
         )}
       </div>
 
       {/* Sensitive fields — shown after acceptance */}
       {isFull ? (
         <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-2">
-          <p className="text-[10px] font-medium text-success mb-1">After acceptance</p>
+          <p className="text-[10px] font-medium text-success mb-1">수락 후 공개</p>
           {fullNote.member_notes && (
-            <NoteRow label="Members">{fullNote.member_notes}</NoteRow>
+            <NoteRow label="회원 정보">{fullNote.member_notes}</NoteRow>
           )}
           {fullNote.equipment_notes && (
-            <NoteRow label="Equipment">{fullNote.equipment_notes}</NoteRow>
+            <NoteRow label="기구 세팅">{fullNote.equipment_notes}</NoteRow>
           )}
         </div>
       ) : note.has_sensitive_info ? (
         <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2.5 dark:border-amber-700 dark:bg-amber-950/20">
           <p className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300">
             <Lock className="size-3" />
-            Member info & equipment settings visible after acceptance
+            회원 정보 및 기구 세팅은 수락 후 공개됩니다
           </p>
         </div>
       ) : null}
@@ -243,7 +243,7 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
           )}
           <span className="flex items-center gap-1 font-bold">
             <Banknote className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            {formatCurrency(job.hourly_rate)}/hr
+            {formatCurrency(job.hourly_rate)}/시간
           </span>
         </div>
 
@@ -252,12 +252,12 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
           {isPremium ? (
             <span className="flex items-center gap-1 text-muted-foreground">
               <Users className="size-3" />
-              {item.application_count} applicants
+              지원자 {item.application_count}명
             </span>
           ) : (
             <span className="flex items-center gap-1 text-muted-foreground/50">
               <Lock className="size-3" />
-              ? applicants
+              지원자 ?명
             </span>
           )}
           <span className="text-border">&middot;</span>
@@ -265,13 +265,13 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
             <span className="flex items-center gap-1 text-muted-foreground">
               <Timer className="size-3" />
               ~{item.studio_avg_response_hours < 1
-                ? `${Math.round(item.studio_avg_response_hours * 60)}m`
-                : `${item.studio_avg_response_hours.toFixed(1)}h`} response
+                ? `${Math.round(item.studio_avg_response_hours * 60)}분`
+                : `${item.studio_avg_response_hours.toFixed(1)}시간`} 응답
             </span>
           ) : (
             <span className="flex items-center gap-1 text-muted-foreground/50">
               <Lock className="size-3" />
-              Response time
+              응답 시간
             </span>
           )}
         </div>
@@ -284,15 +284,15 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
             handoffQuery.isLoading ? (
               <div className="flex items-center gap-2 py-2">
                 <Loader2 className="size-4 animate-spin text-primary" />
-                <span className="text-xs text-muted-foreground">Loading handoff note...</span>
+                <span className="text-xs text-muted-foreground">인수인계 노트 불러오는 중...</span>
               </div>
             ) : handoffQuery.data ? (
               <HandoffNoteView note={handoffQuery.data} />
             ) : (
-              <p className="text-xs text-muted-foreground">Could not load handoff note.</p>
+              <p className="text-xs text-muted-foreground">인수인계 노트를 불러올 수 없습니다.</p>
             )
           ) : (
-            <p className="text-xs text-muted-foreground">No handoff note.</p>
+            <p className="text-xs text-muted-foreground">인수인계 노트가 없습니다.</p>
           )}
         </div>
       )}
@@ -312,9 +312,9 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
             e.stopPropagation();
             onApply(job.id);
           }}
-          aria-label={isApplied ? 'Applied' : isPast ? 'Closed' : is_urgent ? 'Apply now' : 'Apply'}
+          aria-label={isApplied ? '지원 완료' : isPast ? '마감' : is_urgent ? '지금 지원' : '지원하기'}
         >
-          {isApplied ? 'Applied' : isPast ? 'Closed' : is_urgent ? 'Apply Now' : 'Apply'}
+          {isApplied ? '지원 완료' : isPast ? '마감' : is_urgent ? '지금 지원' : '지원하기'}
         </Button>
       </div>
     </Card>

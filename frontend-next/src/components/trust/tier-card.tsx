@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import type { TierResponse } from '@/lib/api-types';
+import { useAuthStore } from '@/stores/auth-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,8 @@ interface TierCardProps {
 }
 
 export function TierCard({ data }: TierCardProps) {
+  const user = useAuthStore((s) => s.user);
+  const isStudio = user?.role === 'studio';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
 
@@ -106,11 +109,16 @@ export function TierCard({ data }: TierCardProps) {
           </div>
         </div>
 
-        {/* Certificate upload section */}
+        {/* Certificate / credential upload section */}
         <div className="rounded-xl border border-dashed border-primary/30 bg-primary/[0.03] p-4">
-          <p className="text-sm font-semibold mb-1">자격증 첨부</p>
+          <p className="text-sm font-semibold mb-1">
+            {isStudio ? '인증 서류 첨부' : '자격증 첨부'}
+          </p>
           <p className="text-xs text-muted-foreground mb-3">
-            자격증을 첨부하면 <span className="font-medium text-primary">Verified 등급</span>으로 승급할 수 있습니다
+            {isStudio
+              ? '사업자등록증, 협회 가맹 인증서, PMA/ISO 인증 등을 첨부하면'
+              : '자격증을 첨부하면'}{' '}
+            <span className="font-medium text-primary">Verified 등급</span>으로 승급할 수 있습니다
           </p>
 
           <input
@@ -152,7 +160,7 @@ export function TierCard({ data }: TierCardProps) {
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="mr-1.5 size-4" />
-            자격증 파일 선택
+            {isStudio ? '인증 서류 선택' : '자격증 파일 선택'}
           </Button>
 
           {uploadedFiles.length > 0 && (
@@ -161,7 +169,10 @@ export function TierCard({ data }: TierCardProps) {
               size="sm"
               className="w-full mt-2"
               onClick={() => {
-                toast.info('자격증 검토 요청이 접수되었습니다. 심사 후 등급이 변경됩니다.');
+                toast.info(isStudio
+                  ? '인증 서류 검토 요청이 접수되었습니다. 심사 후 등급이 변경됩니다.'
+                  : '자격증 검토 요청이 접수되었습니다. 심사 후 등급이 변경됩니다.',
+                );
                 setUploadedFiles([]);
               }}
             >

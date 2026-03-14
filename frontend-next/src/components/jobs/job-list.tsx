@@ -33,7 +33,7 @@ export function JobList() {
   // ---- Filter state -------------------------------------------------------
   const [filters, setFilters] = useState<JobFilters>({
     category: 'all',
-    region: 'all',
+    regions: [],
     urgentOnly: false,
   });
 
@@ -51,9 +51,9 @@ export function JobList() {
       page_size: String(PAGE_SIZE),
     };
     if (filters.category !== 'all') params.category = filters.category;
-    if (filters.region !== 'all') params.region = filters.region;
+    if (filters.regions.length > 0) params.region = filters.regions.join(',');
     return params;
-  }, [filters.category, filters.region, page]);
+  }, [filters.category, filters.regions, page]);
 
   // ---- Queries ------------------------------------------------------------
   const jobsQuery = useQuery({
@@ -92,6 +92,13 @@ export function JobList() {
       items = items.filter((item) => item.is_urgent);
     }
 
+    // Apply region filter (client-side, complement to server-side)
+    if (filters.regions.length > 0) {
+      items = items.filter((item) =>
+        item.job.region != null && filters.regions.includes(item.job.region),
+      );
+    }
+
     return [...items].sort((a, b) => {
       // Past jobs always at bottom
       if (a.job.is_past !== b.job.is_past) {
@@ -105,7 +112,7 @@ export function JobList() {
       // Newer first (fallback)
       return (b.job.created_at ?? '').localeCompare(a.job.created_at ?? '');
     });
-  }, [jobsQuery.data?.items, filters.urgentOnly]);
+  }, [jobsQuery.data?.items, filters.urgentOnly, filters.regions]);
 
   const total = jobsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

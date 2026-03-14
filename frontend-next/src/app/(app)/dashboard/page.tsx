@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Briefcase,
-  TrendingUp,
   AlertTriangle,
   Clock,
   CheckCircle2,
@@ -104,59 +103,18 @@ function ActivityItem({ icon, title, subtitle, time, accent }: ActivityItemProps
 }
 
 // ---------------------------------------------------------------------------
-// Progress Ring — circular progress indicator (neumorphic)
-// ---------------------------------------------------------------------------
-
-function ProgressRing({ value, size = 80, strokeWidth = 7 }: { value: number; size?: number; strokeWidth?: number }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
-
-  return (
-    <div className="relative inline-flex items-center justify-center">
-      <svg width={size} height={size} className="-rotate-90">
-        {/* Background ring (inset feel) */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          className="text-muted/80"
-        />
-        {/* Progress arc */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="text-primary transition-all duration-700 ease-out"
-        />
-      </svg>
-      <span className="absolute font-display text-lg font-bold">{value}%</span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Relative time helper
 // ---------------------------------------------------------------------------
 
 function relativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return '방금';
+  if (mins < 60) return `${mins}분 전`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours}시간 전`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${days}일 전`;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,21 +142,14 @@ function InstructorDashboard() {
     queryFn: () => api.reviews.getReceived(),
   });
 
-  const profileQuery = useQuery({
-    queryKey: ['profile', 'completeness'],
-    queryFn: () => api.profileCompleteness.get(),
-  });
-
   // Derived stats
   const apps = appsQuery.data?.items ?? [];
   const pendingApps = apps.filter(a => a.status === 'pending');
   const acceptedApps = apps.filter(a => a.status === 'accepted');
   const contracts = contractsQuery.data?.items ?? [];
-  const activeContracts = contracts.filter(c => c.status === 'in_progress');
   const completedContracts = contracts.filter(c => c.status === 'completed');
   const tier = tierQuery.data;
   const reviews = reviewsQuery.data;
-  const profilePct = profileQuery.data?.percentage ?? 0;
 
   // Build activity feed from recent apps + contracts
   const activities = useMemo(() => {
@@ -209,8 +160,8 @@ function InstructorDashboard() {
         items.push({
           key: `app-${app.id}`,
           icon: <CheckCircle2 className="size-4 text-success" />,
-          title: 'Application accepted',
-          subtitle: app.job_title ?? 'Job',
+          title: '지원 수락됨',
+          subtitle: app.job_title ?? '공고',
           time: relativeTime(app.updated_at ?? app.created_at),
           date: app.updated_at ?? app.created_at,
         });
@@ -218,8 +169,8 @@ function InstructorDashboard() {
         items.push({
           key: `app-${app.id}`,
           icon: <Clock className="size-4 text-primary" />,
-          title: 'Applied',
-          subtitle: app.job_title ?? 'Job',
+          title: '지원함',
+          subtitle: app.job_title ?? '공고',
           time: relativeTime(app.created_at),
           date: app.created_at,
         });
@@ -231,8 +182,8 @@ function InstructorDashboard() {
         items.push({
           key: `contract-${c.id}`,
           icon: <Star className="size-4 text-amber-500" />,
-          title: 'Completed',
-          subtitle: `${c.studio_name ?? 'Studio'} - ${formatCurrency(c.hourly_rate ?? 0)}/h`,
+          title: '완료',
+          subtitle: `${c.studio_name ?? '스튜디오'} - ${formatCurrency(c.hourly_rate ?? 0)}/h`,
           time: relativeTime(c.updated_at ?? c.created_at),
           date: c.updated_at ?? c.created_at,
         });
@@ -244,56 +195,63 @@ function InstructorDashboard() {
 
   return (
     <div className="stagger-list space-y-6">
-      {/* Hero: Greeting + Tier */}
-      <div className="neu rounded-2xl p-6 flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">Welcome back</p>
-          <h1 className="font-display text-2xl font-bold tracking-tight mt-1 truncate">Dashboard</h1>
-          {tier && (
-            <div className="flex items-center gap-2 mt-2">
-              <TierBadge tier={tier.tier} label={tier.tier_label} size="md" />
-              {tier.next_tier && tier.missing_requirements.length > 0 && (
-                <span className="text-[10px] text-muted-foreground">
-                  {tier.missing_requirements.length} step{tier.missing_requirements.length > 1 ? 's' : ''} to next tier
-                </span>
-              )}
-            </div>
-          )}
+      {/* Hero: Greeting + Tier + Next tier */}
+      <div className="neu rounded-2xl p-6">
+        <div>
+          <p className="text-sm text-muted-foreground">강사 대시보드</p>
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="font-display text-2xl font-bold tracking-tight truncate">홈</h1>
+            {tier && <TierBadge tier={tier.tier} label={tier.tier_label} size="md" />}
+          </div>
         </div>
-        <ProgressRing value={profilePct} />
+        {tier && tier.next_tier && tier.missing_requirements.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border/40">
+            <p className="text-[11px] font-medium text-muted-foreground mb-2">
+              다음 등급 조건:
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {tier.missing_requirements.map((req, i) => (
+                <span key={i} className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
+                  <span className="size-1 shrink-0 rounded-full bg-primary/40" />
+                  {req}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Stat Grid */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          label="Pending"
+          label="대기 중"
           value={pendingApps.length}
           icon={<Clock className="size-5" />}
           accent="primary"
           href="/steps/offers"
-          subtitle="awaiting response"
+          subtitle="응답 대기"
         />
         <StatCard
-          label="Accepted"
+          label="수락됨"
           value={acceptedApps.length}
           icon={<CheckCircle2 className="size-5" />}
           accent="success"
           href="/steps/offers"
-          subtitle="contact revealed"
+          subtitle="연락처 공개"
         />
         <StatCard
-          label="Completed"
+          label="완료"
           value={completedContracts.length}
           icon={<Briefcase className="size-5" />}
           accent="muted"
-          subtitle="all time"
+          subtitle="누적"
         />
         <StatCard
-          label="No-shows"
+          label="노쇼"
           value={tier?.no_show_recent ?? 0}
           icon={<AlertTriangle className="size-5" />}
           accent={(tier?.no_show_recent ?? 0) > 0 ? 'urgent' : 'muted'}
-          subtitle="last 30 days"
+          subtitle="최근 30일"
         />
       </div>
 
@@ -305,8 +263,8 @@ function InstructorDashboard() {
               <Zap className="size-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold">Find Jobs</p>
-              <p className="text-[10px] text-muted-foreground">Browse open positions</p>
+              <p className="text-sm font-semibold">찾기</p>
+              <p className="text-[10px] text-muted-foreground">공고 둘러보기</p>
             </div>
           </div>
         </Link>
@@ -316,8 +274,8 @@ function InstructorDashboard() {
               <Shield className="size-5 text-muted-foreground" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold">Profile</p>
-              <p className="text-[10px] text-muted-foreground">{profilePct}% complete</p>
+              <p className="text-sm font-semibold">프로필</p>
+              <p className="text-[10px] text-muted-foreground">내 정보 관리</p>
             </div>
           </div>
         </Link>
@@ -328,15 +286,15 @@ function InstructorDashboard() {
         {/* Recent Activity */}
         <div className="lg:col-span-3 neu rounded-2xl p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display text-sm font-semibold tracking-wide">Recent Activity</h2>
+            <h2 className="font-display text-sm font-semibold tracking-wide">최근 활동</h2>
             <Link href="/steps/offers" className="text-[10px] text-primary font-medium hover:underline flex items-center gap-0.5">
-              View all <ArrowRight className="size-3" />
+              전체 보기 <ArrowRight className="size-3" />
             </Link>
           </div>
           {activities.length === 0 ? (
             <div className="neu-inset rounded-xl p-8 text-center">
-              <p className="text-sm text-muted-foreground">No recent activity</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Apply to jobs to get started</p>
+              <p className="text-sm text-muted-foreground">최근 활동이 없습니다</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">공고에 지원하면 여기에 표시됩니다</p>
             </div>
           ) : (
             <div>
@@ -349,7 +307,7 @@ function InstructorDashboard() {
 
         {/* Reviews Summary */}
         <div className="lg:col-span-2 neu rounded-2xl p-5">
-          <h2 className="font-display text-sm font-semibold tracking-wide mb-4">Reviews</h2>
+          <h2 className="font-display text-sm font-semibold tracking-wide mb-4">받은 리뷰</h2>
           {reviews && (reviews.items?.length ?? 0) > 0 ? (
             <div className="space-y-4">
               {/* Average rating display */}
@@ -370,7 +328,7 @@ function InstructorDashboard() {
                     />
                   ))}
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-1.5">{reviews.items?.length ?? 0} reviews</p>
+                <p className="text-[10px] text-muted-foreground mt-1.5">{reviews.items?.length ?? 0}개 리뷰</p>
               </div>
               {/* Latest reviews */}
               <div className="space-y-2">
@@ -398,47 +356,13 @@ function InstructorDashboard() {
           ) : (
             <div className="neu-inset rounded-xl p-8 text-center">
               <Star className="size-8 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No reviews yet</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Complete jobs to receive reviews</p>
+              <p className="text-sm text-muted-foreground">아직 리뷰가 없습니다</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">수업을 완료하면 리뷰를 받을 수 있습니다</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Tier Progress */}
-      {tier && tier.next_tier && tier.missing_requirements.length > 0 && (
-        <div className="neu rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="size-4 text-primary" />
-            <h2 className="font-display text-sm font-semibold tracking-wide">Tier Progress</h2>
-          </div>
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="neu-inset rounded-xl p-3 text-center">
-              <p className="font-display text-xl font-bold">{tier.completed_jobs_recent}</p>
-              <p className="text-[10px] text-muted-foreground">Completed (30d)</p>
-            </div>
-            <div className="neu-inset rounded-xl p-3 text-center">
-              <p className="font-display text-xl font-bold">{tier.no_show_recent}</p>
-              <p className="text-[10px] text-muted-foreground">No-shows (30d)</p>
-            </div>
-            <div className="neu-inset rounded-xl p-3 text-center">
-              <p className={cn('font-display text-xl font-bold', (tier.same_day_cancel_recent + tier.late_recent) > 0 && 'text-urgent')}>
-                {tier.same_day_cancel_recent + tier.late_recent}
-              </p>
-              <p className="text-[10px] text-muted-foreground">Issues (30d)</p>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">Requirements for next tier:</p>
-            {tier.missing_requirements.map((req, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm">
-                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary/40" />
-                <span className="text-muted-foreground">{req}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -469,11 +393,6 @@ function StudioDashboard() {
     queryFn: () => api.reviews.getReceived(),
   });
 
-  const profileQuery = useQuery({
-    queryKey: ['profile', 'completeness'],
-    queryFn: () => api.profileCompleteness.get(),
-  });
-
   // Derived stats
   const jobs = jobsQuery.data?.items ?? [];
   const openJobs = jobs.filter(j => j.status === 'open');
@@ -482,7 +401,6 @@ function StudioDashboard() {
   const completedContracts = contracts.filter(c => c.status === 'completed');
   const tier = tierQuery.data;
   const reviews = reviewsQuery.data;
-  const profilePct = profileQuery.data?.percentage ?? 0;
 
   // Recent jobs as activity
   const recentJobs = useMemo(() => {
@@ -501,17 +419,29 @@ function StudioDashboard() {
   return (
     <div className="stagger-list space-y-6">
       {/* Hero */}
-      <div className="neu rounded-2xl p-6 flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm text-muted-foreground">Studio Dashboard</p>
-          <h1 className="font-display text-2xl font-bold tracking-tight mt-1 truncate">Overview</h1>
-          {tier && (
-            <div className="flex items-center gap-2 mt-2">
-              <TierBadge tier={tier.tier} label={tier.tier_label} size="md" />
-            </div>
-          )}
+      <div className="neu rounded-2xl p-6">
+        <div>
+          <p className="text-sm text-muted-foreground">스튜디오 대시보드</p>
+          <div className="flex items-center gap-3 mt-1">
+            <h1 className="font-display text-2xl font-bold tracking-tight truncate">홈</h1>
+            {tier && <TierBadge tier={tier.tier} label={tier.tier_label} size="md" />}
+          </div>
         </div>
-        <ProgressRing value={profilePct} />
+        {tier && tier.next_tier && tier.missing_requirements.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border/40">
+            <p className="text-[11px] font-medium text-muted-foreground mb-2">
+              다음 등급 조건:
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {tier.missing_requirements.map((req, i) => (
+                <span key={i} className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
+                  <span className="size-1 shrink-0 rounded-full bg-primary/40" />
+                  {req}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Applicant Alert */}
@@ -523,8 +453,8 @@ function StudioDashboard() {
                 <Users className="size-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-semibold">{totalApplicants} pending applicant{totalApplicants > 1 ? 's' : ''}</p>
-                <p className="text-[10px] text-muted-foreground">across {openJobs.filter(j => (j.application_count ?? 0) > 0).length} open job{openJobs.filter(j => (j.application_count ?? 0) > 0).length > 1 ? 's' : ''}</p>
+                <p className="text-sm font-semibold">대기 중인 지원자 {totalApplicants}명</p>
+                <p className="text-[10px] text-muted-foreground">{openJobs.filter(j => (j.application_count ?? 0) > 0).length}개 공고에서</p>
               </div>
             </div>
             <ArrowRight className="size-5 text-primary" />
@@ -535,34 +465,34 @@ function StudioDashboard() {
       {/* Stat Grid */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          label="Open Posts"
+          label="모집 중"
           value={openJobs.length}
           icon={<Briefcase className="size-5" />}
           accent="primary"
           href="/steps/jobs"
-          subtitle={`of ${jobs.length} total`}
+          subtitle={`전체 ${jobs.length}개 중`}
         />
         <StatCard
-          label="Applicants"
+          label="지원자"
           value={totalApplicants}
           icon={<Users className="size-5" />}
           accent={totalApplicants > 0 ? 'success' : 'muted'}
           href="/steps/offers"
-          subtitle="awaiting review"
+          subtitle="검토 대기"
         />
         <StatCard
-          label="Completed"
+          label="완료"
           value={completedContracts.length}
           icon={<CheckCircle2 className="size-5" />}
           accent="muted"
-          subtitle="all time"
+          subtitle="누적"
         />
         <StatCard
-          label="Avg Rating"
+          label="평균 평점"
           value={(reviews?.average_rating ?? 0).toFixed(1)}
           icon={<Star className="size-5" />}
           accent={(reviews?.average_rating ?? 0) >= 4 ? 'success' : 'muted'}
-          subtitle={`${reviews?.items?.length ?? 0} reviews`}
+          subtitle={`${reviews?.items?.length ?? 0}개 리뷰`}
         />
       </div>
 
@@ -574,8 +504,8 @@ function StudioDashboard() {
               <Zap className="size-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold">New Post</p>
-              <p className="text-[10px] text-muted-foreground">Create a job listing</p>
+              <p className="text-sm font-semibold">공고 등록</p>
+              <p className="text-[10px] text-muted-foreground">새 공고 작성하기</p>
             </div>
           </div>
         </Link>
@@ -585,8 +515,8 @@ function StudioDashboard() {
               <Users className="size-5 text-muted-foreground" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold">Applicants</p>
-              <p className="text-[10px] text-muted-foreground">Review & accept</p>
+              <p className="text-sm font-semibold">지원자</p>
+              <p className="text-[10px] text-muted-foreground">검토 및 수락</p>
             </div>
           </div>
         </Link>
@@ -595,17 +525,17 @@ function StudioDashboard() {
       {/* Recent Job Posts */}
       <div className="neu rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display text-sm font-semibold tracking-wide">Recent Posts</h2>
+          <h2 className="font-display text-sm font-semibold tracking-wide">최근 공고</h2>
           <Link href="/steps/jobs" className="text-[10px] text-primary font-medium hover:underline flex items-center gap-0.5">
-            Manage all <ArrowRight className="size-3" />
+            전체 관리 <ArrowRight className="size-3" />
           </Link>
         </div>
         {recentJobs.length === 0 ? (
           <div className="neu-inset rounded-xl p-8 text-center">
             <Briefcase className="size-8 text-muted-foreground/20 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">No posts yet</p>
+            <p className="text-sm text-muted-foreground">아직 공고가 없습니다</p>
             <Button asChild variant="outline" size="sm" className="mt-3 min-h-[36px]">
-              <Link href="/steps/jobs">Create your first post</Link>
+              <Link href="/steps/jobs">첫 공고 등록하기</Link>
             </Button>
           </div>
         ) : (
@@ -647,7 +577,7 @@ function StudioDashboard() {
                     variant={job.status === 'open' ? 'default' : 'outline'}
                     className="text-[10px] font-display"
                   >
-                    {job.status === 'open' ? 'Open' : job.status === 'filled' ? 'Filled' : 'Closed'}
+                    {job.status === 'open' ? '모집 중' : job.status === 'filled' ? '마감' : '종료'}
                   </Badge>
                 </div>
               </div>
@@ -656,23 +586,6 @@ function StudioDashboard() {
         )}
       </div>
 
-      {/* Tier Progress */}
-      {tier && tier.next_tier && tier.missing_requirements.length > 0 && (
-        <div className="neu rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="size-4 text-primary" />
-            <h2 className="font-display text-sm font-semibold tracking-wide">Tier Progress</h2>
-          </div>
-          <div className="space-y-2">
-            {tier.missing_requirements.map((req, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm">
-                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary/40" />
-                <span className="text-muted-foreground">{req}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -692,7 +605,7 @@ export default function DashboardPage() {
             <div className="absolute inset-0 rounded-full border-[3px] border-primary/20" />
             <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-primary border-t-transparent" />
           </div>
-          <p className="mt-5 font-display text-sm font-medium text-muted-foreground tracking-wide">Loading...</p>
+          <p className="mt-5 font-display text-sm font-medium text-muted-foreground tracking-wide">불러오는 중...</p>
         </div>
       </div>
     );

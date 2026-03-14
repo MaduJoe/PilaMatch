@@ -160,7 +160,7 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
           ) : contactRevealed && !fullPhone ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
               <p className="text-xs text-amber-800 dark:text-amber-300">
-                Accepted — instructor has not registered contact info yet.
+                수락됨 — 강사가 아직 연락처를 등록하지 않았습니다.
               </p>
             </div>
           ) : maskedPhone ? (

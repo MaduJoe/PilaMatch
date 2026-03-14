@@ -314,6 +314,53 @@ test: Test changes
 
 ---
 
+## Workflow Discipline
+
+### Hooks (자동 가드레일)
+`.claude/hooks/`에 3개의 자동 가드레일이 설치되어 있음:
+- **prompt-guard.sh** (UserPromptSubmit): 모호한 프롬프트 자동 차단
+- **write-guard.sh** (PreToolUse: Write|Edit): 허용 디렉토리 외 파일 생성 차단
+- **post-write.sh** (PostToolUse: Write|Edit): 코드 수정 후 테스트 리마인더
+
+### Plan Mode vs 직접 구현 판단 기준
+Plan Mode 또는 /dev 사용:
+- 3개 이상 파일 수정
+- 새 파일 생성 필요
+- 복수 도메인 (backend + frontend)
+- 어떤 파일을 수정할지 불확실
+
+직접 구현 OK:
+- 단일 파일 수정, 명확한 범위
+- 테스트만 수정
+- 문서 업데이트
+
+### 파일 생성 정책
+기본: 기존 파일 수정 우선. 새 파일은 정당화 필요.
+허용 패턴: tests/test_{service}.py, alembic/versions/, frontend-next/src/components/{feature}/
+금지 (명시적 요청 없이): 유틸/헬퍼 파일, 새 디렉토리, 설정 파일, 문서 초안
+
+### 도구 선택 결정 트리
+기능 개발? → /dev
+버그? → /fix
+리뷰? → /review
+테스트 실패? → /test-and-fix
+
+파일 찾기? → Glob (find/ls 아님)
+내용 검색? → Grep (grep/rg 아님)
+파일 읽기? → Read (cat 아님)
+브라우저 테스트? → Playwright MCP
+외부 라이브러리 문서? → context7 plugin
+
+1-3 파일, 단일 도메인? → 직접 수행
+4+ 파일, 단일 도메인? → 도메인 에이전트 위임
+복수 도메인? → /dev (순차 처리)
+
+에이전트 불필요: 단일 파일 수정, 테스트 실행, git 작업
+Plugin 불필요: Grep/Read로 답할 수 있는 질문
+MCP 불필요: 브라우저가 필요 없는 작업
+
+---
+
 ## Common Tasks
 
 ### Add New API Endpoint
