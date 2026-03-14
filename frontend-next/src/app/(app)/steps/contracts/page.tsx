@@ -223,7 +223,7 @@ export default function ContractsPage() {
   if (confirmationsQuery.isError) {
     return (
       <div className="mx-auto max-w-4xl p-6">
-        <h1 className="text-2xl font-bold">지급 확인</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">지급 확인</h1>
         <div
           className="mt-8 flex flex-col items-center justify-center gap-3 py-20"
           role="alert"
@@ -248,7 +248,7 @@ export default function ContractsPage() {
   if (confirmationsQuery.isLoading) {
     return (
       <div className="mx-auto max-w-4xl p-6">
-        <h1 className="text-2xl font-bold">지급 확인</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight">지급 확인</h1>
         <div className="flex items-center justify-center py-20" role="status">
           <Loader2 className="mr-2 size-6 animate-spin" aria-hidden="true" />
           <span className="text-sm text-muted-foreground">
@@ -264,7 +264,7 @@ export default function ContractsPage() {
   // ---- Render -----------------------------------------------------------------
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <h1 className="text-2xl font-bold">지급 확인</h1>
+      <h1 className="font-display text-2xl font-bold tracking-tight">지급 확인</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {isInstructor
           ? '수업료 지급 내역을 확인하고, 수령 여부를 응답해 주세요.'

@@ -12,7 +12,7 @@ import { ReceivedReviewsTab } from '@/components/reviews/received-reviews-tab';
 export default function CompletePage() {
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <h1 className="mb-6 text-2xl font-bold">5단계: 완료 & 리뷰</h1>
+      <h1 className="mb-6 font-display text-2xl font-bold tracking-tight">5단계: 완료 & 리뷰</h1>
 
       <Tabs defaultValue="completion" className="flex flex-col gap-4">
         <TabsList className="w-full">

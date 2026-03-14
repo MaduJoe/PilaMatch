@@ -118,7 +118,7 @@ interface JobCardProps {
 // ---------------------------------------------------------------------------
 
 export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail }: JobCardProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const { job, matching, is_urgent } = item;
   const score = matching.total;
   const isPast = job.is_past;

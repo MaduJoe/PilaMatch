@@ -109,7 +109,7 @@ export function ReceivedReviewsTab() {
 
   // ---- Render --------------------------------------------------------------
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       {/* Average rating summary */}
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-6">

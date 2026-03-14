@@ -54,7 +54,7 @@ function StatCard({ label, value, icon, accent = 'muted', href, subtitle }: Stat
   };
 
   const inner = (
-    <div className={cn('neu neu-hover cursor-default rounded-2xl p-5 flex flex-col gap-3 h-full', href && 'cursor-pointer')}>
+    <div className={cn('neu neu-hover cursor-default rounded-xl p-5 flex flex-col gap-3 h-full', href && 'cursor-pointer')}>
       <div className="flex items-center justify-between">
         <div className={cn('flex size-10 items-center justify-center rounded-xl', accentBgMap[accent])}>
           <div className={accentMap[accent]}>{icon}</div>
@@ -194,9 +194,9 @@ function InstructorDashboard() {
   }, [apps, contracts]);
 
   return (
-    <div className="stagger-list space-y-6">
+    <div className="stagger-list space-y-8">
       {/* Hero: Greeting + Tier + Next tier */}
-      <div className="neu rounded-2xl p-6">
+      <div className="neu rounded-xl p-6">
         <div>
           <p className="text-sm text-muted-foreground">강사 대시보드</p>
           <div className="flex items-center gap-3 mt-1">
@@ -222,7 +222,7 @@ function InstructorDashboard() {
       </div>
 
       {/* Stat Grid */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
         <StatCard
           label="대기 중"
           value={pendingApps.length}
@@ -282,9 +282,9 @@ function InstructorDashboard() {
       </div>
 
       {/* Two-column: Activity + Reviews */}
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid gap-5 lg:grid-cols-5">
         {/* Recent Activity */}
-        <div className="lg:col-span-3 neu rounded-2xl p-5">
+        <div className="lg:col-span-3 neu rounded-xl p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display text-sm font-semibold tracking-wide">최근 활동</h2>
             <Link href="/steps/offers" className="text-[10px] text-primary font-medium hover:underline flex items-center gap-0.5">
@@ -306,7 +306,7 @@ function InstructorDashboard() {
         </div>
 
         {/* Reviews Summary */}
-        <div className="lg:col-span-2 neu rounded-2xl p-5">
+        <div className="lg:col-span-2 neu rounded-xl p-5">
           <h2 className="font-display text-sm font-semibold tracking-wide mb-4">받은 리뷰</h2>
           {reviews && (reviews.items?.length ?? 0) > 0 ? (
             <div className="space-y-4">
@@ -380,7 +380,8 @@ function StudioDashboard() {
   const jobsQuery = useQuery({
     queryKey: ['studio-job-posts'],
     queryFn: () => api.jobPosts.listMine(),
-    refetchInterval: 30000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   const contractsQuery = useQuery({
@@ -417,9 +418,9 @@ function StudioDashboard() {
   }, [jobs]);
 
   return (
-    <div className="stagger-list space-y-6">
+    <div className="stagger-list space-y-8">
       {/* Hero */}
-      <div className="neu rounded-2xl p-6">
+      <div className="neu rounded-xl p-6">
         <div>
           <p className="text-sm text-muted-foreground">스튜디오 대시보드</p>
           <div className="flex items-center gap-3 mt-1">
@@ -447,7 +448,7 @@ function StudioDashboard() {
       {/* Applicant Alert */}
       {totalApplicants > 0 && (
         <Link href="/steps/offers">
-          <div className="neu neu-hover rounded-2xl p-5 border-l-4 border-l-primary flex items-center justify-between">
+          <div className="neu neu-hover rounded-xl p-5 border-l-4 border-l-primary flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 animate-pulse-soft">
                 <Users className="size-5 text-primary" />
@@ -463,7 +464,7 @@ function StudioDashboard() {
       )}
 
       {/* Stat Grid */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
         <StatCard
           label="모집 중"
           value={openJobs.length}
@@ -523,7 +524,7 @@ function StudioDashboard() {
       </div>
 
       {/* Recent Job Posts */}
-      <div className="neu rounded-2xl p-5">
+      <div className="neu rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display text-sm font-semibold tracking-wide">최근 공고</h2>
           <Link href="/steps/jobs" className="text-[10px] text-primary font-medium hover:underline flex items-center gap-0.5">

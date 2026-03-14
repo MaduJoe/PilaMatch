@@ -60,7 +60,7 @@ export default function AppLayout({
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="mx-auto max-w-4xl px-4 pb-24 pt-6">{children}</main>
+      <main className="mx-auto max-w-4xl px-4 pb-28 pt-8">{children}</main>
       <BottomTabBar />
     </div>
   );

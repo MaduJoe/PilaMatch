@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Users, ArrowRight, Clock, CheckCircle2, XCircle, Briefcase, Calendar, MapPin } from 'lucide-react';
+import { toast } from 'sonner';
+import { Users, ArrowRight, Clock, CheckCircle2, XCircle, Briefcase, Calendar, MapPin, Trash2, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import api from '@/lib/api-client';
 import type { JobPostResponse } from '@/lib/api-types';
@@ -75,9 +76,32 @@ const JOB_TYPE_LABELS: Record<string, string> = {
 
 function StudioJobCard({ job }: { job: JobPostResponse }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const config = getJobStatusConfig(job.status);
   const dDay = getDDay(job.date);
   const hasApplicants = job.application_count > 0;
+  const isOpen = job.status === 'open';
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the auto-dismiss timer on unmount to prevent state updates after removal
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, []);
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.jobPosts.delete(job.id),
+    onSuccess: () => {
+      toast.success('공고가 삭제되었습니다.');
+      void queryClient.invalidateQueries({ queryKey: ['studio-job-posts'] });
+    },
+    onError: () => {
+      toast.error('공고 삭제에 실패했습니다.');
+      setConfirmDelete(false);
+    },
+  });
 
   return (
     <Card className={cn('overflow-hidden border-l-4 transition-shadow hover:shadow-md', config.borderColor, config.bgColor)}>
@@ -132,15 +156,42 @@ function StudioJobCard({ job }: { job: JobPostResponse }) {
           ) : (
             <span className="text-xs text-muted-foreground">지원자 없음</span>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="min-h-[36px] text-xs"
-            onClick={() => router.push(`/steps/offers?jobId=${job.id}`)}
-            aria-label={`${job.title} 지원자 보기`}
-          >
-            지원자 보기
-          </Button>
+          <div className="flex items-center gap-2">
+            {isOpen && (
+              <Button
+                variant={confirmDelete ? 'destructive' : 'ghost'}
+                size="sm"
+                className="min-h-[44px] text-xs gap-1"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (confirmDelete) {
+                    deleteMutation.mutate();
+                  } else {
+                    setConfirmDelete(true);
+                    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+                    confirmTimerRef.current = setTimeout(() => setConfirmDelete(false), 3000);
+                  }
+                }}
+                aria-label={confirmDelete ? '삭제 확인' : '공고 삭제'}
+              >
+                {deleteMutation.isPending ? (
+                  <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Trash2 className="size-3" aria-hidden="true" />
+                )}
+                {confirmDelete ? '삭제 확인' : '삭제'}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-[44px] text-xs"
+              onClick={() => router.push(`/steps/offers?jobId=${job.id}`)}
+              aria-label={`${job.title} 지원자 보기`}
+            >
+              지원자 보기
+            </Button>
+          </div>
         </div>
 
         {/* Handoff note */}
@@ -163,7 +214,8 @@ function StudioView() {
   } = useQuery({
     queryKey: ['studio-job-posts'],
     queryFn: () => api.jobPosts.listMine(),
-    refetchInterval: 30000, // Poll every 30 seconds for new applicants
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   // Jobs with pending applicants
@@ -198,7 +250,7 @@ function StudioView() {
       />
 
       {/* My job posts section */}
-      <section id="my-jobs-section" className="space-y-4">
+      <section id="my-jobs-section" className="space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">내 공고 목록</h3>
           {totalJobs > 0 && (
@@ -252,7 +304,7 @@ function StudioView() {
 
         {/* Active jobs */}
         {activeJobs.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {activeJobs.map((job: JobPostResponse) => (
               <StudioJobCard key={job.id} job={job} />
             ))}
@@ -261,11 +313,11 @@ function StudioView() {
 
         {/* Past jobs (collapsed visual) */}
         {pastJobs.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {activeJobs.length > 0 && (
-              <p className="pt-2 text-xs font-medium text-muted-foreground">지난 공고</p>
+              <p className="pt-3 text-xs font-medium text-muted-foreground">지난 공고</p>
             )}
-            <div className="space-y-2 opacity-75">
+            <div className="space-y-3 opacity-75">
               {pastJobs.map((job: JobPostResponse) => (
                 <StudioJobCard key={job.id} job={job} />
               ))}
@@ -296,7 +348,7 @@ export default function JobsPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">
+      <h2 className="font-display text-2xl font-bold tracking-tight">
         {isInstructor ? '일 찾기' : '공고 등록'}
       </h2>
 

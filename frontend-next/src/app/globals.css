@@ -244,77 +244,51 @@
     var(--background);
 }
 
-/* ── Neumorphic utilities ── */
-.neu {
+/* ── Elevated surface (replaces neumorphism) ── */
+.surface-elevated {
   background: var(--card);
-  border: 1px solid oklch(0.912 0.01 80 / 60%);
-  box-shadow:
-    6px 6px 14px oklch(0.175 0.012 340 / 6%),
-    -4px -4px 10px oklch(1 0 0 / 70%);
-}
-
-.dark .neu {
-  border-color: oklch(0.97 0.005 350 / 8%);
-  box-shadow:
-    6px 6px 14px oklch(0 0 0 / 30%),
-    -4px -4px 10px oklch(0.25 0.015 340 / 40%);
-}
-
-.neu-inset {
-  background: var(--muted);
-  box-shadow:
-    inset 3px 3px 6px oklch(0.175 0.012 340 / 6%),
-    inset -2px -2px 5px oklch(1 0 0 / 50%);
-}
-
-.dark .neu-inset {
-  box-shadow:
-    inset 3px 3px 6px oklch(0 0 0 / 25%),
-    inset -2px -2px 5px oklch(0.25 0.015 340 / 30%);
-}
-
-.neu-hover {
+  border: 1px solid oklch(0.912 0.01 80 / 50%);
+  box-shadow: 0 1px 3px oklch(0.175 0.012 340 / 6%), 0 1px 2px oklch(0.175 0.012 340 / 4%);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.dark .surface-elevated {
+  border-color: oklch(0.97 0.005 350 / 8%);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 20%), 0 1px 2px oklch(0 0 0 / 14%);
+}
+
+.surface-elevated:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px oklch(0.175 0.012 340 / 8%), 0 2px 4px oklch(0.175 0.012 340 / 4%);
+}
+
+.dark .surface-elevated:hover {
+  box-shadow: 0 4px 12px oklch(0 0 0 / 30%), 0 2px 4px oklch(0 0 0 / 20%);
+}
+
+/* Backward compat: old neu classes → subtle elevation */
+.neu,
+.neu-hover {
+  background: var(--card);
+  border: 1px solid oklch(0.912 0.01 80 / 50%);
+  box-shadow: 0 1px 3px oklch(0.175 0.012 340 / 6%), 0 1px 2px oklch(0.175 0.012 340 / 4%);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dark .neu,
+.dark .neu-hover {
+  border-color: oklch(0.97 0.005 350 / 8%);
+  box-shadow: 0 1px 3px oklch(0 0 0 / 20%), 0 1px 2px oklch(0 0 0 / 14%);
+}
 .neu-hover:hover {
-  transform: scale(1.02) translateY(-2px);
-  box-shadow:
-    8px 8px 20px oklch(0.175 0.012 340 / 8%),
-    -6px -6px 14px oklch(1 0 0 / 80%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px oklch(0.175 0.012 340 / 8%), 0 2px 4px oklch(0.175 0.012 340 / 4%);
 }
-
 .dark .neu-hover:hover {
-  box-shadow:
-    8px 8px 20px oklch(0 0 0 / 40%),
-    -6px -6px 14px oklch(0.25 0.015 340 / 50%);
+  box-shadow: 0 4px 12px oklch(0 0 0 / 30%), 0 2px 4px oklch(0 0 0 / 20%);
 }
-
-.neu-pressed {
-  box-shadow:
-    inset 2px 2px 5px oklch(0.175 0.012 340 / 6%),
-    inset -1px -1px 3px oklch(1 0 0 / 40%);
-}
-
-.dark .neu-pressed {
-  box-shadow:
-    inset 2px 2px 5px oklch(0 0 0 / 25%),
-    inset -1px -1px 3px oklch(0.25 0.015 340 / 25%);
-}
-
-/* Neumorphic progress bar groove */
-.neu-groove {
-  background: var(--muted);
-  box-shadow:
-    inset 2px 2px 4px oklch(0.175 0.012 340 / 7%),
-    inset -1px -1px 3px oklch(1 0 0 / 60%);
-}
-
-.dark .neu-groove {
-  box-shadow:
-    inset 2px 2px 4px oklch(0 0 0 / 30%),
-    inset -1px -1px 3px oklch(0.25 0.015 340 / 25%);
-}
+.neu-inset,
+.neu-groove,
+.neu-pressed { background: var(--muted); }
 
 /* Number counter animation */
 @keyframes count-up {
