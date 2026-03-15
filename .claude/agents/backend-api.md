@@ -56,6 +56,52 @@ GPS만:
 - 에러: {"detail": {"code", "message"}}
 - 페이지네이션: {"items", "total", "page", "page_size"}
 
+## API 코딩 패턴
+
+### 인증 의존성
+```python
+from app.core.deps import get_current_user, require_role
+from app.models import UserRole
+
+@router.post("/endpoint")
+async def endpoint(
+    current_user: User = Depends(get_current_user),  # Any authenticated user
+    # OR
+    current_user: User = Depends(require_role(UserRole.STUDIO))  # Role-specific
+):
+    pass
+```
+
+### 에러 응답
+```python
+raise HTTPException(
+    status_code=400,
+    detail={"code": "ERROR_CODE", "message": "Human readable message"}
+)
+```
+
+### 서비스 레이어 (Endpoint → Service → DB)
+```python
+@router.post("/contracts")
+async def create_contract(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    service = ContractService(db)
+    return await service.create_from_offer(...)
+```
+
+### 계약 상태 머신
+```python
+VALID_TRANSITIONS = {
+    CONFIRMED: {IN_PROGRESS, CANCELLED},
+    IN_PROGRESS: {COMPLETED, CANCELLED},
+    COMPLETED: set(),    # Terminal
+    CANCELLED: set(),    # Terminal
+}
+```
+반드시 상태 전이를 검증하고, 모든 전이를 event_logs에 기록할 것.
+
 ## 코드 스타일
 - 모든 함수에 type hint
 - async def 비동기 우선

@@ -60,3 +60,34 @@ trust_score = identity(20) + activity(25) + review(25) + no_show_penalty(30)
 - DB 트랜잭션 내 상태 변경
 - 모든 상태 변경 event_log 기록
 - Tier 판정은 서버 사이드 (클라이언트 조작 방지)
+
+## Premium Membership Spec (비활성 — PMF 후 재활성화)
+
+### 프리미엄 멤버십 정의 (월 9,900원)
+
+공통 혜택: 프리미엄 배지 표시 (Trust Score에는 영향 없음)
+
+#### 강사 전용 혜택
+- 무제한 일일 지원 (무료: 하루 5회 제한)
+  - 구현: services/daily_usage.py, services/application.py
+- 지원서 템플릿 10개 저장
+  - 구현: services/application_template.py (프리미엄 전용)
+
+#### 스튜디오 전용 혜택
+- 무제한 강사 프로필 열람 (무료: 하루 5명 제한)
+  - 구현: services/daily_usage.py:track_profile_view()
+  - API: GET /api/v1/instructors/{instructor_id}
+- 공고 우선 노출 (premium_first=True)
+  - 구현: services/job_post.py:list()
+- 프리미엄 강사 우선 매칭
+  - 구현: api/v1/endpoints/applications.py
+
+### 일일 사용 제한 시스템
+- 테이블: daily_usage_limits
+- 리셋: 매일 자정
+- 추적 필드: daily_applications_today, daily_views_today, last_usage_reset_date, last_viewed_profiles
+
+### 관련 파일
+- services/subscription.py, services/daily_usage.py
+- models/daily_usage.py, models/subscription.py
+- api/v1/endpoints/subscription.py, api/v1/endpoints/usage.py

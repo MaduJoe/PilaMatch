@@ -93,3 +93,51 @@ mock_db.execute.return_value = MagicMock(scalar_one_or_none=MagicMock(return_val
 - 외부 서비스 → mock
 - 실패 시: 원인 분석 → 수정 → 재실행 (최대 3회)
 - MagicMock 사용 시 auto-attribute 누수 주의: 미사용 필드는 명시적으로 None 설정
+
+## 변경대상별 테스트 실행 규칙
+
+| 변경 대상 | 필수 테스트 | 명령어 |
+|-----------|------------|--------|
+| `app/services/` | 단위 테스트 | `uv run pytest tests/test_{service}.py -v` |
+| `app/api/` | API 통합 테스트 | `uv run pytest tests/test_{endpoint}.py -v` |
+| `app/models/` | 스키마 + 전체 | `uv run pytest --cov=app` |
+| `services/penalty.py`, `services/trust_score.py` | 신뢰/패널티 (필수) | `uv run pytest tests/test_penalty*.py tests/test_trust*.py -v` |
+| `core/security.py`, `core/deps.py` | 보안 테스트 | `uv run pytest tests/test_auth.py -v` |
+| `frontend-next/` | 수동 브라우저 검증 | DevTools 모바일 뷰 확인 |
+
+## 테스트 우선순위 (P2)
+
+P2 (시간 여유 시):
+- 프로필 CRUD
+- 공고 목록 정렬/필터
+- 리뷰 작성
+
+## 테스트 실패시 행동 규칙
+
+1. 에러 메시지 읽고 원인 분석
+2. 테스트가 잘못된 경우 → 테스트 수정
+3. 코드가 잘못된 경우 → 코드 수정
+4. 수정 후 반드시 재실행 (최대 3회 반복)
+5. 3회 후에도 실패 → 원인과 시도한 방법 정리 후 사용자 보고
+
+## E2E 테스트 (Playwright)
+
+```bash
+uv add --dev pytest-playwright
+uv run playwright install chromium
+uv run pytest tests/e2e/ -v
+```
+
+E2E 대상 (크리티컬 플로우만):
+1. 회원가입 → 인증 → 서비스 이용 가능
+2. 공고 작성 → 매칭 → 지원 → 수락 → 계약 → 완료
+3. 노쇼 신고 → 패널티 → Trust Score 차감 → 3회 시 계정 정지
+4. 프리미엄 구독 → 혜택 적용 확인
+
+## Testing Requirements
+
+- 커버리지: 핵심 서비스 80%+, 전체 60%+
+- 필수 케이스: Happy path + 엣지케이스 + 에러 케이스 (최소 3개)
+- Mock 대상: SMS API, 토스페이먼츠 API (구독 결제용), 국세청 API
+- 테스트 통과 전 커밋 금지
+- PR 생성 전 /test-and-fix 필수 실행

@@ -38,3 +38,23 @@ Dockerfile, docker-compose*.yml, .github/workflows/, .env.example
 - 롤백 절차 항상 준비
 - 시크릿: 환경변수 (.env) 관리 (코드 하드코딩 금지)
 - 로그에 개인정보/전화번호 포함 금지
+
+## External Service Environment Variables
+
+```bash
+TOSS_CLIENT_KEY=live_ck_...   # 프리미엄 구독 결제 전용
+TOSS_SECRET_KEY=live_sk_...   # 프리미엄 구독 결제 전용
+SMS_API_KEY=...  # NHN Cloud
+BUSINESS_API_KEY=...  # 국세청
+```
+
+## Production Checklist
+
+- [ ] Change SECRET_KEY
+- [ ] Set DEBUG=false
+- [ ] Configure real SMS service
+- [ ] Configure real payment keys (프리미엄 구독 결제용)
+- [ ] Set up monitoring (Sentry)
+- [ ] Configure backup strategy
+- [ ] Review CORS settings
+- [ ] Set up rate limiting
