@@ -597,6 +597,23 @@ export interface VerificationStatusResponse {
 // Profile Completeness
 // ---------------------------------------------------------------------------
 
+export interface CertUploadResponse {
+  certification: {
+    name: string;
+    issuer: string;
+    file_url: string;
+    is_verified: boolean;
+    confidence?: number;
+    verification_reason?: string;
+  };
+  verification: {
+    is_valid: boolean | null;
+    confidence: number | null;
+    reason: string;
+    auto_approved: boolean;
+  };
+}
+
 export interface ProfileCompletenessResponse {
   percentage: number;
   is_complete: boolean;

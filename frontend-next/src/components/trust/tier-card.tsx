@@ -1,14 +1,16 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { TierResponse } from '@/lib/api-types';
 import { useAuthStore } from '@/stores/auth-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { HelpCircle, Upload, FileCheck, X } from 'lucide-react';
+import { HelpCircle, Upload, FileCheck, X, Loader2 } from 'lucide-react';
 import { TierBadge } from './tier-badge';
 import { toast } from 'sonner';
+import api from '@/lib/api-client';
 
 const TIER_BENEFITS = [
   { tier: 'Basic', daily: '하루 2회', region: '홈 + 1곳', urgent: '긴급 1건' },
@@ -24,16 +26,34 @@ export function TierCard({ data }: TierCardProps) {
   const user = useAuthStore((s) => s.user);
   const isStudio = user?.role === 'studio';
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const queryClient = useQueryClient();
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => api.profileCompleteness.uploadCertification(file),
+    onSuccess: async (result) => {
+      const v = result.verification;
+      if (v.auto_approved) {
+        toast.success('자격증이 인증되었습니다! 등급이 자동 갱신됩니다.');
+      } else if (v.is_valid === false) {
+        toast.error(v.reason || '자격증이 인식되지 않았습니다. 다시 시도해주세요.');
+      } else {
+        toast.info('자격증이 제출되었습니다. 검토 후 등급이 변경됩니다.');
+      }
+      await queryClient.refetchQueries({ queryKey: ['my-tier'] });
+    },
+    onError: () => {
+      toast.error('업로드에 실패했습니다. 다시 시도해주세요.');
+    },
+  });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    const newFileNames: string[] = [];
+    const validFiles: File[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      // Validate file type (images and PDFs only)
       if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
         toast.error('이미지 또는 PDF 파일만 업로드할 수 있습니다');
         continue;
@@ -42,20 +62,26 @@ export function TierCard({ data }: TierCardProps) {
         toast.error('파일 크기는 10MB 이하만 가능합니다');
         continue;
       }
-      newFileNames.push(file.name);
+      validFiles.push(file);
     }
 
-    if (newFileNames.length > 0) {
-      setUploadedFiles((prev) => [...prev, ...newFileNames]);
-      toast.success(`${newFileNames.length}개 파일이 첨부되었습니다`);
+    if (validFiles.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...validFiles]);
+      toast.success(`${validFiles.length}개 파일이 첨부되었습니다`);
     }
 
-    // Reset input so same file can be re-selected
     e.target.value = '';
   };
 
   const removeFile = (index: number) => {
-    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async () => {
+    for (const file of selectedFiles) {
+      await uploadMutation.mutateAsync(file);
+    }
+    setSelectedFiles([]);
   };
 
   return (
@@ -130,20 +156,20 @@ export function TierCard({ data }: TierCardProps) {
             onChange={handleFileSelect}
           />
 
-          {uploadedFiles.length > 0 && (
+          {selectedFiles.length > 0 && (
             <div className="mb-3 space-y-1.5">
-              {uploadedFiles.map((name, i) => (
+              {selectedFiles.map((file, i) => (
                 <div
                   key={i}
                   className="flex items-center gap-2 rounded-lg bg-background px-3 py-1.5 text-xs"
                 >
                   <FileCheck className="size-3.5 shrink-0 text-green-600" />
-                  <span className="flex-1 truncate">{name}</span>
+                  <span className="flex-1 truncate">{file.name}</span>
                   <button
                     type="button"
                     className="text-muted-foreground hover:text-red-500 transition-colors"
                     onClick={() => removeFile(i)}
-                    aria-label={`${name} 삭제`}
+                    aria-label={`${file.name} 삭제`}
                   >
                     <X className="size-3.5" />
                   </button>
@@ -158,25 +184,28 @@ export function TierCard({ data }: TierCardProps) {
             size="sm"
             className="w-full border-primary/30 text-primary hover:bg-primary/5"
             onClick={() => fileInputRef.current?.click()}
+            disabled={uploadMutation.isPending}
           >
             <Upload className="mr-1.5 size-4" />
             {isStudio ? '인증 서류 선택' : '자격증 파일 선택'}
           </Button>
 
-          {uploadedFiles.length > 0 && (
+          {selectedFiles.length > 0 && (
             <Button
               type="button"
               size="sm"
               className="w-full mt-2"
-              onClick={() => {
-                toast.info(isStudio
-                  ? '인증 서류 검토 요청이 접수되었습니다. 심사 후 등급이 변경됩니다.'
-                  : '자격증 검토 요청이 접수되었습니다. 심사 후 등급이 변경됩니다.',
-                );
-                setUploadedFiles([]);
-              }}
+              onClick={handleSubmit}
+              disabled={uploadMutation.isPending}
             >
-              제출하기
+              {uploadMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 size-4 animate-spin" />
+                  검증 중...
+                </>
+              ) : (
+                '제출하기'
+              )}
             </Button>
           )}
         </div>

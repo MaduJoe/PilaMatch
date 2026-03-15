@@ -39,6 +39,7 @@ import type {
   PaymentConfirmationResponse,
   VerificationStatusResponse,
   ProfileCompletenessResponse,
+  CertUploadResponse,
   // PMF pivot: Chat disabled -- contact reveal replaces in-app chat
   // ThreadCreate,
   // ThreadResponse,
@@ -435,6 +436,15 @@ export const profileCompleteness = {
 
   checkAction: (action: string) =>
     get<{ allowed: boolean; reason?: string }>(`/profile/completeness/check/${action}`),
+
+  uploadCertification: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<CertUploadResponse>('/profile/certifications', {
+      method: 'POST',
+      body: formData,
+    });
+  },
 };
 
 // --- Chat ------------------------------------------------

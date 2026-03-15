@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     SMS_OTP_COOLDOWN_SECONDS: int = 60      # 재발송 쿨타임
     SMS_OTP_LOCK_SECONDS: int = 600         # 잠금 시간 (10분)
 
+    # Claude Vision (자격증 자동 검증)
+    ANTHROPIC_API_KEY: Optional[str] = None
+
     # CORS
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:8501",

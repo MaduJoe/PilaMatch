@@ -161,3 +161,72 @@ async def delete_profile_photo(
         await db.commit()
 
     return {"message": "프로필 사진이 삭제되었습니다"}
+
+
+@router.post("/profile/certifications")
+async def upload_certification(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload certification file, verify with Claude Vision, update profile."""
+    from app.services.file_upload import FileUploadService
+    from app.services.cert_verification import verify_certification_image
+    from app.models.instructor import InstructorProfile
+    from app.models.studio import StudioProfile
+    from sqlalchemy import select
+
+    service = FileUploadService()
+
+    try:
+        upload_result = await service.upload_certification(str(current_user.id), file)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_FILE", "message": str(e)})
+
+    # Vision verification (images only, PDFs require manual review)
+    verification = None
+    if not upload_result["is_pdf"] and upload_result["vision_image_bytes"]:
+        verification = await verify_certification_image(upload_result["vision_image_bytes"])
+
+    is_verified = verification.auto_approved if verification else False
+    cert_entry = {
+        "name": verification.cert_name if verification and verification.cert_name else (upload_result["original_filename"] or "자격증"),
+        "issuer": verification.issuer if verification else "",
+        "file_url": upload_result["file_url"],
+        "is_verified": is_verified,
+    }
+    if verification:
+        cert_entry["confidence"] = verification.confidence
+        cert_entry["verification_reason"] = verification.reason
+
+    # Update certifications JSON in profile
+    if current_user.role == "instructor":
+        result = await db.execute(
+            select(InstructorProfile).where(InstructorProfile.user_id == current_user.id)
+        )
+        profile = result.scalar_one_or_none()
+        if profile:
+            certs = list(profile.certifications or [])
+            certs.append(cert_entry)
+            profile.certifications = certs
+    elif current_user.role == "studio":
+        result = await db.execute(
+            select(StudioProfile).where(StudioProfile.user_id == current_user.id)
+        )
+        profile = result.scalar_one_or_none()
+        if profile:
+            certs = list(getattr(profile, "certifications", None) or [])
+            certs.append(cert_entry)
+            profile.certifications = certs
+
+    await db.commit()
+
+    return {
+        "certification": cert_entry,
+        "verification": {
+            "is_valid": verification.is_valid if verification else None,
+            "confidence": verification.confidence if verification else None,
+            "reason": verification.reason if verification else "PDF 파일은 수동 검토가 필요합니다",
+            "auto_approved": is_verified,
+        },
+    }

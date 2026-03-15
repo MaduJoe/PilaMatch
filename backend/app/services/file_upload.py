@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+
+CERT_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+CERT_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
 MAX_SIZE_BYTES = settings.UPLOAD_MAX_SIZE_MB * 1024 * 1024
 LOCAL_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
 
@@ -52,6 +55,77 @@ class FileUploadService:
 
         logger.info(f"Uploaded profile photo for user {user_id}: {base_path}")
         return urls
+
+    async def upload_certification(self, user_id: str, file: UploadFile) -> dict:
+        """Upload certification file (image or PDF).
+
+        Returns:
+            dict with file_url and resized image bytes (for Vision API).
+        """
+        self._validate_cert_file(file)
+        data = await file.read()
+
+        if len(data) > MAX_SIZE_BYTES:
+            raise ValueError(
+                f"파일 크기가 {settings.UPLOAD_MAX_SIZE_MB}MB를 초과합니다"
+            )
+
+        ext = self._get_extension(file.filename or "cert.jpg")
+        file_id = uuid.uuid4().hex[:16]
+        key = f"certs/{user_id}/{file_id}{ext}"
+
+        # Save original
+        file_url = await self._save(key, data)
+
+        # For Vision API: resize image to 1568px max (cost optimization)
+        vision_image_bytes = None
+        if ext != ".pdf":
+            self._validate_cert_magic_bytes(data)
+            try:
+                from PIL import Image
+
+                img = Image.open(BytesIO(data))
+                if img.mode == "RGBA":
+                    img = img.convert("RGB")
+                img.thumbnail((1568, 1568), Image.LANCZOS)
+                buf = BytesIO()
+                fmt = "JPEG" if ext in (".jpg", ".jpeg") else "PNG"
+                img.save(buf, format=fmt, quality=90)
+                vision_image_bytes = buf.getvalue()
+            except ImportError:
+                vision_image_bytes = data
+
+        logger.info(f"Uploaded certification for user {user_id}: {key}")
+        return {
+            "file_url": file_url,
+            "original_filename": file.filename,
+            "vision_image_bytes": vision_image_bytes,
+            "is_pdf": ext == ".pdf",
+        }
+
+    def _validate_cert_file(self, file: UploadFile) -> None:
+        """Validate certification file (images + PDF)."""
+        if file.content_type and file.content_type not in CERT_CONTENT_TYPES:
+            raise ValueError(
+                f"지원하지 않는 파일 형식입니다. JPEG, PNG, WebP, PDF만 허용됩니다. "
+                f"(received: {file.content_type})"
+            )
+        if file.filename:
+            ext = self._get_extension(file.filename)
+            if ext not in CERT_EXTENSIONS:
+                raise ValueError(f"지원하지 않는 확장자입니다: {ext}")
+
+    def _validate_cert_magic_bytes(self, data: bytes) -> None:
+        """Validate cert image magic bytes (JPEG, PNG, WebP)."""
+        if len(data) < 12:
+            raise ValueError("파일이 너무 작습니다")
+        if data[:3] == b'\xff\xd8\xff':
+            return
+        if data[:8] == b'\x89PNG\r\n\x1a\n':
+            return
+        if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+            return
+        raise ValueError("파일 내용이 허용된 이미지 형식과 일치하지 않습니다")
 
     async def delete_profile_photo(self, user_id: str, photo_url: str) -> None:
         """Delete a profile photo and its variants."""

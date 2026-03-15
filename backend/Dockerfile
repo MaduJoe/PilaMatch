@@ -45,6 +45,9 @@ RUN groupadd --system appgroup && \
 # Copy application code
 COPY --chown=appuser:appgroup . .
 
+# Create uploads directory with proper permissions
+RUN mkdir -p /app/uploads && chown -R appuser:appgroup /app/uploads
+
 # Make entrypoint executable
 RUN chmod +x entrypoint.sh
 
