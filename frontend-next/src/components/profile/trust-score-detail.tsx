@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
  */
 export function TrustScoreDetail() {
   const { data: tierData, isLoading } = useQuery({
-    queryKey: ['tier'],
+    queryKey: ['my-tier'],
     queryFn: () => api.tier.getMyTier(),
   });
 

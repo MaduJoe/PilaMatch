@@ -252,8 +252,14 @@ async def evaluate_and_update_tier(db: AsyncSession, user_id: UUID) -> str:
 
     if user.role == "instructor":
         tier = await evaluate_teacher_tier(db, user_id)
+        # Premium subscribers get T3_PRO regardless of behavioral conditions
+        if user.membership_tier == "premium" and tier.value != TeacherTier.T3_PRO.value:
+            tier = TeacherTier.T3_PRO
     elif user.role == "studio":
         tier = await evaluate_center_tier(db, user_id)
+        # Premium subscribers get C2_VERIFIED regardless of behavioral conditions
+        if user.membership_tier == "premium" and tier.value != CenterTier.C2_VERIFIED.value:
+            tier = CenterTier.C2_VERIFIED
     else:
         return user.tier or TeacherTier.T1_BASIC.value
 

@@ -26,6 +26,8 @@ async def get_my_tier(
     db: AsyncSession = Depends(get_db),
 ):
     """Get current user's tier, badge, card data, and next tier requirements."""
+    # Re-evaluate tier on every read to ensure it reflects current conditions
+    await evaluate_and_update_tier(db, current_user.id)
     display = await get_tier_display(db, current_user.id)
     return TierResponse(**display)
 
