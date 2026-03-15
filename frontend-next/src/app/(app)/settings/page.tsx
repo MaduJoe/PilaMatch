@@ -137,6 +137,8 @@ export default function SettingsPage() {
   });
 
   const isPremium = subQuery.data?.has_subscription === true;
+  const isCancelled = subQuery.data?.subscription?.status === 'cancelled';
+  const cancelledEndDate = subQuery.data?.subscription?.end_date?.slice(0, 10);
 
   const handleDelete = async () => {
     if (!password.trim()) {
@@ -207,22 +209,25 @@ export default function SettingsPage() {
       {tierQuery.data && <TierCard data={tierQuery.data} />}
 
       {/* Subscription */}
-      <Card className={isPremium ? 'border-amber-300/50 dark:border-amber-700/50' : 'border-primary/20'}>
+      <Card className={isPremium && !isCancelled ? 'border-amber-300/50 dark:border-amber-700/50' : 'border-primary/20'}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="font-display flex items-center gap-2">
               <Crown className="size-5 text-amber-500" />
               구독
             </CardTitle>
-            {isPremium ? (
+            {isPremium && !isCancelled ? (
               <Badge className="bg-amber-500 text-white hover:bg-amber-600 font-display text-[10px] uppercase tracking-wider">이용 중</Badge>
+            ) : isCancelled ? (
+              <Badge variant="outline" className="border-amber-300 text-amber-600 font-display text-[10px] uppercase tracking-wider">해지 예정</Badge>
             ) : (
               <Badge variant="outline" className="font-display text-[10px] uppercase tracking-wider">무료</Badge>
             )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isPremium ? (
+          {isPremium && !isCancelled ? (
+            /* Active premium */
             <div className="space-y-3">
               <p className="text-sm">
                 <span className="font-display text-2xl font-bold">9,900</span>
@@ -241,7 +246,21 @@ export default function SettingsPage() {
                 {cancelSubMutation.isPending ? '해지 중...' : '구독 해지'}
               </Button>
             </div>
+          ) : isCancelled ? (
+            /* Cancelled but still within period */
+            <div className="space-y-4">
+              <div className="rounded-xl bg-amber-50 dark:bg-amber-950/20 p-4">
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  {cancelledEndDate}까지 프리미엄 혜택을 이용할 수 있습니다.
+                </p>
+              </div>
+              <UpgradeButton
+                onUpgrade={(name) => bankTransferMutation.mutate(name)}
+                isPending={bankTransferMutation.isPending}
+              />
+            </div>
           ) : (
+            /* Free */
             <div className="space-y-4">
               <div className="rounded-xl bg-muted/40 p-4 space-y-2.5">
                 {PRO_BENEFITS.map((b) => (

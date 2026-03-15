@@ -5,11 +5,12 @@ from app.api.v1.endpoints import (
     reviews, reports, support,
     verification, profiles, tier, penalties, payment_confirmation,
     notifications, backup_instructors,
+    subscription,
 )
 
 # PMF pivot: These imports kept for future reactivation but routes disabled
 # from app.api.v1.endpoints import (
-#     offers, contracts, chat, subscription, templates, usage, trust,
+#     offers, contracts, chat, templates, usage, trust,
 # )
 
 api_router = APIRouter()
@@ -33,7 +34,7 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 
 # === Disabled routes (PMF pivot: reactivate post-PMF) ===
 # api_router.include_router(trust.router, tags=["trust"])  # Replaced by tier
-# api_router.include_router(subscription.router, prefix="/subscriptions", tags=["subscriptions"])
+api_router.include_router(subscription.router, prefix="/subscriptions", tags=["subscriptions"])
 # api_router.include_router(offers.router, prefix="/offers", tags=["offers"])
 # api_router.include_router(contracts.router, prefix="/contracts", tags=["contracts"])
 # api_router.include_router(chat.router, prefix="/threads", tags=["chat"])

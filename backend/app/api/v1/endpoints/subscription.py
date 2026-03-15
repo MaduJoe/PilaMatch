@@ -26,6 +26,7 @@ from app.schemas.subscription import (
     BillingMethodResponse,
     BankTransferUpgradeRequest,
     BankTransferUpgradeResponse,
+    BankTransferConfirmRequest,
     RenewAllRequest,
 )
 from app.services.subscription import SubscriptionService
@@ -39,17 +40,45 @@ async def get_my_subscription(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current user's subscription status."""
+    """Get current user's subscription status.
+
+    Access is determined by end_date (current_period_end), not status alone.
+    A cancelled subscription still grants access until end_date.
+    """
+    from datetime import datetime
+    from sqlalchemy import select as sa_select
+    from app.models.subscription import Subscription
+
+    # Find any subscription (including cancelled with remaining access)
     service = SubscriptionService(db)
     subscription = await service.get_user_subscription(str(current_user.id))
 
+    # Also check cancelled subscriptions still within their period
+    if not subscription:
+        result = await db.execute(
+            sa_select(Subscription).where(Subscription.user_id == current_user.id)
+        )
+        any_sub = result.scalar_one_or_none()
+        if any_sub and any_sub.end_date and any_sub.end_date > datetime.utcnow():
+            subscription = any_sub
+
     sub_response = None
+    has_access = False
     if subscription:
         sub_response = SubscriptionResponse.model_validate(subscription)
         sub_response.has_billing_key = bool(subscription.toss_billing_key)
+        # Access check: end_date >= now (not status)
+        has_access = (
+            subscription.end_date is not None
+            and subscription.end_date > datetime.utcnow()
+        )
+
+    # Also check membership_tier as fallback (admin-set premium)
+    if current_user.membership_tier == "premium":
+        has_access = True
 
     return SubscriptionStatusResponse(
-        has_subscription=subscription is not None,
+        has_subscription=has_access,
         membership_tier=current_user.membership_tier,
         subscription=sub_response,
     )
@@ -135,33 +164,62 @@ async def cancel_subscription(
     db: AsyncSession = Depends(get_db),
 ):
     """Cancel active premium subscription."""
-    if current_user.membership_tier != "premium":
+    from datetime import datetime as dt
+    from sqlalchemy import select as sa_select
+    from app.models.subscription import Subscription
+
+    service = SubscriptionService(db)
+
+    # Find subscription (any status)
+    result = await db.execute(
+        sa_select(Subscription).where(Subscription.user_id == current_user.id)
+    )
+    sub = result.scalar_one_or_none()
+
+    # Already cancelled but still within period
+    if sub and sub.status == "cancelled" and sub.end_date and sub.end_date > dt.utcnow():
+        return CancelSubscriptionResponse(
+            success=True,
+            message=f"이미 해지되었습니다. {sub.end_date.strftime('%Y-%m-%d')}까지 프리미엄 혜택을 이용할 수 있습니다.",
+            deposit_refunded=0,
+            effective_date=sub.end_date,
+        )
+
+    # Inactive (re-subscribe pending, not yet confirmed)
+    if sub and sub.status == "inactive":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "NOT_ACTIVE", "message": "활성화 대기 중인 구독은 해지할 수 없습니다. 입금 확인 후 해지해주세요."},
+        )
+
+    # No subscription at all
+    if not sub or (sub.status != "active" and current_user.membership_tier != "premium"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "NOT_PREMIUM", "message": "프리미엄 회원이 아닙니다"},
         )
-
-    service = SubscriptionService(db)
 
     try:
         history = await service.cancel_subscription(
             str(current_user.id), request.reason
         )
 
-        # Extract deposit refund amount from history note
         deposit_refunded = 0
-        if "Deposit refunded:" in history.note:
+        if history.note and "Deposit refunded:" in history.note:
             try:
                 refund_str = history.note.split("Deposit refunded: ")[1].split()[0]
                 deposit_refunded = float(refund_str)
             except:
                 pass
 
+        # Refresh sub to get updated end_date
+        await db.refresh(sub)
+        end_str = sub.end_date.strftime('%Y-%m-%d') if sub and sub.end_date else "즉시"
         return CancelSubscriptionResponse(
             success=True,
-            message="프리미엄 구독이 취소되었습니다. 보증금이 환불됩니다.",
+            message=f"구독이 해지되었습니다. {end_str}까지 프리미엄 혜택을 이용할 수 있습니다.",
             deposit_refunded=deposit_refunded,
-            effective_date=history.created_at,
+            effective_date=sub.end_date if sub and sub.end_date else history.created_at,
         )
     except ValueError as e:
         raise HTTPException(
@@ -320,11 +378,19 @@ async def initialize_bank_transfer_upgrade(
     db: AsyncSession = Depends(get_db),
 ):
     """Initialize bank transfer for premium upgrade."""
+    # Block only if subscription is currently active (not cancelled)
     if current_user.membership_tier == "premium":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "ALREADY_PREMIUM", "message": "이미 프리미엄 회원입니다"},
+        from sqlalchemy import select as sa_select
+        from app.models.subscription import Subscription
+        result = await db.execute(
+            sa_select(Subscription).where(Subscription.user_id == current_user.id)
         )
+        existing = result.scalar_one_or_none()
+        if existing and existing.status == "active":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "ALREADY_PREMIUM", "message": "이미 프리미엄 회원입니다"},
+            )
 
     service = SubscriptionService(db)
     try:
@@ -337,6 +403,35 @@ async def initialize_bank_transfer_upgrade(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "BANK_TRANSFER_ERROR", "message": str(e)},
+        )
+
+
+# --- Admin: Bank Transfer Confirm ---
+
+
+@router.post("/confirm-bank-transfer")
+async def confirm_bank_transfer(
+    request: BankTransferConfirmRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin confirms bank transfer and activates subscription."""
+    service = SubscriptionService(db)
+    try:
+        payment = await service.confirm_bank_transfer(
+            payment_id=request.payment_id,
+            confirmed_amount=request.confirmed_amount,
+            admin_user_id=str(current_user.id),
+        )
+        return {
+            "message": "구독이 활성화되었습니다",
+            "payment_id": str(payment.id),
+            "status": payment.status,
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "CONFIRM_ERROR", "message": str(e)},
         )
 
 

@@ -49,13 +49,31 @@ class SubscriptionService:
 
     async def create_subscription(self, user_id: str) -> Subscription:
         """Create a new premium subscription (inactive until payment)."""
-        # Check if user already has a subscription
+        # Check if user already has a subscription (any status)
         existing = await self.get_user_subscription(user_id)
         if existing:
             if existing.status == SubscriptionStatus.ACTIVE.value:
                 raise ValueError("User already has an active subscription")
             # Reuse inactive subscription
             return existing
+
+        # Check for cancelled/expired subscriptions (not found by get_user_subscription)
+        result = await self.db.execute(
+            select(Subscription).where(Subscription.user_id == user_id)
+        )
+        old_sub = result.scalar_one_or_none()
+        if old_sub:
+            # Reset cancelled/expired subscription for re-subscription
+            old_sub.status = SubscriptionStatus.INACTIVE.value
+            old_sub.cancelled_at = None
+            old_sub.cancellation_reason = None
+            old_sub.start_date = None
+            old_sub.end_date = None
+            old_sub.next_billing_date = None
+            await self.db.commit()
+            await self.db.refresh(old_sub)
+            logger.info(f"Reactivated subscription {old_sub.id} for user {user_id}")
+            return old_sub
 
         # Create new subscription
         subscription = Subscription(
@@ -195,13 +213,13 @@ class SubscriptionService:
     async def cancel_subscription(
         self, user_id: str, reason: Optional[str] = None
     ) -> SubscriptionHistory:
-        """Cancel active subscription and refund deposit if any."""
+        """Cancel subscription. Access continues until current_period_end (end_date)."""
         # Get active subscription
         subscription = await self.get_user_subscription(user_id)
         if not subscription or subscription.status != SubscriptionStatus.ACTIVE.value:
             raise ValueError("No active subscription found")
 
-        # Get user for deposit balance
+        # Get user
         result = await self.db.execute(
             select(User).where(User.id == user_id)
         )
@@ -209,38 +227,43 @@ class SubscriptionService:
         if not user:
             raise ValueError("User not found")
 
-        # Mark subscription as cancelled
+        now = datetime.utcnow()
+
+        # Mark as cancelled but keep access until end_date (current_period_end)
         subscription.status = SubscriptionStatus.CANCELLED.value
-        subscription.cancelled_at = datetime.utcnow()
+        subscription.cancelled_at = now
         subscription.cancellation_reason = reason
         subscription.auto_renew = False
+        # next_billing_date cleared — no renewal
+        subscription.next_billing_date = None
 
-        # Downgrade user to free tier
-        user.membership_tier = MembershipTier.FREE.value
+        # If end_date is in the past or not set, downgrade immediately
+        if not subscription.end_date or subscription.end_date <= now:
+            user.membership_tier = MembershipTier.FREE.value
+        # Otherwise, keep premium until end_date (handled by access check)
 
         # TODO: Process deposit refund if user has deposit balance
         deposit_refunded = Decimal("0")
         if user.deposit_balance > 0:
             deposit_refunded = user.deposit_balance
-            # In production, initiate bank transfer via TossPayments
             logger.info(f"Refunding deposit {deposit_refunded} for user {user_id}")
             user.deposit_balance = Decimal("0")
 
-        # Record in history
+        effective_date = subscription.end_date or now
         history = SubscriptionHistory(
             id=str(uuid.uuid4()),
             user_id=user_id,
             old_tier=MembershipTier.PREMIUM.value,
             new_tier=MembershipTier.FREE.value,
             reason=SubscriptionChangeReason.CANCELLATION.value,
-            note=f"Subscription cancelled. Reason: {reason}. Deposit refunded: {deposit_refunded}",
+            note=f"Cancelled. Access until {effective_date.strftime('%Y-%m-%d')}. Reason: {reason}. Deposit refunded: {deposit_refunded}",
         )
         self.db.add(history)
 
         await self.db.commit()
         await self.db.refresh(history)
 
-        logger.info(f"Cancelled subscription {subscription.id} for user {user_id}")
+        logger.info(f"Cancelled subscription {subscription.id}, access until {effective_date}")
         return history
 
     async def process_auto_renewal(self, subscription_id: str) -> Optional[SubscriptionPayment]:

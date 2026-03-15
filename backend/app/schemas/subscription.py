@@ -175,6 +175,15 @@ class BankTransferUpgradeResponse(BaseModel):
     message: str
 
 
+# --- Bank Transfer Confirm (Admin) ---
+
+class BankTransferConfirmRequest(BaseModel):
+    """Admin confirms a bank transfer payment."""
+
+    payment_id: str
+    confirmed_amount: int = 9900
+
+
 # --- Renew All ---
 
 class RenewAllRequest(BaseModel):
