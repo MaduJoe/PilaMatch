@@ -90,6 +90,7 @@ class Settings(BaseSettings):
     API_BASE_URL: Optional[str] = "http://localhost:8000"
     FRONTEND_URL: str = "http://localhost:8501"
     KAKAO_MAP_KEY: Optional[str] = None
+    KAKAO_REST_API_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"

@@ -54,6 +54,7 @@ services:
       - BANK_ACCOUNT_HOLDER=${BANK_ACCOUNT_HOLDER:-}
       - BANK_NAME=${BANK_NAME:-}
       - APP_ENV=${APP_ENV:-development}
+      - KAKAO_REST_API_KEY=${KAKAO_REST_API_KEY:-}
     volumes:
       - ./backend:/app  # hot reload
     depends_on:

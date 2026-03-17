@@ -5,7 +5,7 @@ from app.api.v1.endpoints import (
     reviews, reports, support,
     verification, profiles, tier, penalties, payment_confirmation,
     notifications, backup_instructors,
-    subscription,
+    subscription, kakao,
 )
 
 # PMF pivot: These imports kept for future reactivation but routes disabled
@@ -31,6 +31,7 @@ api_router.include_router(reviews.router, tags=["reviews"])
 api_router.include_router(reports.router, tags=["reports"])
 api_router.include_router(support.router, tags=["support"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(kakao.router, prefix="/kakao", tags=["kakao"])
 
 # === Disabled routes (PMF pivot: reactivate post-PMF) ===
 # api_router.include_router(trust.router, tags=["trust"])  # Replaced by tier

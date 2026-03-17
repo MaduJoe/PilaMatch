@@ -84,6 +84,8 @@ export const studioProfileSchema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   region: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   categories: z.array(z.string()).min(1, '카테고리를 선택해주세요'),
 });
 

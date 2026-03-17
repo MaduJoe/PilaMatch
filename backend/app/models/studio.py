@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, ForeignKey, Numeric, Integer, JSON
+from sqlalchemy import Column, String, Text, Boolean, ForeignKey, Numeric, Integer, JSON, Float
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -20,6 +20,8 @@ class StudioProfile(Base, UUIDMixin, TimestampMixin):
     is_verified = Column(Boolean, default=False, nullable=False)
     rating_average = Column(Numeric(3, 2), default=0)
     review_count = Column(Integer, default=0)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
     location_proof_verified = Column(Boolean, default=False, nullable=False)  # C2 requirement
 
     # Relationships

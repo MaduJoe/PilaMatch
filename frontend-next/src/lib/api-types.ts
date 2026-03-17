@@ -138,6 +138,8 @@ export interface StudioProfileUpdate {
   phone?: string;
   address?: string;
   region?: string;
+  latitude?: number;
+  longitude?: number;
   logo_url?: string;
   categories?: string[];
 }
@@ -150,6 +152,8 @@ export interface StudioProfileResponse {
   phone?: string | null;
   address?: string | null;
   region?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   logo_url?: string | null;
   categories: string[];
   is_verified: boolean;

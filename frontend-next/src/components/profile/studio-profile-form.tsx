@@ -13,7 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CATEGORIES, REGION_NAMES } from '@/lib/constants';
+import { CATEGORIES } from '@/lib/constants';
+import { KakaoAddressSearch } from '@/components/profile/kakao-address-search';
 
 export function StudioProfileForm() {
   const queryClient = useQueryClient();
@@ -28,6 +29,8 @@ export function StudioProfileForm() {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isDirty },
   } = useForm<StudioProfileFormData>({
     resolver: zodResolver(studioProfileSchema),
@@ -41,6 +44,8 @@ export function StudioProfileForm() {
         phone: profile.phone || '',
         address: profile.address || '',
         region: profile.region || '',
+        latitude: profile.latitude ?? undefined,
+        longitude: profile.longitude ?? undefined,
         categories: profile.categories || [],
       });
     }
@@ -54,6 +59,8 @@ export function StudioProfileForm() {
         phone: data.phone,
         address: data.address,
         region: data.region,
+        latitude: data.latitude,
+        longitude: data.longitude,
         categories: data.categories,
       }),
     onSuccess: (_, variables) => {
@@ -79,6 +86,9 @@ export function StudioProfileForm() {
       </Card>
     );
   }
+
+  const currentAddress = watch('address') || '';
+  const currentRegion = watch('region') || '';
 
   return (
     <Card>
@@ -126,22 +136,25 @@ export function StudioProfileForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="region">지역</Label>
-            <select
-              id="region"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              {...register('region')}
-            >
-              <option value="">지역 선택</option>
-              {REGION_NAMES.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="address">주소</Label>
-            <Input id="address" {...register('address')} placeholder="서울시 강남구..." />
+            <Label>주소</Label>
+            <KakaoAddressSearch
+              value={currentAddress}
+              regionValue={currentRegion}
+              onSelect={(place) => {
+                setValue('address', place.address, { shouldDirty: true });
+                setValue('region', place.region, { shouldDirty: true });
+                if (place.latitude) setValue('latitude', place.latitude, { shouldDirty: true });
+                if (place.longitude) setValue('longitude', place.longitude, { shouldDirty: true });
+                if (place.phone && !watch('phone')) {
+                  setValue('phone', place.phone, { shouldDirty: true });
+                }
+              }}
+            />
+            {currentRegion && (
+              <p className="text-xs text-muted-foreground">
+                지역: {currentRegion}
+              </p>
+            )}
           </div>
 
           <Button

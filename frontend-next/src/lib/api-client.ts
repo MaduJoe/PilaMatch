@@ -529,6 +529,21 @@ export const backupInstructors = {
     del<void>(`/studios/me/backup-instructors/${instructorId}`),
 };
 
+// --- Kakao Local API (proxy) -----------------------------
+
+export const kakao = {
+  search: (query: string) =>
+    get<{ results: Array<{
+      place_name: string;
+      address_name: string;
+      road_address_name: string;
+      region: string;
+      latitude: number;
+      longitude: number;
+      phone: string;
+    }>; total: number }>(`/kakao/search?query=${encodeURIComponent(query)}`),
+};
+
 // --- Convenience: grouped API ----------------------------
 
 export const api = {
@@ -555,6 +570,7 @@ export const api = {
   // usage,
   handoffNotes,
   backupInstructors,
+  kakao,
 } as const;
 
 export default api;

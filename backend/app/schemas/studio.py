@@ -20,6 +20,8 @@ class StudioProfileUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=20)
     address: Optional[str] = None
     region: Optional[str] = Field(None, max_length=100)
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     logo_url: Optional[str] = None
     categories: Optional[List[str]] = None
 
@@ -32,6 +34,8 @@ class StudioProfileResponse(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     region: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     logo_url: Optional[str] = None
     categories: List[str] = []
     is_verified: bool = False
