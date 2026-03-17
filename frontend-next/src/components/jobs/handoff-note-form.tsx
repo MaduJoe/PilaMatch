@@ -80,7 +80,7 @@ export function HandoffNoteForm({ jobPostId, isUrgentSubstitute }: HandoffNoteFo
         </CardTitle>
         {!expanded && isUrgentSubstitute && (
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-            인수인계 노트를 남기면 회원이 눈치 못 채는 수업이 가능합니다
+            인수인계 노트를 남기면 강사가 바뀌어도 자연스럽게 맞춤 수업이 이어집니다
           </p>
         )}
       </CardHeader>
