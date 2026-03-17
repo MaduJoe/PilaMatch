@@ -23,7 +23,7 @@ function PaymentFailContent() {
           </p>
           {code && <p className="text-xs text-gray-400">오류 코드: {code}</p>}
           <Button asChild className="w-full">
-            <Link href="/steps/profile">돌아가기</Link>
+            <Link href="/settings">돌아가기</Link>
           </Button>
         </CardContent>
       </Card>

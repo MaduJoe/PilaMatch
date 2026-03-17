@@ -84,7 +84,7 @@ function PaymentSuccessContent() {
               <p className="text-sm text-gray-500">결제가 성공적으로 완료되었습니다!</p>
               {orderId && <p className="text-xs text-gray-400">주문번호: {orderId}</p>}
               <Button asChild className="w-full">
-                <Link href="/steps/profile">프로필로 돌아가기</Link>
+                <Link href="/settings">설정으로 돌아가기</Link>
               </Button>
             </>
           )}
@@ -92,7 +92,7 @@ function PaymentSuccessContent() {
             <>
               <p className="text-sm text-gray-500">{errorMessage}</p>
               <Button asChild className="w-full">
-                <Link href="/steps/profile">돌아가기</Link>
+                <Link href="/settings">돌아가기</Link>
               </Button>
             </>
           )}

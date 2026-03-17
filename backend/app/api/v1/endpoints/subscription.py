@@ -110,10 +110,8 @@ async def initialize_premium_upgrade(
             subscription.id
         )
 
-        # Generate customer_key for billing registration
-        customer_key = None
-        if req.payment_method == "billing":
-            customer_key = f"cust_{_uuid.uuid4().hex[:16]}"
+        # Generate stable customer_key from user_id for logged-in customer flow
+        customer_key = f"cust_{str(current_user.id).replace('-', '')[:16]}"
 
         return UpgradeInitializeResponse(
             order_id=order_id,
@@ -192,8 +190,20 @@ async def cancel_subscription(
             detail={"code": "NOT_ACTIVE", "message": "활성화 대기 중인 구독은 해지할 수 없습니다. 입금 확인 후 해지해주세요."},
         )
 
-    # No subscription at all
-    if not sub or (sub.status != "active" and current_user.membership_tier != "premium"):
+    # If subscription is not active but user has premium tier (e.g. admin-set),
+    # downgrade membership directly without going through service.cancel_subscription
+    if not sub or sub.status != "active":
+        if current_user.membership_tier == "premium":
+            from sqlalchemy import update as sa_update
+            from app.models import MembershipTier
+            current_user.membership_tier = MembershipTier.FREE.value
+            await db.commit()
+            return CancelSubscriptionResponse(
+                success=True,
+                message="프리미엄 멤버십이 해제되었습니다.",
+                deposit_refunded=0,
+                effective_date=dt.utcnow(),
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "NOT_PREMIUM", "message": "프리미엄 회원이 아닙니다"},
