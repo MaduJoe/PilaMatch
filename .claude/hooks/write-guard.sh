@@ -61,6 +61,11 @@ if [[ "$TOOL_NAME" == "Write" ]]; then
     "docs/"
   )
 
+  # Always allow writes to user-level .claude directory (plans, memory, etc.)
+  if [[ "$FILE_PATH" == /home/jkcho/.claude/* ]]; then
+    ALLOWED=true
+  fi
+
   for prefix in "${ALLOWED_PREFIXES[@]}"; do
     if [[ "$REL_PATH" == ${prefix}* ]]; then
       ALLOWED=true
