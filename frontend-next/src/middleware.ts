@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_PATHS = ['/login', '/signup', '/api/auth'];
+const EXACT_PUBLIC_PATHS = ['/', '/terms', '/privacy', '/refund'];
 const AUTH_PATHS = ['/login', '/signup'];
 
 export function middleware(request: NextRequest) {
@@ -21,7 +22,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Allow public paths without auth
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || EXACT_PUBLIC_PATHS.includes(pathname)) {
     // Redirect authenticated users away from auth pages
     if (token && AUTH_PATHS.some((p) => pathname.startsWith(p))) {
       return NextResponse.redirect(new URL('/steps/profile', request.url));
