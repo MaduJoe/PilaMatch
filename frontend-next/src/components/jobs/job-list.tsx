@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Loader2, Search } from 'lucide-react';
 import api, { APIError } from '@/lib/api-client';
 import type { JobPostWithMatchingItem, ApplicationResponse } from '@/lib/api-types';
+import { useGeolocation } from '@/hooks/use-geolocation';
 // PMF pivot: FREE_DAILY_APPLICATION_LIMIT no longer used
 // import { FREE_DAILY_APPLICATION_LIMIT } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
@@ -30,11 +31,16 @@ const PAGE_SIZE = 20;
 export function JobList() {
   const queryClient = useQueryClient();
 
+  // ---- Geolocation --------------------------------------------------------
+  const { latitude, longitude } = useGeolocation();
+  const hasLocation = latitude != null && longitude != null;
+
   // ---- Filter state -------------------------------------------------------
   const [filters, setFilters] = useState<JobFilters>({
     category: 'all',
     regions: [],
     urgentOnly: false,
+    maxDistance: null,
   });
 
   const [page, setPage] = useState(1);
@@ -52,8 +58,15 @@ export function JobList() {
     };
     if (filters.category !== 'all') params.category = filters.category;
     if (filters.regions.length > 0) params.region = filters.regions.join(',');
+    if (latitude != null && longitude != null) {
+      params.user_latitude = String(latitude);
+      params.user_longitude = String(longitude);
+    }
+    if (filters.maxDistance != null) {
+      params.max_distance_km = String(filters.maxDistance);
+    }
     return params;
-  }, [filters.category, filters.regions, page]);
+  }, [filters.category, filters.regions, filters.maxDistance, latitude, longitude, page]);
 
   // ---- Queries ------------------------------------------------------------
   const jobsQuery = useQuery({
@@ -214,7 +227,7 @@ export function JobList() {
       )}
 
       {/* Filters */}
-      <JobFiltersBar filters={filters} onChange={handleFiltersChange} />
+      <JobFiltersBar filters={filters} onChange={handleFiltersChange} hasLocation={hasLocation} />
 
       {/* Profile nudge (shown when apply fails due to incomplete profile) */}
       <ProfileNudgeBanner

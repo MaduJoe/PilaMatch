@@ -4,7 +4,14 @@ import { useState, useCallback } from 'react';
 import { CATEGORIES, REGION_NAMES } from '@/lib/constants';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, Check } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Region groups (same as instructor-profile-form.tsx)
@@ -26,18 +33,29 @@ export interface JobFilters {
   category: string;
   regions: string[];
   urgentOnly: boolean;
+  maxDistance: number | null;
 }
+
+const DISTANCE_OPTIONS = [
+  { value: 'all', label: '거리 전체', km: null },
+  { value: '5', label: '5km 이내', km: 5 },
+  { value: '10', label: '10km 이내', km: 10 },
+  { value: '20', label: '20km 이내', km: 20 },
+  { value: '30', label: '30km 이내', km: 30 },
+] as const;
 
 interface JobFiltersProps {
   filters: JobFilters;
   onChange: (filters: JobFilters) => void;
+  /** GPS 좌표 사용 가능 여부 (거리 필터 활성화 조건) */
+  hasLocation?: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function JobFiltersBar({ filters, onChange }: JobFiltersProps) {
+export function JobFiltersBar({ filters, onChange, hasLocation = false }: JobFiltersProps) {
   const [regionOpen, setRegionOpen] = useState(false);
 
   const selectedRegions = filters.regions;
@@ -131,6 +149,31 @@ export function JobFiltersBar({ filters, onChange }: JobFiltersProps) {
         >
           {filters.urgentOnly ? '긴급만 ON' : '긴급만'}
         </Button>
+
+        {/* Distance filter */}
+        <Select
+          value={filters.maxDistance != null ? String(filters.maxDistance) : 'all'}
+          onValueChange={(value) => {
+            const km = value === 'all' ? null : Number(value);
+            onChange({ ...filters, maxDistance: km });
+          }}
+          disabled={!hasLocation}
+        >
+          <SelectTrigger
+            className="min-h-[44px] w-auto min-w-[120px] gap-1.5"
+            aria-label="거리 필터"
+          >
+            <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+            <SelectValue placeholder="거리 전체" />
+          </SelectTrigger>
+          <SelectContent>
+            {DISTANCE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Grouped regions panel (collapsible) */}
