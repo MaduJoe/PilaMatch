@@ -63,7 +63,7 @@ const PRESETS = [
     id: 'urgent',
     label: '긴급 대행',
     emoji: '🔥',
-    desc: '오늘/내일 급한 대타 · 시급 3만원 기본',
+    desc: '30초 등록 · 인수인계 생략 · 시급 3만원',
     values: { is_urgent: true, job_type: 'substitute' as const, hourly_rate: 30000 },
   },
   {
@@ -91,9 +91,16 @@ const STEP_FIELDS: Record<number, string[]> = {
   ],
 };
 
-const TOTAL_STEPS = 4;
+// Urgent mode: skip handoff (step 3) → 3 steps total
+const FULL_STEPS: number[] = [1, 2, 3, 4];
+const URGENT_STEPS: number[] = [1, 2, 4]; // skip step 3 (handoff)
 
-const STEP_LABELS = ['기본 설정', '날짜·급여', '상세·인수인계', '확인·등록'];
+const STEP_LABELS: Record<number, string> = {
+  1: '기본 설정',
+  2: '날짜·급여',
+  3: '상세·인수인계',
+  4: '확인·등록',
+};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -249,19 +256,32 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
     [reset, today],
   );
 
-  // ---- Step navigation ----
+  // ---- Step navigation (urgent skips handoff step 3) ----
+  const activeSteps = isUrgent ? URGENT_STEPS : FULL_STEPS;
+  const totalSteps = activeSteps.length;
+  const stepIndex = activeSteps.indexOf(step as number);
+  const stepProgress = stepIndex + 1;
+
   const goNext = useCallback(async () => {
     const fields = STEP_FIELDS[step];
     if (fields) {
       const valid = await trigger(fields as any); // eslint-disable-line @typescript-eslint/no-explicit-any
       if (!valid) return;
     }
-    setStep((s) => Math.min(s + 1, TOTAL_STEPS));
-  }, [step, trigger]);
+    const steps = isUrgent ? URGENT_STEPS : FULL_STEPS;
+    const currentIdx = steps.indexOf(step as number);
+    if (currentIdx < steps.length - 1) {
+      setStep(steps[currentIdx + 1]);
+    }
+  }, [step, trigger, isUrgent]);
 
   const goBack = useCallback(() => {
-    setStep((s) => Math.max(s - 1, 1));
-  }, []);
+    const steps = isUrgent ? URGENT_STEPS : FULL_STEPS;
+    const currentIdx = steps.indexOf(step as number);
+    if (currentIdx > 0) {
+      setStep(steps[currentIdx - 1]);
+    }
+  }, [step, isUrgent]);
 
   // ---- Submit ----
   const createJob = useMutation({
@@ -300,14 +320,16 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   };
 
   // ---- Progress bar ----
+  const isLastStep = stepIndex === totalSteps - 1;
+
   const ProgressBar = () => (
     <div className="flex gap-1.5">
-      {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+      {Array.from({ length: totalSteps }, (_, i) => (
         <div
           key={i}
           className={cn(
             'h-1.5 flex-1 rounded-full transition-colors duration-200',
-            i < step ? 'bg-primary' : 'bg-muted',
+            i < stepProgress ? 'bg-primary' : 'bg-muted',
           )}
         />
       ))}
@@ -926,9 +948,9 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
               <div />
             )}
             <DialogTitle className="font-display text-base">
-              {STEP_LABELS[step - 1]}
+              {STEP_LABELS[step]}
               <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                {step}/{TOTAL_STEPS}
+                {stepProgress}/{totalSteps}
               </span>
             </DialogTitle>
             <Button
@@ -956,7 +978,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
 
         {/* Footer */}
         <div className="shrink-0 border-t px-4 py-3">
-          {step < TOTAL_STEPS ? (
+          {!isLastStep ? (
             <Button
               type="button"
               size="lg"
