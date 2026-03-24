@@ -2,21 +2,21 @@ import type { Metadata } from 'next';
 import { LandingPage } from '@/components/landing/sections';
 
 export const metadata: Metadata = {
-  title: 'PilaMatch — 필라테스 대타 60분 매칭',
+  title: 'PilaMatch — 필라테스 긴급 대타 30분 매칭',
   description:
-    '오늘 결원, 오늘 확정. 검증된 강사를 60분 내에 매칭합니다. 노쇼 방지, 인수인계 노트, Tier 시스템으로 신뢰 기반 매칭.',
+    '아침 9시 결원? 30분 내 확정. 반경 5km 내 검증된 대타 강사를 즉시 매칭합니다. GPS 거리순 매칭, 노쇼 14일 정지, 원탭 수락.',
   keywords: [
-    '필라테스 대타',
-    '요가 대타',
-    '강사 매칭',
-    '필라테스 구인',
-    '대타 강사',
-    '급구',
+    '필라테스 긴급 대타',
+    '당일 대타 강사',
+    '필라테스 급구',
+    '대타 매칭 앱',
     '필라테스 대강',
+    '강사 노쇼 방지',
+    '필라테스 구인 즉시',
   ],
   openGraph: {
-    title: 'PilaMatch — 필라테스 대타 60분 매칭',
-    description: '오늘 결원, 오늘 확정. 검증된 강사 매칭 플랫폼',
+    title: 'PilaMatch — 필라테스 긴급 대타 30분 매칭',
+    description: '아침 9시 결원? 30분 내 검증된 대타 강사 확정',
     type: 'website',
     locale: 'ko_KR',
     siteName: 'PilaMatch',
