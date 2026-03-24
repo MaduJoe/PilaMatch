@@ -37,6 +37,7 @@ class NotificationType:
     NO_SHOW_REPORTED = "NO_SHOW_REPORTED"
     CHAT_MESSAGE = "CHAT_MESSAGE"
     LESSON_REMINDER = "LESSON_REMINDER"
+    URGENT_SUBSTITUTE = "URGENT_SUBSTITUTE"
 
 
 # In-memory notification store (mock mode)
@@ -197,10 +198,70 @@ class NotificationService:
         body: str,
         data: Optional[dict] = None,
     ) -> None:
-        """Send push via FCM/APNs. Currently mock implementation."""
-        logger.info(
-            f"[MOCK PUSH] tokens={len(tokens)} title={title}"
-        )
+        """Send push via FCM. Falls back to mock if firebase-admin not configured."""
+        try:
+            import firebase_admin
+            from firebase_admin import messaging
+
+            if not firebase_admin._apps:
+                logger.warning("[FCM] Firebase not initialized, skipping push")
+                return
+
+            # Convert data values to strings (FCM requirement)
+            str_data = {k: str(v) for k, v in (data or {}).items()}
+
+            message = messaging.MulticastMessage(
+                notification=messaging.Notification(
+                    title=title,
+                    body=body,
+                ),
+                data=str_data,
+                tokens=tokens,
+                android=messaging.AndroidConfig(
+                    priority="high",
+                    notification=messaging.AndroidNotification(
+                        sound="default",
+                        channel_id="urgent_substitute",
+                    ),
+                ),
+                apns=messaging.APNSConfig(
+                    payload=messaging.APNSPayload(
+                        aps=messaging.Aps(
+                            sound="default",
+                            badge=1,
+                        ),
+                    ),
+                ),
+            )
+
+            response = messaging.send_each_for_multicast(message)
+            logger.info(
+                f"[FCM] sent={response.success_count} failed={response.failure_count}"
+            )
+
+            # Clean up invalid tokens
+            for idx, send_response in enumerate(response.responses):
+                if send_response.exception:
+                    error_code = send_response.exception.code
+                    if error_code in ("NOT_FOUND", "UNREGISTERED"):
+                        await self._remove_token(tokens[idx])
+
+        except ImportError:
+            logger.info(f"[MOCK PUSH] tokens={len(tokens)} title={title}")
+        except Exception as e:
+            logger.error(f"[FCM ERROR] {e}")
+
+    async def _remove_token(self, token: str) -> None:
+        """Remove an invalid device token."""
+        r = _get_redis()
+        if r:
+            # Scan all device_tokens sets and remove
+            for key in r.scan_iter("device_tokens:*"):
+                r.srem(key, token)
+        else:
+            for user_tokens in _device_tokens.values():
+                if token in user_tokens:
+                    user_tokens.remove(token)
 
 
 # --- Convenience functions for notification triggers ---
@@ -334,3 +395,23 @@ async def send_lesson_reminders(db: AsyncSession) -> int:
                 sent += 1
 
     return sent
+
+
+async def notify_urgent_substitute(
+    db: AsyncSession,
+    instructor_user_ids: list[str],
+    studio_name: str,
+    job_title: str,
+    job_id: str,
+    distance_km: Optional[float] = None,
+) -> list[str]:
+    """Notify nearby instructors about an urgent substitute job."""
+    service = NotificationService(db)
+    distance_text = f" ({distance_km:.1f}km)" if distance_km else ""
+    return await service.send_bulk(
+        user_ids=instructor_user_ids,
+        type=NotificationType.URGENT_SUBSTITUTE,
+        title=f"긴급 대타{distance_text}",
+        body=f"{studio_name} — {job_title}",
+        data={"type": "urgent_substitute", "job_id": job_id},
+    )

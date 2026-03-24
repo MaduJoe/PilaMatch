@@ -529,6 +529,27 @@ export const backupInstructors = {
     del<void>(`/studios/me/backup-instructors/${instructorId}`),
 };
 
+// --- Notifications ---------------------------------------
+
+export const notifications = {
+  registerDeviceToken: (token: string, platform: string = 'web') =>
+    post<{ message: string }>('/notifications/device-token', { token, platform }),
+
+  list: (skip = 0, limit = 20) =>
+    get<{ notifications: Array<{ id: string; title: string; body: string; is_read: boolean; created_at: string; link?: string }>; unread_count: number; skip: number; limit: number }>(
+      `/notifications?skip=${skip}&limit=${limit}`,
+    ),
+
+  markRead: (notificationId: string) =>
+    patch<{ message: string }>(`/notifications/${notificationId}/read`),
+
+  markAllRead: () =>
+    post<{ message: string; count: number }>('/notifications/read-all'),
+
+  getUnreadCount: () =>
+    get<{ unread_count: number }>('/notifications/unread-count'),
+};
+
 // --- Kakao Local API (proxy) -----------------------------
 
 export const kakao = {
@@ -570,6 +591,7 @@ export const api = {
   // usage,
   handoffNotes,
   backupInstructors,
+  notifications,
   kakao,
 } as const;
 

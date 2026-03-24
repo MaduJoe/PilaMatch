@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Header } from '@/components/layout/header';
 import { BottomTabBar } from '@/components/layout/bottom-tab-bar';
 import { VerificationRequiredScreen } from '@/components/layout/verification-required-screen';
+import { PushNotificationProvider } from '@/components/notification/push-provider';
 import { isUserVerified } from '@/lib/utils';
 
 /** Pages that bypass the verification gate */
@@ -58,10 +59,12 @@ export default function AppLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main className="mx-auto max-w-4xl px-4 pb-28 pt-8">{children}</main>
-      <BottomTabBar />
-    </div>
+    <PushNotificationProvider>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="mx-auto max-w-4xl px-4 pb-28 pt-8">{children}</main>
+        <BottomTabBar />
+      </div>
+    </PushNotificationProvider>
   );
 }

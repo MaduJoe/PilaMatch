@@ -136,6 +136,10 @@ async def _renewal_scheduler():
 async def startup_event():
     global _renewal_task
     setup_logging()
+
+    from app.core.firebase import init_firebase
+    init_firebase()
+
     _renewal_task = asyncio.create_task(_renewal_scheduler())
 
 
