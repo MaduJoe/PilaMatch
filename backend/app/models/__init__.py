@@ -20,6 +20,9 @@ from app.models.enums import (
     PenaltyType,
     PenaltyStatus,
     PaymentConfirmationStatus,
+    DispatchMode,
+    DispatchStatus,
+    MemberCautionTag,
 )
 from app.models.user import User
 from app.models.instructor import InstructorProfile
@@ -43,6 +46,11 @@ from app.models.penalty_record import PenaltyRecord
 from app.models.payment_confirmation import PaymentConfirmation
 from app.models.handoff_note import HandoffNote
 from app.models.backup_instructor import BackupInstructor
+from app.models.instructor_availability import InstructorAvailability  # v5.0 Dispatch
+from app.models.dispatch_record import DispatchRecord  # v5.0 Dispatch
+from app.models.checkin_record import CheckinRecord  # v5.0 Dispatch
+from app.models.completion_confirmation import CompletionConfirmation  # v5.0 Dispatch
+from app.models.handoff_template import HandoffTemplate  # v5.0 Dispatch
 
 __all__ = [
     # Enums
@@ -99,4 +107,14 @@ __all__ = [
     "PaymentConfirmation",
     "HandoffNote",
     "BackupInstructor",
+    # v5.0 Dispatch system
+    "InstructorAvailability",
+    "DispatchRecord",
+    "CheckinRecord",
+    "CompletionConfirmation",
+    "HandoffTemplate",
+    # v5.0 Enums
+    "DispatchMode",
+    "DispatchStatus",
+    "MemberCautionTag",
 ]

@@ -139,3 +139,30 @@ class PaymentConfirmationStatus(str, enum.Enum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
     DISPUTED = "disputed"
+
+
+class DispatchMode(str, enum.Enum):
+    MANUAL = "manual"
+    AUTO_DISPATCH = "auto_dispatch"
+
+
+class DispatchStatus(str, enum.Enum):
+    DISPATCHED = "dispatched"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    TIMEOUT = "timeout"
+    CANCELLED = "cancelled"
+
+
+class MemberCautionTag(str, enum.Enum):
+    """Pre-defined caution tags for member notes (개인정보보호법 제23조 준수)."""
+    BACK_RESTRICTION = "허리_제한"
+    HYPEREXTENSION_CAUTION = "과신전_주의"
+    KNEE_CAUTION = "무릎_주의"
+    NECK_CAUTION = "목_주의"
+    SHOULDER_CAUTION = "어깨_주의"
+    PREGNANT = "임산부"
+    ELDERLY = "고령자"
+    BEGINNER = "초보자"
+    POSTURE_CORRECTION = "자세교정_필요"
+    REHAB = "재활_중"

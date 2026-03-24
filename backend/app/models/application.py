@@ -18,6 +18,7 @@ class Application(Base, UUIDMixin, TimestampMixin):
     cover_letter = Column(Text)
     contact_revealed = Column(Boolean, default=False, nullable=False)  # Contact info revealed to both parties
     contact_revealed_at = Column(DateTime, nullable=True)  # When contact was revealed
+    dispatch_record_id = Column(GUID(), ForeignKey("dispatch_records.id", ondelete="SET NULL"), nullable=True)
 
     # Relationships
     job_post = relationship("JobPost", back_populates="applications")

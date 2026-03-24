@@ -29,6 +29,14 @@ class InstructorProfile(Base, UUIDMixin, TimestampMixin):
     completed_substitute_count = Column(Integer, default=0)  # 완료된 대타 건수
     teaching_style = Column(JSON, default=dict)  # {correction_style, class_atmosphere, intensity_level, music_preference}
 
+    # Dispatch & Trust verification stats (v5.0)
+    dispatch_success_rate = Column(Numeric(4, 3), default=0, nullable=False)  # 0.000-1.000
+    total_dispatches = Column(Integer, default=0, nullable=False)
+    total_dispatch_accepts = Column(Integer, default=0, nullable=False)
+    total_checkins = Column(Integer, default=0, nullable=False)
+    avg_checkin_distance_m = Column(Numeric(8, 1), nullable=True)
+    total_completions = Column(Integer, default=0, nullable=False)
+
     # Relationships
     user = relationship("User", back_populates="instructor_profile")
     applications = relationship("Application", back_populates="instructor")

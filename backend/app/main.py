@@ -108,6 +108,9 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 
 
 _renewal_task = None
+_dispatch_timeout_task = None
+_availability_expiry_task = None
+_completion_auto_task = None
 
 
 async def _renewal_scheduler():
@@ -132,19 +135,77 @@ async def _renewal_scheduler():
             renewal_logger.error(f"Renewal scheduler error: {e}")
 
 
+async def _dispatch_timeout_scheduler():
+    """Check for timed-out dispatch records every 30 seconds."""
+    scheduler_logger = logging.getLogger("dispatch_timeout_scheduler")
+    while True:
+        await asyncio.sleep(30)
+        try:
+            from app.db.session import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                from app.services.dispatch_engine import DispatchEngine
+                engine = DispatchEngine(db)
+                count = await engine.check_dispatch_timeouts()
+                if count > 0:
+                    await db.commit()
+        except Exception as e:
+            scheduler_logger.error(f"Dispatch timeout scheduler error: {e}")
+
+
+async def _availability_expiry_scheduler():
+    """Expire stale availability records every 5 minutes."""
+    scheduler_logger = logging.getLogger("availability_expiry_scheduler")
+    while True:
+        await asyncio.sleep(300)
+        try:
+            from app.db.session import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                from app.services.instructor_availability import expire_stale_availabilities
+                count = await expire_stale_availabilities(db)
+                if count > 0:
+                    await db.commit()
+        except Exception as e:
+            scheduler_logger.error(f"Availability expiry scheduler error: {e}")
+
+
+async def _completion_auto_scheduler():
+    """Auto-complete stale completion records every hour."""
+    scheduler_logger = logging.getLogger("completion_auto_scheduler")
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            from app.db.session import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                from app.services.completion import auto_complete_stale_records
+                count = await auto_complete_stale_records(db)
+                if count > 0:
+                    await db.commit()
+        except Exception as e:
+            scheduler_logger.error(f"Completion auto scheduler error: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
-    global _renewal_task
+    global _renewal_task, _dispatch_timeout_task, _availability_expiry_task, _completion_auto_task
     setup_logging()
 
     from app.core.firebase import init_firebase
     init_firebase()
 
     _renewal_task = asyncio.create_task(_renewal_scheduler())
+    _dispatch_timeout_task = asyncio.create_task(_dispatch_timeout_scheduler())
+    _availability_expiry_task = asyncio.create_task(_availability_expiry_scheduler())
+    _completion_auto_task = asyncio.create_task(_completion_auto_scheduler())
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    global _renewal_task
+    global _renewal_task, _dispatch_timeout_task, _availability_expiry_task, _completion_auto_task
     if _renewal_task:
         _renewal_task.cancel()
+    if _dispatch_timeout_task:
+        _dispatch_timeout_task.cancel()
+    if _availability_expiry_task:
+        _availability_expiry_task.cancel()
+    if _completion_auto_task:
+        _completion_auto_task.cancel()

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Numeric, JSON
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -34,6 +34,16 @@ class HandoffNote(Base, UUIDMixin, TimestampMixin):
     # Sensitive fields - only visible after acceptance
     member_notes = Column(Text)
     equipment_notes = Column(Text)
+
+    # Template & quality (v5.0)
+    template_id = Column(GUID(), ForeignKey("handoff_templates.id", ondelete="SET NULL"), nullable=True)
+    completeness_score = Column(Numeric(3, 2), default=0, nullable=False)  # 0.00-1.00
+    # Sensitive info as tags (법적 고려: 개인정보보호법 제23조)
+    member_caution_tags = Column(JSON, default=[])  # ["허리_제한", "과신전_주의"]
+    member_free_text = Column(Text, nullable=True)  # limited operational notes (no real names/specific conditions)
+    # Post-lesson feedback from instructor
+    instructor_feedback = Column(Text, nullable=True)
+    instructor_feedback_at = Column(DateTime, nullable=True)
 
     # Relationships
     job_post = relationship("JobPost", back_populates="handoff_note")
