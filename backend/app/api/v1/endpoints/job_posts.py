@@ -67,14 +67,14 @@ async def create_job_post(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new job post (studio only)."""
-    # Tier-based active post limit check
-    from app.services.tier_evaluation import check_can_post
-    allowed, reason = await check_can_post(db, current_user.id)
-    if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"code": "ACTIVE_POST_LIMIT_REACHED", "message": reason},
-        )
+    # Tier-based active post limit check — disabled for MVP
+    # from app.services.tier_evaluation import check_can_post
+    # allowed, reason = await check_can_post(db, current_user.id)
+    # if not allowed:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+    #         detail={"code": "ACTIVE_POST_LIMIT_REACHED", "message": reason},
+    #     )
 
     service = JobPostService(db)
     studio_id = await service.get_studio_profile_id(current_user.id)
@@ -124,9 +124,9 @@ async def create_job_post(
 
             notified = 0
             for inst in instructors:
-                # Filter by category match
+                # Filter by category match (empty = accepts all)
                 inst_categories = inst.categories or []
-                if data.category and data.category not in inst_categories:
+                if data.category and inst_categories and data.category not in inst_categories:
                     continue
 
                 # Filter by region match if no GPS data
@@ -150,7 +150,8 @@ async def create_job_post(
                 if notified >= 50:  # Cap at 50 notifications
                     break
         except Exception:
-            pass  # Notification failure should not block job creation
+            import logging
+            logging.getLogger(__name__).exception("Failed to send urgent substitute notifications")
 
     # Auto-dispatch: trigger dispatch engine for urgent jobs
     if getattr(data, "is_urgent", False):

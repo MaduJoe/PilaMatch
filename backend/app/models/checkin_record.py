@@ -1,5 +1,5 @@
 """Check-in record model -- GPS check-in verification at studio location."""
-from sqlalchemy import Column, Boolean, DateTime, ForeignKey, Numeric
+from sqlalchemy import Column, Boolean, DateTime, ForeignKey, Integer, Numeric
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -52,6 +52,7 @@ class CheckinRecord(Base, UUIDMixin):
     distance_meters = Column(Numeric(8, 1), nullable=False)  # calculated distance
     is_valid = Column(Boolean, nullable=False)  # within 200m
     checked_in_at = Column(DateTime, nullable=False)
+    retry_count = Column(Integer, nullable=False, default=0, server_default="0")
 
     # Relationships
     job_post = relationship("JobPost")

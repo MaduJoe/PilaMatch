@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Radio,
   CheckCircle2,
-  Clock,
-  Users,
   MapPin,
+  Eye,
+  Send,
 } from 'lucide-react';
 
 import { api } from '@/lib/api-client';
@@ -14,7 +14,6 @@ import type {
   DispatchStatusResponse,
   DispatchRecordResponse,
 } from '@/lib/api-types';
-import { Badge } from '@/components/ui/badge';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,96 +24,101 @@ interface DispatchStatusWidgetProps {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants — wave → radius mapping (internal only, never shown as "Wave")
 // ---------------------------------------------------------------------------
 
-const WAVE_CONFIG: { wave: number; radiusKm: number }[] = [
-  { wave: 1, radiusKm: 5 },
-  { wave: 2, radiusKm: 10 },
-  { wave: 3, radiusKm: 15 },
-];
+const WAVE_RADIUS_KM: Record<number, number> = { 1: 5, 2: 10, 3: 15 };
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function countByStatus(records: DispatchRecordResponse[]) {
-  let pending = 0;
-  let accepted = 0;
-  let declined = 0;
-  let timeout = 0;
+  let notified = 0;   // total dispatched (sent)
+  let checking = 0;   // dispatched, not yet responded
+  let responded = 0;  // accepted + declined + timeout
 
   for (const r of records) {
-    switch (r.status) {
-      case 'dispatched':
-        pending++;
-        break;
-      case 'accepted':
-        accepted++;
-        break;
-      case 'declined':
-        declined++;
-        break;
-      case 'timeout':
-        timeout++;
-        break;
+    notified++;
+    if (r.status === 'dispatched') {
+      checking++;
+    } else {
+      responded++;
     }
   }
 
-  return { pending, accepted, declined, timeout };
+  return { notified, checking, responded };
 }
 
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function WaveProgressBar({ currentWave }: { currentWave: number }) {
+/** Radius expansion bar — shows 5km → 10km → 15km instead of "Wave 1/2/3" */
+function RadiusProgressBar({ currentWave }: { currentWave: number }) {
+  const steps = [
+    { wave: 1, label: '5km' },
+    { wave: 2, label: '10km' },
+    { wave: 3, label: '15km' },
+  ];
+
   return (
-    <div className="flex gap-1.5" role="progressbar" aria-label={`Wave ${currentWave} 진행 중`}>
-      {WAVE_CONFIG.map(({ wave }) => {
-        const isCurrent = wave === currentWave;
-        const isPast = wave < currentWave;
+    <div className="space-y-1">
+      <div className="flex gap-1.5" role="progressbar" aria-label="탐색 반경 확장 중">
+        {steps.map(({ wave }) => {
+          const isCurrent = wave === currentWave;
+          const isPast = wave < currentWave;
 
-        let segmentClass =
-          'h-1.5 flex-1 rounded-full transition-colors duration-300';
+          let segmentClass =
+            'h-1.5 flex-1 rounded-full transition-colors duration-300';
 
-        if (isCurrent) {
-          segmentClass += ' bg-urgent animate-pulse-soft';
-        } else if (isPast) {
-          segmentClass += ' bg-muted-foreground/30';
-        } else {
-          segmentClass += ' border border-border bg-transparent';
-        }
+          if (isCurrent) {
+            segmentClass += ' bg-urgent animate-pulse-soft';
+          } else if (isPast) {
+            segmentClass += ' bg-urgent/40';
+          } else {
+            segmentClass += ' border border-border bg-transparent';
+          }
 
-        return <div key={wave} className={segmentClass} />;
-      })}
+          return <div key={wave} className={segmentClass} />;
+        })}
+      </div>
+      <div className="flex justify-between">
+        {steps.map(({ wave, label }) => (
+          <span
+            key={wave}
+            className={`text-[10px] ${
+              wave <= currentWave
+                ? 'text-foreground font-medium'
+                : 'text-muted-foreground/60'
+            }`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
-function StatusCounts({ records }: { records: DispatchRecordResponse[] }) {
-  const { pending, accepted, declined, timeout } = countByStatus(records);
-
-  const items: { label: string; count: number; color: string }[] = [];
-
-  if (pending > 0) items.push({ label: '대기', count: pending, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' });
-  if (accepted > 0) items.push({ label: '수락', count: accepted, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' });
-  if (declined > 0) items.push({ label: '거절', count: declined, color: 'bg-muted text-muted-foreground' });
-  if (timeout > 0) items.push({ label: '타임아웃', count: timeout, color: 'bg-muted text-muted-foreground' });
-
-  if (items.length === 0) return null;
+/** Summary line: "N명 확인 중 · N명 응답" */
+function ResponseSummary({ records }: { records: DispatchRecordResponse[] }) {
+  const { checking, responded } = countByStatus(records);
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {items.map(({ label, count, color }) => (
-        <Badge
-          key={label}
-          variant="outline"
-          className={`border-transparent text-[11px] font-medium ${color}`}
-        >
-          {label} {count}
-        </Badge>
-      ))}
+    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      {checking > 0 && (
+        <span className="flex items-center gap-1">
+          <Eye className="size-3" aria-hidden="true" />
+          {checking}명 확인 중
+        </span>
+      )}
+      {responded > 0 && (
+        <span className="flex items-center gap-1">
+          <CheckCircle2 className="size-3" aria-hidden="true" />
+          {responded}명 응답
+        </span>
+      )}
     </div>
   );
 }
@@ -132,10 +136,7 @@ function DispatchSkeleton() {
         <div className="h-1.5 flex-1 rounded-full bg-muted" />
       </div>
       <div className="h-4 w-3/4 rounded bg-muted" />
-      <div className="flex gap-1.5">
-        <div className="h-5 w-12 rounded-full bg-muted" />
-        <div className="h-5 w-12 rounded-full bg-muted" />
-      </div>
+      <div className="h-3 w-1/2 rounded bg-muted" />
     </div>
   );
 }
@@ -169,35 +170,29 @@ function MatchedView({ records }: { records: DispatchRecordResponse[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Dispatching state
+// Dispatching state — studio-owner-friendly view
 // ---------------------------------------------------------------------------
 
 function DispatchingView({ data }: { data: DispatchStatusResponse }) {
   const { current_wave, records } = data;
-  const waveConfig = WAVE_CONFIG.find((w) => w.wave === current_wave);
-  const radiusKm = waveConfig?.radiusKm ?? current_wave * 5;
-  const waveRecords = records.filter((r) => r.wave_number === current_wave);
-  const waveCount = waveRecords.length;
+  const radiusKm = WAVE_RADIUS_KM[current_wave] ?? current_wave * 5;
+  const totalNotified = records.length;
 
   return (
     <div className="mt-3 rounded-lg border border-urgent/30 bg-urgent/5 p-3 space-y-2.5 animate-fade-in">
-      <WaveProgressBar currentWave={current_wave} />
+      <RadiusProgressBar currentWave={current_wave} />
 
       <div className="flex items-center gap-2">
         <Radio className="size-4 text-urgent animate-pulse-soft shrink-0" aria-hidden="true" />
         <p className="text-sm text-foreground">
-          <span className="font-semibold">Wave {current_wave}</span>
-          <span className="text-muted-foreground">
-            {' '}&mdash; {radiusKm}km 반경{' '}
-          </span>
-          <span className="font-medium">
-            {waveCount}명
-          </span>
-          <span className="text-muted-foreground">에게 요청 중</span>
+          <span className="font-medium">{radiusKm}km 반경</span>
+          <span className="text-muted-foreground"> 강사 </span>
+          <span className="font-semibold">{totalNotified}명</span>
+          <span className="text-muted-foreground">에게 알림을 보냈어요</span>
         </p>
       </div>
 
-      <StatusCounts records={records} />
+      <ResponseSummary records={records} />
     </div>
   );
 }
@@ -213,20 +208,13 @@ export function DispatchStatusWidget({ jobPostId }: DispatchStatusWidgetProps) {
     refetchInterval: 15000,
   });
 
-  // Error state: fail silently — don't crash the parent card
   if (isError) return null;
-
-  // Loading state
   if (isLoading) return <DispatchSkeleton />;
-
-  // No dispatch data (manual mode or not started)
   if (!data || data.dispatch_mode === 'manual') return null;
 
-  // Matched state
   if (data.matched) {
     return <MatchedView records={data.records} />;
   }
 
-  // Dispatching in progress
   return <DispatchingView data={data} />;
 }

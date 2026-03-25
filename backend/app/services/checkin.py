@@ -79,7 +79,7 @@ class CheckinService:
         if not application:
             raise ValueError("NO_ACCEPTED_APPLICATION")
 
-        # Check for duplicate check-in
+        # Check for existing check-in
         existing = await self.db.execute(
             select(CheckinRecord).where(
                 and_(
@@ -88,7 +88,8 @@ class CheckinService:
                 )
             )
         )
-        if existing.scalar_one_or_none():
+        existing_record = existing.scalar_one_or_none()
+        if existing_record and existing_record.is_valid:
             raise ValueError("ALREADY_CHECKED_IN")
 
         # Calculate distance in meters (haversine returns km)
@@ -99,20 +100,30 @@ class CheckinService:
         distance_meters = distance_km * 1000
         is_valid = distance_meters <= VALID_CHECKIN_DISTANCE_M
 
-        # Create record
-        record = CheckinRecord(
-            job_post_id=job_post_id,
-            application_id=str(application.id),
-            instructor_user_id=user_id,
-            studio_latitude=job_post.latitude,
-            studio_longitude=job_post.longitude,
-            checkin_latitude=Decimal(str(latitude)),
-            checkin_longitude=Decimal(str(longitude)),
-            distance_meters=Decimal(str(round(distance_meters, 1))),
-            is_valid=is_valid,
-            checked_in_at=datetime.utcnow(),
-        )
-        self.db.add(record)
+        if existing_record:
+            # Retry: update existing invalid record with new coordinates
+            existing_record.checkin_latitude = Decimal(str(latitude))
+            existing_record.checkin_longitude = Decimal(str(longitude))
+            existing_record.distance_meters = Decimal(str(round(distance_meters, 1)))
+            existing_record.is_valid = is_valid
+            existing_record.checked_in_at = datetime.utcnow()
+            existing_record.retry_count = (existing_record.retry_count or 0) + 1
+            record = existing_record
+        else:
+            # First check-in: create new record
+            record = CheckinRecord(
+                job_post_id=job_post_id,
+                application_id=str(application.id),
+                instructor_user_id=user_id,
+                studio_latitude=job_post.latitude,
+                studio_longitude=job_post.longitude,
+                checkin_latitude=Decimal(str(latitude)),
+                checkin_longitude=Decimal(str(longitude)),
+                distance_meters=Decimal(str(round(distance_meters, 1))),
+                is_valid=is_valid,
+                checked_in_at=datetime.utcnow(),
+            )
+            self.db.add(record)
 
         # Update instructor stats
         instructor.total_checkins = (instructor.total_checkins or 0) + 1

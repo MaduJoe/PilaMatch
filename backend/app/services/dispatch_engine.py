@@ -242,13 +242,10 @@ class DispatchEngine:
             if distance > radius_km:
                 continue
 
-            # Category filter: instructor must support the job's category
+            # Category filter: empty categories = accepts all
             if job_post.category and avail.categories:
                 if job_post.category not in avail.categories:
                     continue
-            elif job_post.category and not avail.categories:
-                # Instructor has no categories listed -- skip
-                continue
 
             # Fetch instructor profile and user for reliability scoring
             profile_result = await self.db.execute(
@@ -535,6 +532,7 @@ class DispatchEngine:
             job_post.status = JobPostStatus.FILLED.value
             job_post.matched_instructor_id = record.instructor_id
             job_post.auto_accepted_at = now
+            job_post.application_count = (job_post.application_count or 0) + 1
 
         # 5. Get contact info for both parties
         instructor_result = await self.db.execute(
