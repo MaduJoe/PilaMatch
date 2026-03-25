@@ -5,7 +5,7 @@ import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ChevronLeft, Lock, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, FileText, Lock, Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api-client';
 import { jobPostSchema } from '@/lib/validators';
 import type { JobPostCreate } from '@/lib/api-types';
@@ -91,9 +91,10 @@ const STEP_FIELDS: Record<number, string[]> = {
   ],
 };
 
-// Urgent mode: skip handoff (step 3) → 3 steps total
+// Urgent mode: skip handoff (step 3) unless user opts in
 const FULL_STEPS: number[] = [1, 2, 3, 4];
-const URGENT_STEPS: number[] = [1, 2, 4]; // skip step 3 (handoff)
+const URGENT_STEPS: number[] = [1, 2, 4];
+const URGENT_STEPS_WITH_HANDOFF: number[] = [1, 2, 3, 4];
 
 const STEP_LABELS: Record<number, string> = {
   1: '기본 설정',
@@ -222,6 +223,7 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
 
   // ---- Template apply ----
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [urgentHandoff, setUrgentHandoff] = useState(false);
 
   const applyPreset = useCallback(
     (presetId: string) => {
@@ -235,12 +237,15 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
       setRateMax(preset.values.hourly_rate);
       if (preset.values.is_urgent) {
         updateScheduleRow(0, 'date', today);
+        setUrgentHandoff(false);
         // Fill handoff defaults so Zod validation passes (step 3 is skipped)
         setValue('handoff_class_topic', '긴급 대타');
         setValue('handoff_class_sequence_info', '인수인계 생략 (긴급)');
         setValue('handoff_atmosphere_preference', '유연하게');
         setValue('handoff_member_notes', '없음');
         setValue('handoff_equipment_notes', '기본 세팅');
+      } else {
+        setUrgentHandoff(false);
       }
     },
     [setValue, today, updateScheduleRow],
@@ -256,14 +261,17 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
         setRateMin(0);
         setRateMax(0);
         setActivePreset(null);
+        setUrgentHandoff(false);
         setSchedules([{ date: today, start_time: '', end_time: '' }]);
       }
     },
     [reset, today],
   );
 
-  // ---- Step navigation (urgent skips handoff step 3) ----
-  const activeSteps = isUrgent ? URGENT_STEPS : FULL_STEPS;
+  // ---- Step navigation (urgent skips handoff step 3 unless opted in) ----
+  const activeSteps = isUrgent
+    ? (urgentHandoff ? URGENT_STEPS_WITH_HANDOFF : URGENT_STEPS)
+    : FULL_STEPS;
   const totalSteps = activeSteps.length;
   const stepIndex = activeSteps.indexOf(step as number);
   const stepProgress = stepIndex + 1;
@@ -274,20 +282,24 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
       const valid = await trigger(fields as any); // eslint-disable-line @typescript-eslint/no-explicit-any
       if (!valid) return;
     }
-    const steps = isUrgent ? URGENT_STEPS : FULL_STEPS;
+    const steps = isUrgent
+      ? (urgentHandoff ? URGENT_STEPS_WITH_HANDOFF : URGENT_STEPS)
+      : FULL_STEPS;
     const currentIdx = steps.indexOf(step as number);
     if (currentIdx < steps.length - 1) {
       setStep(steps[currentIdx + 1]);
     }
-  }, [step, trigger, isUrgent]);
+  }, [step, trigger, isUrgent, urgentHandoff]);
 
   const goBack = useCallback(() => {
-    const steps = isUrgent ? URGENT_STEPS : FULL_STEPS;
+    const steps = isUrgent
+      ? (urgentHandoff ? URGENT_STEPS_WITH_HANDOFF : URGENT_STEPS)
+      : FULL_STEPS;
     const currentIdx = steps.indexOf(step as number);
     if (currentIdx > 0) {
       setStep(steps[currentIdx - 1]);
     }
-  }, [step, isUrgent]);
+  }, [step, isUrgent, urgentHandoff]);
 
   // ---- Submit ----
   const createJob = useMutation({
@@ -879,7 +891,29 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
 
           {/* 상세·인수인계 */}
           <div className="rounded-xl border border-border/60 bg-muted/10 p-3">
-            <p className="mb-2 text-xs font-semibold text-muted-foreground">상세 및 인수인계</p>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">상세 및 인수인계</p>
+              {isUrgent && !urgentHandoff && (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
+                  onClick={() => {
+                    setUrgentHandoff(true);
+                    // Clear defaults so user fills real data
+                    setValue('handoff_class_topic', '');
+                    setValue('handoff_class_sequence_info', '');
+                    setValue('handoff_atmosphere_preference', '');
+                    setValue('handoff_member_notes', '');
+                    setValue('handoff_equipment_notes', '');
+                    // Navigate to step 3
+                    setStep(3);
+                  }}
+                >
+                  <FileText className="size-3" />
+                  인수인계 작성하기
+                </button>
+              )}
+            </div>
             <div className="space-y-1.5 text-sm">
               {description && (
                 <div className="grid grid-cols-[4rem_1fr] gap-x-2">
