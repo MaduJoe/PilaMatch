@@ -79,10 +79,11 @@ export function DispatchAcceptDialog({
 }: DispatchAcceptDialogProps) {
   const queryClient = useQueryClient();
 
-  // Phase: 'detail' (before accept) or 'contact' (after accept)
-  const [phase, setPhase] = useState<'detail' | 'contact'>('detail');
+  // Phase: 'detail' (before accept), 'pending' (accepted, window open), 'contact' (finalized)
+  const [phase, setPhase] = useState<'detail' | 'pending' | 'contact'>('detail');
   const [contactData, setContactData] =
     useState<DispatchContactRevealResponse | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   // Reset phase when dialog opens/closes or dispatch changes
   const handleOpenChange = (isOpen: boolean) => {
@@ -116,15 +117,23 @@ export function DispatchAcceptDialog({
   // ---- Mutations ----
   const acceptMutation = useMutation({
     mutationFn: (dispatchId: string) => api.dispatch.accept(dispatchId),
-    onSuccess: (data) => {
-      setContactData(data);
-      setPhase('contact');
+    onSuccess: (data: Record<string, unknown>) => {
+      if (data.status === 'accepted_pending') {
+        // Time-window model: accepted but not yet confirmed
+        setRemainingSeconds((data.remaining_seconds as number) || 0);
+        setPhase('pending');
+        toast.success('수락이 접수되었습니다! 선정 결과를 기다려주세요.');
+      } else {
+        // Fallback for any legacy response
+        setContactData(data as unknown as DispatchContactRevealResponse);
+        setPhase('contact');
+      }
       void queryClient.invalidateQueries({ queryKey: ['dispatch-pending'] });
       onAccepted();
     },
     onError: (error: Error) => {
       if (error instanceof APIError && error.code === 'ALREADY_MATCHED') {
-        toast.error('다른 강사가 먼저 수락했습니다');
+        toast.error('이미 다른 강사가 배정되었습니다');
         handleOpenChange(false);
       } else if (error instanceof APIError) {
         toast.error(`오류: ${error.message}`);
@@ -173,7 +182,54 @@ export function DispatchAcceptDialog({
   }
 
   // ======================================================================
-  // Phase 3: Contact + Handoff Reveal
+  // Phase 2: Accepted — waiting for window to close
+  // ======================================================================
+  if (phase === 'pending') {
+    return (
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>수락 접수 완료</DialogTitle>
+            <DialogDescription>
+              윈도우가 종료되면 최적의 강사가 자동 선정됩니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-center space-y-2">
+              <CheckCircle2 className="mx-auto size-8 text-primary" />
+              <p className="text-sm font-semibold text-foreground">
+                수락이 접수되었습니다!
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {remainingSeconds > 0
+                  ? `약 ${Math.ceil(remainingSeconds / 60)}분 후 결과가 발표됩니다`
+                  : '곧 결과가 발표됩니다'}
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+              <p>Reliability Score가 가장 높은 강사가 선정됩니다.</p>
+              <p>선정되면 알림으로 연락처가 공개됩니다.</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="min-h-[44px] w-full"
+              onClick={() => handleOpenChange(false)}
+            >
+              확인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // ======================================================================
+  // Phase 3: Contact + Handoff Reveal (after window finalization)
   // ======================================================================
   if (phase === 'contact' && contactData) {
     return (

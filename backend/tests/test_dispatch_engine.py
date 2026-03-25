@@ -412,20 +412,19 @@ class TestDispatchWave:
 
 
 # ===========================================================================
-# 4. Accept Dispatch (FCFS + Race Condition)
+# 4. Accept Dispatch (Time-Window Model)
 # ===========================================================================
 
 class TestAcceptDispatch:
-    """Tests for DispatchEngine.accept_dispatch -- FCFS acceptance with guards."""
+    """Tests for DispatchEngine.accept_dispatch -- time-window acceptance."""
 
     @pytest.mark.asyncio
-    async def test_accept_dispatch_first_come_first_served(self) -> None:
-        """First instructor to accept wins; record status changes to ACCEPTED."""
+    async def test_accept_dispatch_records_intent(self) -> None:
+        """Accept marks record as accepted (intent) and returns pending status."""
         user_id = str(uuid.uuid4())
         record = _make_dispatch_record(user_id=user_id, status=DispatchStatus.DISPATCHED.value)
         job_post = _make_job_post(job_post_id=record.job_post_id)
         instructor_profile = _make_instructor_profile(user_id=user_id)
-        instructor_user = _make_user(user_id=user_id)
         studio_profile = MagicMock()
         studio_profile.user_id = str(uuid.uuid4())
         studio_profile.phone = "02-111-2222"
@@ -440,29 +439,16 @@ class TestAcceptDispatch:
             call_count += 1
             result = MagicMock()
             if call_count == 1:
-                # select DispatchRecord by id
                 result.scalar_one_or_none.return_value = record
             elif call_count == 2:
-                # select DispatchRecord (accepted check) -- none accepted yet
-                result.scalar_one_or_none.return_value = None
-            elif call_count == 3:
-                # update other dispatch records (cancel)
-                pass
-            elif call_count == 4:
-                # select JobPost
                 result.scalar_one_or_none.return_value = job_post
-            elif call_count == 5:
-                # select InstructorProfile
+            elif call_count == 3:
                 result.scalar_one_or_none.return_value = instructor_profile
-            elif call_count == 6:
-                # select User (instructor)
-                result.scalar_one_or_none.return_value = instructor_user
-            elif call_count == 7:
-                # select StudioProfile
+            elif call_count == 4:
                 result.scalar_one_or_none.return_value = studio_profile
-            elif call_count == 8:
-                # select User (studio)
-                result.scalar_one_or_none.return_value = _make_user()
+            elif call_count == 5:
+                # accepted count query
+                result.scalars.return_value.all.return_value = [record]
             return result
 
         db.execute = AsyncMock(side_effect=mock_execute)
@@ -476,22 +462,20 @@ class TestAcceptDispatch:
             mock_notif_cls.return_value = AsyncMock()
             mock_event_cls.return_value = AsyncMock()
 
-            contact = await engine.accept_dispatch(str(record.id), user_id)
+            response = await engine.accept_dispatch(str(record.id), user_id)
 
         assert record.status == DispatchStatus.ACCEPTED.value
         assert record.responded_at is not None
-        assert contact["instructor_phone"] == "010-1234-5678"
-        assert contact["studio_phone"] == "02-111-2222"
+        assert response["status"] == "accepted_pending"
+        assert "remaining_seconds" in response
 
     @pytest.mark.asyncio
-    async def test_accept_dispatch_race_condition_raises(self) -> None:
-        """If someone already accepted, second accept raises ALREADY_MATCHED."""
+    async def test_accept_dispatch_already_filled_raises(self) -> None:
+        """If job is already FILLED, accept raises ALREADY_MATCHED."""
         user_id = str(uuid.uuid4())
         record = _make_dispatch_record(user_id=user_id, status=DispatchStatus.DISPATCHED.value)
-        already_accepted_record = _make_dispatch_record(
-            job_post_id=record.job_post_id,
-            status=DispatchStatus.ACCEPTED.value,
-        )
+        job_post = _make_job_post(job_post_id=record.job_post_id)
+        job_post.status = "filled"
 
         db = AsyncMock()
         call_count = 0
@@ -501,11 +485,9 @@ class TestAcceptDispatch:
             call_count += 1
             result = MagicMock()
             if call_count == 1:
-                # select this record
                 result.scalar_one_or_none.return_value = record
             elif call_count == 2:
-                # select accepted record -- found one!
-                result.scalar_one_or_none.return_value = already_accepted_record
+                result.scalar_one_or_none.return_value = job_post
             return result
 
         db.execute = AsyncMock(side_effect=mock_execute)
@@ -737,11 +719,10 @@ class TestCheckDispatchTimeouts:
                     scalars.all.return_value = []
                 result.scalars.return_value = scalars
             elif call_count == 4:
-                # affected jobs query
-                result.all.return_value = [(old_record.job_post_id,)]
-            elif call_count == 5:
-                # select JobPost.dispatch_wave
-                result.scalar_one_or_none.return_value = 1
+                # select JobPost (check if filled)
+                jp = MagicMock()
+                jp.status = "open"
+                result.scalar_one_or_none.return_value = jp
             else:
                 result.scalars.return_value = MagicMock(first=MagicMock(return_value=None))
             return result
@@ -751,7 +732,8 @@ class TestCheckDispatchTimeouts:
 
         engine = DispatchEngine(db)
 
-        with patch.object(engine, "_maybe_advance_wave", new_callable=AsyncMock):
+        with patch.object(engine, "_maybe_advance_wave", new_callable=AsyncMock), \
+             patch.object(engine, "finalize_dispatch_window", new_callable=AsyncMock, return_value=None):
             count = await engine.check_dispatch_timeouts()
 
         assert count == 1
@@ -792,12 +774,12 @@ class TestWaveConfig:
         assert len(WAVE_CONFIG) == 3
 
     def test_wave_1_config(self) -> None:
-        """Wave 1 should have 5km radius, 5 max candidates, 180s timeout."""
+        """Wave 1 should have 5km radius, 5 max candidates, 120s window."""
         wave1 = WAVE_CONFIG[0]
         assert wave1["wave"] == 1
         assert wave1["radius_km"] == 5
         assert wave1["max_candidates"] == 5
-        assert wave1["timeout_seconds"] == 180
+        assert wave1["timeout_seconds"] == 120
 
     def test_wave_radii_expand(self) -> None:
         """Each wave should have a larger radius than the previous."""

@@ -1,13 +1,20 @@
-"""Auto Dispatch Engine -- cascading dispatch with reliability-based selection.
+"""Auto Dispatch Engine -- cascading dispatch with time-window selection.
 
 Implements the core 119-style emergency dispatch system. When a studio posts
 an urgent job with auto_dispatch enabled, the engine sends push notifications
-in expanding geographic waves. The first instructor to accept wins (FCFS).
+in expanding geographic waves.
+
+**Time-window model** (not FCFS):
+  1. All candidates in a wave receive push notifications simultaneously
+  2. Instructors can accept within the wave timeout (window)
+  3. When the window closes, the system picks the best candidate by
+     Reliability Score among those who accepted
+  4. If nobody accepted, the next wave starts
 
 Wave cascade:
-  Wave 1: 5km radius, top 5 candidates, 3-min timeout
-  Wave 2: 10km radius, top 10 candidates, 3-min timeout
-  Wave 3: 15km radius, top 15 candidates, 3-min timeout
+  Wave 1: 5km radius, top 5 candidates, 2-min window
+  Wave 2: 10km radius, top 10 candidates, 2-min window
+  Wave 3: 15km radius, top 15 candidates, 2-min window
 
 If all waves exhaust without acceptance, the job falls back to manual mode.
 
@@ -50,9 +57,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 WAVE_CONFIG = [
-    {"wave": 1, "radius_km": 5, "max_candidates": 5, "timeout_seconds": 180},
-    {"wave": 2, "radius_km": 10, "max_candidates": 10, "timeout_seconds": 180},
-    {"wave": 3, "radius_km": 15, "max_candidates": 15, "timeout_seconds": 180},
+    {"wave": 1, "radius_km": 5, "max_candidates": 5, "timeout_seconds": 120},
+    {"wave": 2, "radius_km": 10, "max_candidates": 10, "timeout_seconds": 120},
+    {"wave": 3, "radius_km": 15, "max_candidates": 15, "timeout_seconds": 120},
 ]
 
 # Tier name -> reliability weight (out of 100)
@@ -434,29 +441,23 @@ class DispatchEngine:
         dispatch_record_id: str,
         user_id: str,
     ) -> dict:
-        """Accept a dispatch -- first-come-first-served with race condition guard.
+        """Accept a dispatch -- time-window model (not FCFS).
 
-        Atomically:
-        1. Validates ownership and status
-        2. Checks no other record for this job is already accepted
-        3. Marks this record accepted, cancels all others
-        4. Creates an Application (ACCEPTED, contact revealed)
-        5. Updates job post to FILLED
-        6. Sends studio notification
-        7. Logs event
+        Marks the record as accepted (intent). The actual confirmation
+        happens when the wave window closes via finalize_dispatch_window(),
+        which picks the best candidate by Reliability Score.
 
         Args:
             dispatch_record_id: The dispatch record to accept.
             user_id: The authenticated user's ID (must match record owner).
 
         Returns:
-            ContactRevealResponse-style dict with contact info for both parties.
+            Dict with acceptance status and wave window info.
 
         Raises:
-            ValueError: If record not found, already responded, or race condition.
+            ValueError: If record not found, already responded, or job already filled.
             PermissionError: If user doesn't own the record.
         """
-        # Load dispatch record
         result = await self.db.execute(
             select(DispatchRecord).where(DispatchRecord.id == dispatch_record_id)
         )
@@ -464,27 +465,18 @@ class DispatchEngine:
         if not record:
             raise ValueError("DISPATCH_RECORD_NOT_FOUND")
 
-        # Validate ownership
         if str(record.user_id) != str(user_id):
             raise PermissionError("NOT_YOUR_DISPATCH")
 
-        # Validate status
         if record.status != DispatchStatus.DISPATCHED.value:
             raise ValueError("ALREADY_RESPONDED")
 
-        # Race condition guard: check if another record for this job is already accepted
-        accepted_result = await self.db.execute(
-            select(DispatchRecord).where(
-                and_(
-                    DispatchRecord.job_post_id == record.job_post_id,
-                    DispatchRecord.status == DispatchStatus.ACCEPTED.value,
-                )
-            )
+        # Check if job is already finalized (filled by a previous window)
+        job_result = await self.db.execute(
+            select(JobPost).where(JobPost.id == record.job_post_id)
         )
-        already_accepted = accepted_result.scalar_one_or_none()
-
-        if already_accepted:
-            # Another instructor beat us -- cancel this record
+        job_post = job_result.scalar_one_or_none()
+        if job_post and job_post.status == JobPostStatus.FILLED.value:
             record.status = DispatchStatus.CANCELLED.value
             record.responded_at = datetime.utcnow()
             await self.db.flush()
@@ -492,113 +484,63 @@ class DispatchEngine:
 
         now = datetime.utcnow()
 
-        # --- Begin atomic acceptance ---
-
-        # 1. Accept this record
+        # Mark as accepted (intent only — window still open)
         record.status = DispatchStatus.ACCEPTED.value
         record.responded_at = now
 
-        # 2. Cancel all other dispatch records for this job
-        await self.db.execute(
-            update(DispatchRecord)
-            .where(
-                and_(
-                    DispatchRecord.job_post_id == record.job_post_id,
-                    DispatchRecord.id != record.id,
-                    DispatchRecord.status == DispatchStatus.DISPATCHED.value,
-                )
-            )
-            .values(status=DispatchStatus.CANCELLED.value)
-        )
-
-        # 3. Create Application (pre-accepted, contact revealed)
-        application = Application(
-            job_post_id=record.job_post_id,
-            instructor_id=record.instructor_id,
-            status=ApplicationStatus.ACCEPTED.value,
-            contact_revealed=True,
-            contact_revealed_at=now,
-            dispatch_record_id=record.id,
-            cover_letter="[Auto-dispatch acceptance]",
-        )
-        self.db.add(application)
-
-        # 4. Update job post
-        job_result = await self.db.execute(
-            select(JobPost).where(JobPost.id == record.job_post_id)
-        )
-        job_post = job_result.scalar_one_or_none()
-        if job_post:
-            job_post.status = JobPostStatus.FILLED.value
-            job_post.matched_instructor_id = record.instructor_id
-            job_post.auto_accepted_at = now
-            job_post.application_count = (job_post.application_count or 0) + 1
-
-        # 5. Get contact info for both parties
+        # Update instructor dispatch stats
         instructor_result = await self.db.execute(
             select(InstructorProfile).where(
                 InstructorProfile.id == record.instructor_id
             )
         )
         instructor_profile = instructor_result.scalar_one_or_none()
-
-        instructor_user_result = await self.db.execute(
-            select(User).where(User.id == record.user_id)
-        )
-        instructor_user = instructor_user_result.scalar_one_or_none()
-
-        # Get studio info via job post
-        studio_profile = None
-        studio_user = None
-        if job_post:
-            studio_result = await self.db.execute(
-                select(StudioProfile).where(StudioProfile.id == job_post.studio_id)
-            )
-            studio_profile = studio_result.scalar_one_or_none()
-
-            if studio_profile:
-                studio_user_result = await self.db.execute(
-                    select(User).where(User.id == studio_profile.user_id)
-                )
-                studio_user = studio_user_result.scalar_one_or_none()
-
-        # Update instructor dispatch stats
         if instructor_profile:
-            instructor_profile.total_dispatch_accepts = (
-                (instructor_profile.total_dispatch_accepts or 0) + 1
-            )
-            total_dispatches = instructor_profile.total_dispatches or 1
+            accepts = int(instructor_profile.total_dispatch_accepts or 0) + 1
+            instructor_profile.total_dispatch_accepts = accepts
+            total_dispatches = int(instructor_profile.total_dispatches or 1)
             instructor_profile.dispatch_success_rate = Decimal(
-                str(round(instructor_profile.total_dispatch_accepts / total_dispatches, 3))
+                str(round(accepts / total_dispatches, 3))
             )
 
         await self.db.flush()
 
-        # 6. Notify studio
-        if studio_profile and studio_user:
-            try:
-                notification_service = NotificationService(self.db)
-                instructor_name = (
-                    instructor_profile.display_name if instructor_profile else "강사"
+        # Notify studio that a candidate accepted (informational)
+        try:
+            studio_result = await self.db.execute(
+                select(StudioProfile).where(StudioProfile.id == job_post.studio_id)
+            )
+            studio_profile = studio_result.scalar_one_or_none()
+            if studio_profile:
+                instructor_name = instructor_profile.display_name if instructor_profile else "강사"
+                accepted_count_result = await self.db.execute(
+                    select(DispatchRecord).where(
+                        and_(
+                            DispatchRecord.job_post_id == record.job_post_id,
+                            DispatchRecord.status == DispatchStatus.ACCEPTED.value,
+                        )
+                    )
                 )
+                accepted_count = len(accepted_count_result.scalars().all())
+                notification_service = NotificationService(self.db)
                 await notification_service.send(
                     user_id=str(studio_profile.user_id),
                     type=NotificationType.URGENT_SUBSTITUTE,
-                    title="대타 강사가 수락했습니다!",
-                    body=f"{instructor_name}님이 수락했습니다. 연락처를 확인하세요.",
+                    title=f"강사 {accepted_count}명 수락",
+                    body=f"{instructor_name}님이 수락했습니다. 윈도우 종료 후 최적 강사가 자동 배정됩니다.",
                     data={
-                        "type": "dispatch_accepted",
+                        "type": "dispatch_accepted_pending",
                         "job_post_id": str(record.job_post_id),
-                        "application_id": str(application.id),
+                        "accepted_count": str(accepted_count),
                     },
                 )
-            except Exception:
-                logger.exception(
-                    "Failed to send studio notification for dispatch accept: job=%s",
-                    record.job_post_id,
-                )
+        except Exception:
+            logger.exception(
+                "Failed to send studio notification for dispatch accept: job=%s",
+                record.job_post_id,
+            )
 
-        # 7. Log event
+        # Log event
         event_service = EventLogService(self.db)
         await event_service.log(
             event_type="dispatch.accepted",
@@ -611,25 +553,29 @@ class DispatchEngine:
                 "distance_km": float(record.distance_km) if record.distance_km else None,
                 "reliability_score": record.reliability_score,
             },
-            note=f"Instructor accepted dispatch in wave {record.wave_number}",
+            note=f"Instructor accepted dispatch in wave {record.wave_number} (window pending)",
         )
 
-        # Build response
-        contact_response = {
-            "application_id": str(application.id),
-            "instructor_phone": instructor_profile.phone if instructor_profile else None,
-            "instructor_name": instructor_profile.display_name if instructor_profile else None,
-            "studio_phone": studio_profile.phone if studio_profile else None,
-            "studio_name": studio_profile.business_name if studio_profile else None,
-            "studio_address": studio_profile.address if studio_profile else None,
-        }
+        # Calculate remaining window time
+        wave_cfg = next((c for c in WAVE_CONFIG if c["wave"] == record.wave_number), None)
+        window_seconds = wave_cfg["timeout_seconds"] if wave_cfg else 120
+        elapsed = (now - record.dispatched_at).total_seconds()
+        remaining_seconds = max(0, int(window_seconds - elapsed))
 
         logger.info(
-            "Dispatch accepted: record=%s user=%s job=%s wave=%d",
+            "Dispatch accepted (window): record=%s user=%s job=%s wave=%d remaining=%ds",
             dispatch_record_id, user_id, record.job_post_id, record.wave_number,
+            remaining_seconds,
         )
 
-        return contact_response
+        return {
+            "status": "accepted_pending",
+            "message": "수락이 접수되었습니다. 윈도우 종료 후 최적 강사가 선정됩니다.",
+            "dispatch_record_id": str(record.id),
+            "job_post_id": str(record.job_post_id),
+            "wave_number": record.wave_number,
+            "remaining_seconds": remaining_seconds,
+        }
 
     async def decline_dispatch(
         self,
@@ -759,25 +705,27 @@ class DispatchEngine:
     # ------------------------------------------------------------------
 
     async def check_dispatch_timeouts(self) -> int:
-        """Process timed-out dispatch records and advance waves.
+        """Process expired wave windows — finalize or advance.
 
-        Intended to be called periodically (e.g., every 30 seconds via
-        scheduler). Finds all dispatched records past their timeout window,
-        marks them as timed out, and triggers the next wave if needed.
+        Called periodically (every 30s). For each wave whose timeout has
+        elapsed:
+        1. Mark remaining 'dispatched' records as timed out
+        2. Call finalize_dispatch_window to pick the best accepted candidate
+        3. If nobody accepted, advance to next wave
 
         Returns:
             Count of records that timed out.
         """
         now = datetime.utcnow()
         timeout_count = 0
+        affected_waves: list[tuple[str, int]] = []  # (job_post_id, wave_number)
 
-        # Find all active dispatches and check per-wave timeouts
         for wave_cfg in WAVE_CONFIG:
             wave_num = wave_cfg["wave"]
             timeout_secs = wave_cfg["timeout_seconds"]
             cutoff = now - timedelta(seconds=timeout_secs)
 
-            # Find dispatched records past their timeout
+            # Find dispatched (non-responded) records past their window
             stmt = select(DispatchRecord).where(
                 and_(
                     DispatchRecord.status == DispatchStatus.DISPATCHED.value,
@@ -792,33 +740,29 @@ class DispatchEngine:
                 record.status = DispatchStatus.TIMEOUT.value
                 record.responded_at = now
                 timeout_count += 1
+                job_wave = (str(record.job_post_id), wave_num)
+                if job_wave not in affected_waves:
+                    affected_waves.append(job_wave)
 
         if timeout_count > 0:
             await self.db.flush()
 
-        # Collect affected job_post_ids to check wave advancement
-        affected_jobs_result = await self.db.execute(
-            select(DispatchRecord.job_post_id)
-            .where(
-                and_(
-                    DispatchRecord.status == DispatchStatus.TIMEOUT.value,
-                    DispatchRecord.responded_at == now,  # Only records we just timed out
-                )
+        # For each affected wave, try to finalize the window
+        for job_post_id, wave_number in affected_waves:
+            # Skip if job is already filled
+            job_result = await self.db.execute(
+                select(JobPost).where(JobPost.id == job_post_id)
             )
-            .distinct()
-        )
-        affected_job_ids = [str(row[0]) for row in affected_jobs_result.all()]
-
-        for job_post_id in affected_job_ids:
-            # Get current wave number for this job
-            wave_result = await self.db.execute(
-                select(JobPost.dispatch_wave).where(JobPost.id == job_post_id)
-            )
-            current_wave = wave_result.scalar_one_or_none()
-            if current_wave is None:
+            jp = job_result.scalar_one_or_none()
+            if jp and jp.status == JobPostStatus.FILLED.value:
                 continue
 
-            await self._maybe_advance_wave(job_post_id, current_wave)
+            # Try to finalize — picks best accepted candidate
+            contact = await self.finalize_dispatch_window(job_post_id, wave_number)
+
+            if contact is None:
+                # Nobody accepted in this wave — advance
+                await self._maybe_advance_wave(job_post_id, wave_number)
 
         if timeout_count > 0:
             logger.info("Dispatch timeouts processed: %d records", timeout_count)
@@ -828,6 +772,181 @@ class DispatchEngine:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    async def finalize_dispatch_window(
+        self,
+        job_post_id: str,
+        wave_number: int,
+    ) -> Optional[dict]:
+        """Finalize a wave's time window — pick the best accepted candidate.
+
+        Called when the wave timeout expires. Among all accepted records in
+        this wave, the one with the highest reliability_score is confirmed.
+        Others are cancelled. If nobody accepted, returns None (caller should
+        advance to next wave).
+
+        Returns:
+            Contact info dict if a winner was selected, None otherwise.
+        """
+        # Check if job is already filled (another wave finalized first)
+        job_result = await self.db.execute(
+            select(JobPost).where(JobPost.id == job_post_id)
+        )
+        job_post = job_result.scalar_one_or_none()
+        if not job_post or job_post.status == JobPostStatus.FILLED.value:
+            return None
+
+        # Find all accepted records in this wave, sorted by reliability score
+        accepted_result = await self.db.execute(
+            select(DispatchRecord).where(
+                and_(
+                    DispatchRecord.job_post_id == job_post_id,
+                    DispatchRecord.wave_number == wave_number,
+                    DispatchRecord.status == DispatchStatus.ACCEPTED.value,
+                )
+            ).order_by(DispatchRecord.reliability_score.desc())
+        )
+        accepted_records = accepted_result.scalars().all()
+
+        if not accepted_records:
+            logger.info(
+                "No accepted candidates in window: job=%s wave=%d",
+                job_post_id, wave_number,
+            )
+            return None
+
+        # Winner = highest reliability score
+        winner = accepted_records[0]
+        now = datetime.utcnow()
+
+        logger.info(
+            "Finalizing window: job=%s wave=%d winner=%s (score=%s) out of %d",
+            job_post_id, wave_number, winner.instructor_id,
+            winner.reliability_score, len(accepted_records),
+        )
+
+        # Cancel all other accepted records for this job (losers)
+        for record in accepted_records[1:]:
+            record.status = DispatchStatus.CANCELLED.value
+
+        # Cancel remaining dispatched (non-responded) records
+        await self.db.execute(
+            update(DispatchRecord)
+            .where(
+                and_(
+                    DispatchRecord.job_post_id == job_post_id,
+                    DispatchRecord.id != winner.id,
+                    DispatchRecord.status == DispatchStatus.DISPATCHED.value,
+                )
+            )
+            .values(status=DispatchStatus.CANCELLED.value)
+        )
+
+        # Create Application for the winner
+        application = Application(
+            job_post_id=winner.job_post_id,
+            instructor_id=winner.instructor_id,
+            status=ApplicationStatus.ACCEPTED.value,
+            contact_revealed=True,
+            contact_revealed_at=now,
+            dispatch_record_id=winner.id,
+            cover_letter="[Auto-dispatch window selection]",
+        )
+        self.db.add(application)
+
+        # Update job post to FILLED
+        job_post.status = JobPostStatus.FILLED.value
+        job_post.matched_instructor_id = winner.instructor_id
+        job_post.auto_accepted_at = now
+        job_post.application_count = (job_post.application_count or 0) + 1
+
+        await self.db.flush()
+
+        # Gather contact info
+        instructor_result = await self.db.execute(
+            select(InstructorProfile).where(InstructorProfile.id == winner.instructor_id)
+        )
+        instructor_profile = instructor_result.scalar_one_or_none()
+
+        studio_result = await self.db.execute(
+            select(StudioProfile).where(StudioProfile.id == job_post.studio_id)
+        )
+        studio_profile = studio_result.scalar_one_or_none()
+
+        # Notify winner
+        notification_service = NotificationService(self.db)
+        try:
+            await notification_service.send(
+                user_id=str(winner.user_id),
+                type=NotificationType.URGENT_SUBSTITUTE,
+                title="축하합니다! 대타로 선정되었습니다",
+                body=f"{job_post.title} - 연락처를 확인하세요.",
+                data={
+                    "type": "dispatch_confirmed",
+                    "job_post_id": str(job_post_id),
+                    "application_id": str(application.id),
+                },
+            )
+        except Exception:
+            logger.exception("Failed to notify winner: job=%s", job_post_id)
+
+        # Notify studio
+        if studio_profile:
+            try:
+                instructor_name = instructor_profile.display_name if instructor_profile else "강사"
+                await notification_service.send(
+                    user_id=str(studio_profile.user_id),
+                    type=NotificationType.URGENT_SUBSTITUTE,
+                    title="최적 강사가 배정되었습니다!",
+                    body=f"{instructor_name}님이 배정되었습니다. 연락처를 확인하세요.",
+                    data={
+                        "type": "dispatch_confirmed",
+                        "job_post_id": str(job_post_id),
+                        "application_id": str(application.id),
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to notify studio: job=%s", job_post_id)
+
+        # Notify losers
+        for record in accepted_records[1:]:
+            try:
+                await notification_service.send(
+                    user_id=str(record.user_id),
+                    type=NotificationType.URGENT_SUBSTITUTE,
+                    title="다른 강사가 선정되었습니다",
+                    body="이번 공고는 다른 강사에게 배정되었습니다. 다음 기회에 뵙겠습니다!",
+                    data={
+                        "type": "dispatch_not_selected",
+                        "job_post_id": str(job_post_id),
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to notify loser: record=%s", record.id)
+
+        # Log event
+        event_service = EventLogService(self.db)
+        await event_service.log(
+            event_type="dispatch.window_finalized",
+            target_type="job_post",
+            target_id=str(job_post_id),
+            data={
+                "winner_instructor_id": str(winner.instructor_id),
+                "winner_reliability_score": winner.reliability_score,
+                "total_accepted": len(accepted_records),
+                "wave_number": wave_number,
+            },
+            note=f"Window finalized: {len(accepted_records)} accepted, best score={winner.reliability_score}",
+        )
+
+        return {
+            "application_id": str(application.id),
+            "instructor_phone": instructor_profile.phone if instructor_profile else None,
+            "instructor_name": instructor_profile.display_name if instructor_profile else None,
+            "studio_phone": studio_profile.phone if studio_profile else None,
+            "studio_name": studio_profile.business_name if studio_profile else None,
+            "studio_address": studio_profile.address if studio_profile else None,
+        }
 
     async def _maybe_advance_wave(
         self,

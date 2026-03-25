@@ -75,22 +75,31 @@ def _record_to_response(record: DispatchRecord) -> DispatchRecordResponse:
 # --- Endpoints ---
 
 
-@router.post("/{dispatch_record_id}/accept", response_model=ContactRevealResponse)
+class AcceptPendingResponse(BaseModel):
+    status: str
+    message: str
+    dispatch_record_id: str
+    job_post_id: str
+    wave_number: int
+    remaining_seconds: int
+
+
+@router.post("/{dispatch_record_id}/accept", response_model=AcceptPendingResponse)
 async def accept_dispatch(
     dispatch_record_id: UUID,
     current_user: User = Depends(require_role(UserRole.INSTRUCTOR)),
     db: AsyncSession = Depends(get_db),
 ):
-    """Accept a dispatch -- first-come-first-served.
+    """Accept a dispatch — time-window model.
 
-    Marks the dispatch as accepted, cancels other pending dispatches for
-    this job, creates a pre-accepted Application with contact revealed,
-    and returns both parties' contact info.
+    Records the instructor's acceptance intent. The actual confirmation
+    happens when the wave window closes (via scheduler), which picks the
+    best candidate by Reliability Score.
     """
     engine = DispatchEngine(db)
 
     try:
-        contact = await engine.accept_dispatch(
+        result = await engine.accept_dispatch(
             dispatch_record_id=str(dispatch_record_id),
             user_id=str(current_user.id),
         )
@@ -109,7 +118,7 @@ async def accept_dispatch(
         if error_msg == "ALREADY_MATCHED":
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail={"code": "ALREADY_MATCHED", "message": "Another instructor has already been matched"},
+                detail={"code": "ALREADY_MATCHED", "message": "이미 다른 강사가 배정되었습니다"},
             )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -123,7 +132,7 @@ async def accept_dispatch(
 
     await db.commit()
 
-    return ContactRevealResponse(**contact)
+    return AcceptPendingResponse(**result)
 
 
 @router.post("/{dispatch_record_id}/decline")
@@ -231,8 +240,8 @@ async def get_dispatch_status(
     )
     records = records_result.scalars().all()
 
-    # Check if any record has been accepted
-    matched = any(r.status == DispatchStatus.ACCEPTED.value for r in records)
+    # matched = job is FILLED (window finalized), not just "someone accepted"
+    matched = job_post.status == "filled"
 
     return DispatchStatusResponse(
         job_post_id=str(job_post_id),

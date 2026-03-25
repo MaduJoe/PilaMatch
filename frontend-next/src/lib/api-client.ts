@@ -588,7 +588,7 @@ export const availability = {
 
 export const dispatch = {
   accept: (dispatchRecordId: string) =>
-    post<DispatchContactRevealResponse>(`/dispatch/${dispatchRecordId}/accept`),
+    post<Record<string, unknown>>(`/dispatch/${dispatchRecordId}/accept`),
 
   decline: (dispatchRecordId: string) =>
     post<{ status: string }>(`/dispatch/${dispatchRecordId}/decline`),

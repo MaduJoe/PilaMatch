@@ -36,18 +36,21 @@ const WAVE_RADIUS_KM: Record<number, number> = { 1: 5, 2: 10, 3: 15 };
 function countByStatus(records: DispatchRecordResponse[]) {
   let notified = 0;   // total dispatched (sent)
   let checking = 0;   // dispatched, not yet responded
-  let responded = 0;  // accepted + declined + timeout
+  let accepted = 0;   // accepted (intent, window still open)
+  let responded = 0;  // declined + timeout
 
   for (const r of records) {
     notified++;
     if (r.status === 'dispatched') {
       checking++;
+    } else if (r.status === 'accepted') {
+      accepted++;
     } else {
       responded++;
     }
   }
 
-  return { notified, checking, responded };
+  return { notified, checking, accepted, responded };
 }
 
 // ---------------------------------------------------------------------------
@@ -101,12 +104,18 @@ function RadiusProgressBar({ currentWave }: { currentWave: number }) {
   );
 }
 
-/** Summary line: "N명 확인 중 · N명 응답" */
+/** Summary line: "N명 수락 · N명 확인 중 · N명 응답" */
 function ResponseSummary({ records }: { records: DispatchRecordResponse[] }) {
-  const { checking, responded } = countByStatus(records);
+  const { checking, accepted, responded } = countByStatus(records);
 
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      {accepted > 0 && (
+        <span className="flex items-center gap-1 text-emerald-600 font-medium">
+          <CheckCircle2 className="size-3" aria-hidden="true" />
+          {accepted}명 수락
+        </span>
+      )}
       {checking > 0 && (
         <span className="flex items-center gap-1">
           <Eye className="size-3" aria-hidden="true" />
@@ -115,8 +124,7 @@ function ResponseSummary({ records }: { records: DispatchRecordResponse[] }) {
       )}
       {responded > 0 && (
         <span className="flex items-center gap-1">
-          <CheckCircle2 className="size-3" aria-hidden="true" />
-          {responded}명 응답
+          {responded}명 미응답
         </span>
       )}
     </div>
