@@ -11,6 +11,7 @@ import { Star, CheckCircle, Phone, MessageSquare, Pencil } from 'lucide-react';
 import { TierBadge } from '@/components/trust/tier-badge';
 import { StarRating } from '@/components/reviews/star-rating';
 import { WriteReviewDialog } from '@/components/reviews/write-review-dialog';
+import { JobProgressTracker } from '@/components/dispatch/job-progress-tracker';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -198,6 +199,11 @@ export function ApplicantCard({ application, onSendOffer }: ApplicantCardProps) 
               <CheckCircle className="size-4" aria-hidden="true" />
               수락 (연락처 공개)
             </Button>
+          )}
+
+          {/* Job progress tracker */}
+          {application.status === 'accepted' && application.contact_revealed && (
+            <JobProgressTracker jobPostId={application.job_post_id} role="studio" />
           )}
 
           {/* Review section - only for accepted applications */}

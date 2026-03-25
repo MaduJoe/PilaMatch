@@ -59,7 +59,46 @@ export function PushNotificationProvider({
       const { title, body } = payload.notification || {};
       if (!title) return;
 
-      const isUrgent = payload.data?.type === 'urgent_substitute';
+      const notificationType = payload.data?.type;
+
+      // --- Dispatch-specific notification types ---
+      if (notificationType === 'dispatch_incoming') {
+        toast(title, {
+          description: body,
+          duration: 10000,
+          action: {
+            label: '확인',
+            onClick: () => {
+              window.location.href = '/dashboard';
+            },
+          },
+        });
+        return;
+      }
+
+      if (notificationType === 'dispatch_accepted') {
+        toast.success(title, {
+          description: body,
+          duration: 8000,
+          action: {
+            label: '연락처 보기',
+            onClick: () => {
+              window.location.href = '/steps/offers';
+            },
+          },
+        });
+        return;
+      }
+
+      if (notificationType === 'checkin_completed') {
+        toast.success(body || title, {
+          duration: 5000,
+        });
+        return;
+      }
+
+      // --- Existing notification types ---
+      const isUrgent = notificationType === 'urgent_substitute';
 
       toast(title, {
         description: body,

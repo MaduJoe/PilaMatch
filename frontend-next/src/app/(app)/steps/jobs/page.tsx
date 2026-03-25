@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { JobList } from '@/components/jobs/job-list';
 import { JobCreationForm } from '@/components/jobs/job-creation-form';
 import { HandoffNoteForm } from '@/components/jobs/handoff-note-form';
+import { DispatchStatusWidget } from '@/components/dispatch/dispatch-status-widget';
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -198,6 +199,9 @@ function StudioJobCard({ job }: { job: JobPostResponse }) {
         <div className="mt-3">
           <HandoffNoteForm jobPostId={job.id} isUrgentSubstitute={job.is_urgent} />
         </div>
+
+        {/* Dispatch status for urgent jobs */}
+        {job.is_urgent && <DispatchStatusWidget jobPostId={job.id} />}
       </CardContent>
     </Card>
   );

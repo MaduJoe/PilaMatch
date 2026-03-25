@@ -1,14 +1,19 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth-store';
-import api from '@/lib/api-client';
+import api, { APIError } from '@/lib/api-client';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import { TierBadge } from '@/components/trust/tier-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useGeolocation } from '@/hooks/use-geolocation';
+import { DispatchAcceptDialog } from '@/components/dispatch/dispatch-accept-dialog';
+import { DispatchStatusWidget } from '@/components/dispatch/dispatch-status-widget';
+import type { DispatchRecordResponse } from '@/lib/api-types';
+import { toast } from 'sonner';
 import {
   Briefcase,
   AlertTriangle,
@@ -23,6 +28,8 @@ import {
   Calendar,
   MapPin,
   Loader2,
+  Radio,
+  Bell,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -122,6 +129,12 @@ function relativeTime(dateStr: string): string {
 // ---------------------------------------------------------------------------
 
 function InstructorDashboard() {
+  const queryClient = useQueryClient();
+  const geo = useGeolocation();
+
+  // Dialog state for dispatch accept
+  const [selectedDispatch, setSelectedDispatch] = useState<DispatchRecordResponse | null>(null);
+
   const tierQuery = useQuery({
     queryKey: ['my-tier'],
     queryFn: () => api.tier.getMyTier(),
@@ -141,6 +154,109 @@ function InstructorDashboard() {
     queryKey: ['reviews-received'],
     queryFn: () => api.reviews.getReceived(),
   });
+
+  // Availability query — 404 means "not available yet"
+  const availabilityQuery = useQuery({
+    queryKey: ['availability-me'],
+    queryFn: async () => {
+      try {
+        return await api.availability.getMe();
+      } catch (err) {
+        if (err instanceof APIError && err.status === 404) return null;
+        throw err;
+      }
+    },
+  });
+
+  const isAvailable = availabilityQuery.data?.is_available ?? false;
+
+  // Toggle mutation
+  const toggleMutation = useMutation({
+    mutationFn: (data: { is_available: boolean; latitude?: number; longitude?: number }) =>
+      api.availability.toggle(data),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['availability-me'] });
+      if (data.is_available) {
+        toast.success('대기 상태를 켰습니다');
+      } else {
+        toast.info('대기 상태를 껐습니다');
+      }
+    },
+    onError: (err: Error) => {
+      if (err instanceof APIError) {
+        toast.error(err.message);
+      } else {
+        toast.error('대기 상태 변경에 실패했습니다');
+      }
+    },
+  });
+
+  // Pending dispatches — only fetch when available
+  const pendingDispatchQuery = useQuery({
+    queryKey: ['dispatch-pending'],
+    queryFn: () => api.dispatch.getMyPending(),
+    enabled: isAvailable,
+    refetchInterval: 10_000,
+  });
+
+  const pendingDispatches = pendingDispatchQuery.data ?? [];
+
+  // Handle toggle click
+  const handleToggle = () => {
+    if (isAvailable) {
+      // Turn OFF
+      toggleMutation.mutate({ is_available: false });
+    } else {
+      // Turn ON — need GPS
+      if (geo.loading) {
+        toast.info('위치 확인 중입니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
+      if (geo.error || !geo.latitude || !geo.longitude) {
+        toast.error('위치를 가져올 수 없습니다. 위치 권한을 확인해주세요.');
+        return;
+      }
+      toggleMutation.mutate({
+        is_available: true,
+        latitude: geo.latitude,
+        longitude: geo.longitude,
+      });
+    }
+  };
+
+  // Format expiry time
+  const expiryText = useMemo(() => {
+    const until = availabilityQuery.data?.available_until;
+    if (!until) return null;
+    try {
+      return new Intl.DateTimeFormat('ko-KR', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(new Date(until));
+    } catch {
+      return null;
+    }
+  }, [availabilityQuery.data?.available_until]);
+
+  // Approximate location text from coordinates
+  const locationText = useMemo(() => {
+    if (geo.loading) return '위치 확인 중...';
+    if (geo.error) return '위치를 가져올 수 없습니다';
+    if (geo.latitude && geo.longitude) {
+      // Simple approximate: use stored coords from availability response if available
+      const lat = availabilityQuery.data?.latitude ?? geo.latitude;
+      const lng = availabilityQuery.data?.longitude ?? geo.longitude;
+      // Rough Seoul district approximation
+      if (lat >= 37.49 && lat <= 37.53 && lng >= 127.02 && lng <= 127.06) return '강남구 부근';
+      if (lat >= 37.47 && lat <= 37.50 && lng >= 126.98 && lng <= 127.03) return '서초구 부근';
+      if (lat >= 37.54 && lat <= 37.58 && lng >= 126.96 && lng <= 127.01) return '마포구 부근';
+      if (lat >= 37.55 && lat <= 37.58 && lng >= 127.0 && lng <= 127.05) return '성동구 부근';
+      if (lat >= 37.50 && lat <= 37.54 && lng >= 127.0 && lng <= 127.05) return '송파구 부근';
+      return `${lat.toFixed(2)}, ${lng.toFixed(2)} 부근`;
+    }
+    return null;
+  }, [geo.loading, geo.error, geo.latitude, geo.longitude, availabilityQuery.data?.latitude, availabilityQuery.data?.longitude]);
 
   // Derived stats
   const apps = appsQuery.data?.items ?? [];
@@ -220,6 +336,143 @@ function InstructorDashboard() {
           </div>
         )}
       </div>
+
+      {/* Availability Toggle Card */}
+      <button
+        type="button"
+        onClick={handleToggle}
+        disabled={toggleMutation.isPending}
+        aria-label={isAvailable ? '대기 상태 끄기' : '대기 상태 켜기'}
+        className={cn(
+          'neu rounded-xl p-5 w-full text-left transition-colors',
+          isAvailable
+            ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20'
+            : '',
+        )}
+      >
+        <div className="flex items-center gap-3 mb-3">
+          <div className={cn(
+            'flex size-10 items-center justify-center rounded-xl',
+            isAvailable ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-muted',
+          )}>
+            <Radio className={cn('size-5', isAvailable ? 'text-emerald-600' : 'text-muted-foreground')} />
+          </div>
+          <h2 className="text-sm font-semibold">대기 상태</h2>
+          {toggleMutation.isPending && (
+            <Loader2 className="ml-auto size-4 animate-spin text-muted-foreground" />
+          )}
+        </div>
+
+        <div className={cn(
+          'rounded-lg p-4 text-center transition-colors',
+          isAvailable
+            ? 'bg-emerald-100/60 dark:bg-emerald-900/20'
+            : 'bg-muted/50',
+        )}>
+          {isAvailable ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-center gap-2">
+                <span className="relative flex size-2.5">
+                  <span className="absolute inline-flex size-full animate-pulse-soft rounded-full bg-emerald-500 opacity-75" />
+                  <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                  ON: 대기 중
+                </span>
+              </div>
+              {locationText && (
+                <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
+                  {locationText}
+                </p>
+              )}
+              {expiryText && (
+                <p className="text-[11px] text-muted-foreground">
+                  만료: {expiryText}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">OFF: 오프라인</p>
+            </div>
+          )}
+        </div>
+
+        <p className="mt-3 text-[11px] text-muted-foreground leading-relaxed">
+          대기를 켜면 주변 센터의 긴급 요청을 자동으로 받을 수 있습니다
+        </p>
+      </button>
+
+      {/* Dispatch Pending Banner */}
+      {isAvailable && (
+        <div className={cn(
+          'rounded-xl p-5 border-l-4',
+          pendingDispatches.length > 0
+            ? 'border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20 neu'
+            : 'neu',
+        )}>
+          {pendingDispatches.length > 0 ? (
+            <>
+              <div className="flex items-center gap-2 mb-3">
+                <Bell className="size-4 text-amber-600 animate-pulse-soft" aria-hidden="true" />
+                <h3 className="text-sm font-semibold">
+                  긴급 대타 요청 {pendingDispatches.length}건
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {pendingDispatches.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSelectedDispatch(d)}
+                    className="w-full rounded-lg border bg-card p-3 text-left hover:bg-muted/40 transition-colors"
+                    aria-label="디스패치 요청 확인하기"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          {d.distance_km != null && (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground text-xs">
+                              <MapPin className="size-3" />
+                              {d.distance_km.toFixed(1)}km
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="size-3" />
+                            {relativeTime(d.dispatched_at)}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="flex items-center gap-1 text-xs font-medium text-primary">
+                        확인하기 <ArrowRight className="size-3" />
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-3 py-2">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                대기 중... 긴급 요청을 기다리는 중입니다
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dispatch Accept Dialog */}
+      <DispatchAcceptDialog
+        dispatch={selectedDispatch}
+        open={selectedDispatch !== null}
+        onClose={() => setSelectedDispatch(null)}
+        onAccepted={() => {
+          void queryClient.invalidateQueries({ queryKey: ['dispatch-pending'] });
+        }}
+      />
 
       {/* Stat Grid */}
       <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
@@ -403,6 +656,12 @@ function StudioDashboard() {
   const tier = tierQuery.data;
   const reviews = reviewsQuery.data;
 
+  // Urgent open jobs for dispatch summary
+  const urgentOpenJobs = useMemo(
+    () => jobs.filter(j => j.is_urgent && j.status === 'open'),
+    [jobs],
+  );
+
   // Recent jobs as activity
   const recentJobs = useMemo(() => {
     return jobs.slice(0, 6).map(job => ({
@@ -496,6 +755,26 @@ function StudioDashboard() {
           subtitle={`${reviews?.items?.length ?? 0}개 리뷰`}
         />
       </div>
+
+      {/* Active Dispatches Summary */}
+      {urgentOpenJobs.length > 0 && (
+        <div className="neu rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="size-4 text-urgent" aria-hidden="true" />
+            <h2 className="font-display text-sm font-semibold tracking-wide">
+              진행 중인 디스패치
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {urgentOpenJobs.map((job) => (
+              <div key={job.id} className="rounded-lg border p-3">
+                <p className="text-sm font-medium truncate mb-1">{job.title}</p>
+                <DispatchStatusWidget jobPostId={job.id} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3">

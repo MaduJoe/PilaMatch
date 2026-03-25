@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { StarRating } from '@/components/reviews/star-rating';
 import { WriteReviewDialog } from '@/components/reviews/write-review-dialog';
+import { JobProgressTracker } from '@/components/dispatch/job-progress-tracker';
 
 // ---------------------------------------------------------------------------
 // Status badge color mapping
@@ -141,6 +142,9 @@ function ApplicationCard({
                   )}
                 </div>
               </div>
+
+              {/* Job progress tracker */}
+              <JobProgressTracker jobPostId={application.job_post_id} role="instructor" />
 
               {/* Review section */}
               {eligibility && (
