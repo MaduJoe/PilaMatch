@@ -56,6 +56,15 @@ import type {
   BackupInstructorCreate,
   BackupInstructorUpdate,
   BackupInstructorResponse,
+  AvailabilityToggleRequest,
+  AvailabilityResponse,
+  DispatchRecordResponse,
+  DispatchContactRevealResponse,
+  DispatchStatusResponse,
+  CheckinRequest,
+  CheckinResponse,
+  CompletionConfirmResponse,
+  InstructorReliabilityResponse,
   APIErrorResponse,
 } from './api-types';
 import { isNativePlatform, getAccessToken } from './token-manager';
@@ -565,6 +574,55 @@ export const kakao = {
     }>; total: number }>(`/kakao/search?query=${encodeURIComponent(query)}`),
 };
 
+// --- Availability (Dispatch Standby Pool) ----------------
+
+export const availability = {
+  toggle: (data: AvailabilityToggleRequest) =>
+    put<AvailabilityResponse>('/availability', data),
+
+  getMe: () =>
+    get<AvailabilityResponse>('/availability/me'),
+};
+
+// --- Dispatch --------------------------------------------
+
+export const dispatch = {
+  accept: (dispatchRecordId: string) =>
+    post<DispatchContactRevealResponse>(`/dispatch/${dispatchRecordId}/accept`),
+
+  decline: (dispatchRecordId: string) =>
+    post<{ status: string }>(`/dispatch/${dispatchRecordId}/decline`),
+
+  getMyPending: () =>
+    get<DispatchRecordResponse[]>('/dispatch/my-pending'),
+
+  getJobStatus: (jobPostId: string) =>
+    get<DispatchStatusResponse>(`/dispatch/job/${jobPostId}/status`),
+};
+
+// --- Check-in (GPS Verification) -------------------------
+
+export const checkin = {
+  checkIn: (jobPostId: string, data: CheckinRequest) =>
+    post<CheckinResponse>(`/jobs/${jobPostId}/checkin`, data),
+
+  getStatus: (jobPostId: string) =>
+    get<CheckinResponse>(`/jobs/${jobPostId}/checkin`),
+};
+
+// --- Completion (Mutual Confirmation) --------------------
+
+export const completion = {
+  confirm: (jobPostId: string) =>
+    post<CompletionConfirmResponse>(`/jobs/${jobPostId}/complete`),
+
+  getStatus: (jobPostId: string) =>
+    get<CompletionConfirmResponse>(`/jobs/${jobPostId}/completion`),
+
+  getReliability: (userId: string) =>
+    get<InstructorReliabilityResponse>(`/instructors/${userId}/reliability`),
+};
+
 // --- Convenience: grouped API ----------------------------
 
 export const api = {
@@ -593,6 +651,10 @@ export const api = {
   backupInstructors,
   notifications,
   kakao,
+  availability,
+  dispatch,
+  checkin,
+  completion,
 } as const;
 
 export default api;

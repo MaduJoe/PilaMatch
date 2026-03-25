@@ -784,6 +784,87 @@ export interface BackupInstructorResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Dispatch System (v5.0)
+// ---------------------------------------------------------------------------
+
+export interface AvailabilityToggleRequest {
+  is_available: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  categories?: string[];
+  max_distance_km?: number;
+}
+
+export interface AvailabilityResponse {
+  id: string;
+  is_available: boolean;
+  available_until?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  categories: string[];
+  max_distance_km: number;
+}
+
+export type DispatchRecordStatus = 'dispatched' | 'accepted' | 'declined' | 'timeout' | 'cancelled';
+
+export interface DispatchRecordResponse {
+  id: string;
+  job_post_id: string;
+  instructor_id: string;
+  wave_number: number;
+  status: DispatchRecordStatus;
+  dispatched_at: string;
+  responded_at?: string | null;
+  distance_km?: number | null;
+  reliability_score?: number | null;
+}
+
+export interface DispatchContactRevealResponse {
+  application_id: string;
+  instructor_phone?: string | null;
+  instructor_name?: string | null;
+  studio_phone?: string | null;
+  studio_name?: string | null;
+  studio_address?: string | null;
+}
+
+export interface DispatchStatusResponse {
+  job_post_id: string;
+  dispatch_mode: string;
+  current_wave: number;
+  records: DispatchRecordResponse[];
+  matched: boolean;
+}
+
+export interface CheckinRequest {
+  latitude: number;
+  longitude: number;
+}
+
+export interface CheckinResponse {
+  id: string;
+  job_post_id: string;
+  distance_meters: number;
+  is_valid: boolean;
+  checked_in_at: string;
+}
+
+export interface CompletionConfirmResponse {
+  studio_confirmed: boolean;
+  instructor_confirmed: boolean;
+  is_complete: boolean;
+  auto_completed: boolean;
+}
+
+export interface InstructorReliabilityResponse {
+  dispatch_success_rate: number;
+  total_dispatches: number;
+  total_completions: number;
+  total_checkins: number;
+  avg_checkin_distance_m?: number | null;
+}
+
+// ---------------------------------------------------------------------------
 // API Error
 // ---------------------------------------------------------------------------
 
