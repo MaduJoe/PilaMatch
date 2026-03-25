@@ -435,6 +435,11 @@ class TestStyleSchemaFields:
             end_time="10:00",
             hourly_rate=Decimal("40000"),
             preferred_style={"correction_style": "gentle"},
+            handoff_class_topic="테스트 수업",
+            handoff_class_sequence_info="3주차 진도",
+            handoff_atmosphere_preference="차분한",
+            handoff_member_notes="없음",
+            handoff_equipment_notes="기본 세팅",
         )
         assert schema.preferred_style == {"correction_style": "gentle"}
 
@@ -450,6 +455,11 @@ class TestStyleSchemaFields:
             start_time="09:00",
             end_time="10:00",
             hourly_rate=Decimal("40000"),
+            handoff_class_topic="테스트 수업",
+            handoff_class_sequence_info="3주차 진도",
+            handoff_atmosphere_preference="차분한",
+            handoff_member_notes="없음",
+            handoff_equipment_notes="기본 세팅",
         )
         assert schema.preferred_style is None
 
