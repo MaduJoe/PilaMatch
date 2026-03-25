@@ -122,7 +122,6 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
   const { job, matching, is_urgent } = item;
   const score = matching.total;
   const isPast = job.is_past;
-  const isEarlyLocked = item.early_access_locked;
   const typeInfo = JOB_TYPE_MAP[job.job_type] ?? { label: job.job_type, emoji: '' };
   const ss = scoreStyle(score);
 
@@ -138,7 +137,6 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
       className={cn(
         'group relative flex flex-col overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5',
         isPast && 'opacity-50',
-        isEarlyLocked && 'opacity-50',
         is_urgent && !isPast && 'border-urgent/40 bg-urgent/[0.03] shadow-urgent/[0.06] shadow-md',
       )}
     >
@@ -147,15 +145,6 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
         <div className="h-1 w-full bg-gradient-to-r from-urgent via-urgent/80 to-urgent/40" />
       )}
 
-      {isEarlyLocked && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
-          <div className="flex flex-col items-center gap-1.5 text-center px-4">
-            <Lock className="size-5 text-primary" />
-            <p className="font-display text-xs font-semibold">Premium Only</p>
-            <p className="text-[10px] text-muted-foreground">10-minute early access</p>
-          </div>
-        </div>
-      )}
 
       <CardContent className="flex flex-col gap-3 pb-3">
         {/* Row 1: Badges + Score pill */}
@@ -304,10 +293,10 @@ export function JobCard({ item, isApplied, isPremium = false, onApply, onDetail 
           size="sm"
           className={cn(
             'min-h-[44px] w-full font-bold transition-all duration-200',
-            !isApplied && !isPast && !isEarlyLocked && 'hover:scale-[1.01] active:scale-[0.99]',
+            !isApplied && !isPast && 'hover:scale-[1.01] active:scale-[0.99]',
             is_urgent && !isPast && !isApplied && 'bg-urgent text-urgent-foreground hover:bg-urgent/90',
           )}
-          disabled={isApplied || isPast || isEarlyLocked}
+          disabled={isApplied || isPast}
           onClick={(e) => {
             e.stopPropagation();
             onApply(job.id);

@@ -1,8 +1,8 @@
 # PilaMatch
 
-**긴급 대타 매칭 플랫폼 -- 필라테스/요가 강사 & 스튜디오**
+**수업 펑크를 10분 안에 막는 운영 시스템 -- 필라테스/요가 강사 & 센터**
 
-> "선생님이 바뀌어도 매끄러운 수업" — 실명으로 검증된 강사가, 20분 거리에서, 인수인계 노트를 보고 수업한다.
+> 센터가 긴급 호출 → 대기 강사 풀에서 자동 디스패치 → 선착순 수락 → GPS 체크인 → 양측 완료 확인. 119처럼, 확실하게.
 
 ---
 
@@ -27,59 +27,65 @@
 |----|------|------|
 | **Trust-Tech** | 실명인증 기반 신뢰 — 행동 이력이 곧 등급 | SMS 본인인증, 사업자인증, Tier 등급제 (T1/T2/T3, C1/C2), 노쇼 3-strike 정지 |
 | **Hyper-Local** | 거리 기반 매칭 — GPS Haversine 계산 | 5단계 거리 점수 (2km 이내 100점, 30km+ 10점), 이동 시간 추정 |
-| **Seamless Handoff** | 인수인계 노트 — 강사가 바뀌어도 자연스러운 맞춤 수업 | 수업 주제/진도/분위기 공개, 회원 주의사항/기구 세팅은 수락 후 공개 |
-| **Urgent Matching** | 긴급 대타 특화 — 공고 작성 3분, 지원 원탭 | 스타일 매칭, 백업 강사 네트워크, 수락 즉시 연락처 공개 |
+| **Seamless Handoff** | 인수인계 노트 — 강사가 바뀌어도 자연스러운 맞춤 수업 | 재사용 템플릿, Completeness Score, 민감정보 태그화 (개인정보보호법 준수) |
+| **Auto Dispatch** | 119식 자동 호출 — Standby Pool + 3단계 반경 확장 | 긴급 호출 → 자동 매칭 → 선착순 수락 → GPS 체크인 → 양측 완료 확인 |
 
 ---
 
 ## 핵심 플로우
 
 ```
-센터: 대타 공고 작성 (3분)
-  |  카테고리, 날짜/시간, 시급, 위치(GPS)
-  |  + 인수인계 노트 (수업 주제, 진도, 분위기)
-  |  + 원하는 수업 스타일 (교정/분위기/강도)
+센터: 긴급 호출 버튼 (30초)
+  |  카테고리, 시간, 시급 + 인수인계 노트
   v
-강사: 공고 확인 + 매칭 점수 확인
-  |  거리, 스타일 호환, 경력, 자격증, 시급 — 한눈에 판단
-  |  인수인계 노트로 수업 내용 파악
+시스템: Standby Pool에서 자동 디스패치
+  |  1차: 5km 반경 → 2차: 10km → 3차: 15km
+  |  Reliability Score 기반 후보 선별
   v
-강사: 원탭 지원
-  |  커버레터 (선택)
+강사: 푸시 알림 수신 → 원탭 수락 (선착순)
+  |  수락 즉시 인수인계 노트 전체 공개
   v
-센터: 지원자 프로필 확인
-  |  이력, 리뷰, 거리, Tier 등급, 노쇼 이력
+강사: GPS 체크인 (센터 200m 이내)
+  |  출근 시간 자동 기록
   v
-센터: 수락 (POST /applications/{id}/accept)
-  |  즉시 양측 연락처 공개
-  |  인수인계 노트 민감 정보 공개 (회원 주의사항, 기구 세팅)
+수업 완료 → 양측 완료 확인
   v
-직접 전화/카톡으로 최종 확정
-  v
-수업 완료 → 센터 지급 표시 → 강사 수령 확인
+센터 지급 표시 → 강사 수령 확인
   v
 상호 리뷰 → Tier 등급에 반영
-  |  (선택) 백업 강사로 등록
 ```
 
 ```mermaid
 flowchart LR
-    A[대타 공고 + 인수인계] --> B[스타일 매칭 + 지원]
-    B --> C[센터 수락]
-    C --> D[연락처 + 민감정보 공개]
-    D --> E[직접 연락 → 수업]
-    E --> F[지급 확인]
-    F --> G[리뷰 → Tier 갱신]
-    G --> H[백업 강사 등록]
+    A[긴급 호출] --> B[자동 디스패치]
+    B --> C[선착순 수락]
+    C --> D[인수인계 + 연락처 공개]
+    D --> E[GPS 체크인]
+    E --> F[수업 완료 확인]
+    F --> G[지급 확인]
+    G --> H[리뷰 → Tier 갱신]
 ```
 
 ---
 
 ## 3대 핵심 기능
 
-### 1. 인수인계 노트 (Handoff Note)
+### 1. Auto Dispatch Engine (자동 디스패치)
 
-"선생님이 바뀌어도 매끄러운 수업"의 핵심. 스튜디오가 수업 맥락을 대타 강사에게 전달한다.
+119 긴급 출동 시스템처럼, 센터가 호출하면 시스템이 최적의 강사를 자동으로 찾아 매칭한다.
+
+| 기능 | 설명 |
+|------|------|
+| **Standby Pool** | 강사가 "오늘 대기 가능" ON — GPS 좌표 + 카테고리 + 최대 거리 설정 |
+| **3단계 Cascading** | Wave 1: 5km 반경, 상위 5명 / Wave 2: 10km, 상위 10명 / Wave 3: 15km, 상위 15명 |
+| **선착순 수락 (FCFS)** | 첫 수락 강사 자동 확정, 나머지 디스패치 자동 취소 |
+| **Reliability Score** | 완료 이력, 노쇼/지각/취소 기록 기반 후보 선별 및 정렬 |
+| **Self-Healing** | Wave별 3분 타임아웃, 미응답 시 자동 다음 Wave 발송 |
+| **Fallback** | 3차 Wave 소진 시 수동 모드(manual)로 전환 |
+
+### 2. 인수인계 노트 (Handoff Note)
+
+"선생님이 바뀌어도 매끄러운 수업"의 핵심. 센터가 수업 맥락을 대타 강사에게 전달한다.
 
 | 필드 | 공개 시점 | 예시 |
 |------|----------|------|
@@ -90,27 +96,23 @@ flowchart LR
 | **회원 주의사항** | **수락 후** | "3번 회원 허리 디스크, 과신전 주의" |
 | **기구 세팅** | **수락 후** | "리포머 스프링 빨2+초1, 발바는 1구" |
 
-### 2. 수업 스타일 매칭 (Style-fit Matching)
+| 추가 기능 | 설명 |
+|-----------|------|
+| **재사용 템플릿** | 반복 수업용 인수인계 원클릭 재사용 (센터당 최대 20개) |
+| **Completeness Score** | 인수인계 충실도 점수 — 필드 작성 비율 자동 계산 |
+| **민감정보 태그화** | `member_caution_tags` 배열로 개인정보보호법 준수 구조화 |
+| **강사 피드백** | 수업 완료 후 강사가 인수인계 노트에 피드백 작성 |
 
-강사의 수업 스타일과 공고의 원하는 스타일을 매칭하여 "핏"이 맞는 대타를 찾는다.
+### 3. Trust Verification (신뢰 검증)
 
-| 차원 | 옵션 |
+"확실하게 왔고, 확실하게 했다"를 시스템으로 증명한다.
+
+| 기능 | 설명 |
 |------|------|
-| 교정 스타일 | 핸즈온 교정 / 말로 설명 / 시범 중심 |
-| 수업 분위기 | 차분한 / 에너지틱 / 체계적 |
-| 수업 강도 | 재활 / 초급 / 중급 / 상급 |
-| 음악 | 음악 없이 / 잔잔한 음악 / 신나는 음악 |
-
-### 3. 백업 강사 네트워크
-
-스튜디오가 신뢰하는 대타 강사 풀을 관리. 급구 시 백업 강사에게 우선 알림.
-
-| 필드 | 설명 |
-|------|------|
-| 우선순위 | 1=주력, 2=보조, 3=일반 |
-| 별칭 | 스튜디오 내부 별칭 ("월수금 오전 선생님") |
-| 메모 | "허리재활 전문, 월수금 오전 가능" |
-| 완료 이력 | 이 스튜디오에서 완료한 대타 수 |
+| **GPS 체크인** | 센터 200m 이내 위치 인증 (Haversine 거리 계산) |
+| **양측 완료 확인** | 센터 + 강사 독립 확인 → 양측 모두 확인 시 완료 처리 |
+| **출동 성공률** | Dispatch Success Rate 추적 (총 디스패치 대비 완료 비율) |
+| **Reliability Stats** | 총 디스패치, 총 완료, 총 체크인, 평균 체크인 거리 공개 |
 
 ---
 
@@ -154,6 +156,7 @@ PilaMatch는 "점수"가 아니라 "행동 조건"으로 등급을 판정한다.
 | **Frontend** | Next.js 15, React, TypeScript, Tailwind CSS | shadcn/ui, TanStack Query, Zod v4 |
 | **Auth** | JWT (Access + Refresh), httpOnly Cookie | bcrypt, python-jose |
 | **Distance** | Haversine formula | GPS 기반 실시간 거리 계산 |
+| **Push** | FCM (Firebase Cloud Messaging) | 디스패치 알림, 수업 리마인더 |
 | **Infra** | Docker Compose (4 services) | PostgreSQL, Redis, Backend, Frontend |
 
 ---
@@ -257,7 +260,7 @@ pnpm install && pnpm dev
 ### Job Posts (대타 공고)
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| POST | `/job-posts` | 공고 등록 (스튜디오, preferred_style 포함) |
+| POST | `/job-posts` | 공고 등록 (is_urgent=true 시 자동 디스패치 실행) |
 | GET | `/job-posts` | 공고 목록 (필터링) |
 | GET | `/job-posts/{id}` | 공고 상세 (has_handoff_note 포함) |
 | GET | `/job-posts/for-me/with-matching` | 매칭 점수 포함 목록 (강사) |
@@ -265,22 +268,22 @@ pnpm install && pnpm dev
 ### Handoff Notes (인수인계 노트)
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| PUT | `/job-posts/{id}/handoff-note` | 인수인계 노트 생성/수정 (스튜디오) |
+| PUT | `/job-posts/{id}/handoff-note` | 인수인계 노트 생성/수정 (센터) |
 | GET | `/job-posts/{id}/handoff-note` | 노트 조회 (역할+수락 여부에 따라 공개/전체 응답) |
-| DELETE | `/job-posts/{id}/handoff-note` | 노트 삭제 (스튜디오) |
+| DELETE | `/job-posts/{id}/handoff-note` | 노트 삭제 (센터) |
 
 ### Applications (지원 + 수락)
 | Method | Endpoint | 설명 |
 |--------|----------|------|
 | POST | `/job-posts/{id}/applications` | 지원서 제출 (강사) |
-| GET | `/job-posts/{id}/applications` | 공고별 지원자 목록 (스튜디오) |
+| GET | `/job-posts/{id}/applications` | 공고별 지원자 목록 (센터) |
 | GET | `/applications/me` | 내 지원 목록 (강사) |
 | POST | `/applications/{id}/withdraw` | 지원 철회 (강사) |
-| **POST** | **`/applications/{id}/accept`** | **지원 수락 + 연락처 공개 (스튜디오)** |
+| **POST** | **`/applications/{id}/accept`** | **지원 수락 + 연락처 공개 (센터)** |
 
-> `POST /applications/{id}/accept`는 PMF 피벗의 핵심 엔드포인트이다.
-> 기존 Offer → Contract 플로우를 대체하여, 수락 즉시 양측 전화번호를 공개한다.
-> 응답 예시:
+> `POST /applications/{id}/accept`는 수동 매칭(manual mode)의 핵심 엔드포인트이다.
+> 자동 디스패치가 아닌 수동 모드에서 센터가 지원자를 직접 선택할 때 사용한다.
+> 수락 즉시 양측 전화번호를 공개한다.
 > ```json
 > {
 >     "application_id": "uuid",
@@ -291,6 +294,46 @@ pnpm install && pnpm dev
 >     "studio_address": "서울시 서초구 ..."
 > }
 > ```
+
+### Dispatch (자동 디스패치)
+
+자동 디스패치는 `POST /job-posts` 에서 `is_urgent=true`로 공고를 생성하면 서버 내부에서 `DispatchEngine.start_auto_dispatch()`가 자동 실행된다. 별도의 trigger 엔드포인트는 없으며, 아래는 디스패치 진행 중 강사/센터가 사용하는 엔드포인트이다.
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | `/dispatch/{dispatch_record_id}/accept` | 디스패치 수락 — 선착순, 연락처 공개 (강사) |
+| POST | `/dispatch/{dispatch_record_id}/decline` | 디스패치 거절 — 미응답 시 다음 Wave 트리거 (강사) |
+| GET | `/dispatch/my-pending` | 내 대기 중 디스패치 목록 (강사) |
+| GET | `/dispatch/job/{job_post_id}/status` | 디스패치 상태 조회 — Wave, 매칭 여부 (센터) |
+
+### Availability (강사 대기 — Standby Pool)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| PUT | `/availability` | 대기 상태 ON/OFF + GPS 좌표 + 카테고리 설정 (강사) |
+| GET | `/availability/me` | 내 대기 상태 조회 (강사) |
+
+### Check-in (GPS 체크인)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | `/jobs/{job_post_id}/checkin` | GPS 체크인 — 센터 200m 이내 위치 인증 (강사) |
+| GET | `/jobs/{job_post_id}/checkin` | 체크인 기록 조회 |
+
+### Completion (완료 확인)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | `/jobs/{job_post_id}/complete` | 완료 확인 (센터 또는 강사, 양측 독립 확인) |
+| GET | `/jobs/{job_post_id}/completion` | 완료 상태 조회 |
+| GET | `/instructors/{user_id}/reliability` | 강사 신뢰도 통계 (출동 성공률, 체크인 횟수 등) |
+
+### Handoff Templates (인수인계 템플릿)
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| POST | `/studios/me/handoff-templates` | 템플릿 생성 (센터, 최대 20개) |
+| GET | `/studios/me/handoff-templates` | 내 템플릿 목록 (센터) |
+| PUT | `/studios/me/handoff-templates/{template_id}` | 템플릿 수정 |
+| DELETE | `/studios/me/handoff-templates/{template_id}` | 템플릿 삭제 |
+| POST | `/job-posts/{job_post_id}/handoff-note/from-template/{template_id}` | 템플릿을 인수인계 노트에 적용 |
+| POST | `/job-posts/{job_post_id}/handoff-note/feedback` | 인수인계 노트 피드백 (강사, 수업 완료 후) |
 
 ### Backup Instructors (백업 강사)
 | Method | Endpoint | 설명 |
@@ -329,6 +372,7 @@ pnpm install && pnpm dev
 ## Matching Algorithm
 
 최대 **6-factor** 매칭. GPS/스타일 데이터 유무에 따라 가중치가 동적으로 조정된다.
+자동 디스패치 모드에서는 Reliability Score가 추가 가중 요소로 사용된다.
 
 ### 6-Factor (GPS + 스타일 available)
 
@@ -373,7 +417,7 @@ pie title 매칭 점수 가중치 (GPS + 스타일)
 
 ### 스타일 점수 기준
 
-일치하는 스타일 키의 비율 × 100. 데이터 없으면 중립 50점.
+일치하는 스타일 키의 비율 x 100. 데이터 없으면 중립 50점.
 
 > T3 Premium 강사는 매칭 점수 1.3x 부스트, C2 Verified 센터 공고는 1.15x 부스트가 적용된다.
 
@@ -381,7 +425,7 @@ pie title 매칭 점수 가중치 (GPS + 스타일)
 
 ## Testing
 
-총 **434개** 테스트 — Tier 등급, 패널티, 지급 확인, 긴급 매칭, 스타일 매칭, 인수인계 노트, 백업 강사 등.
+총 **580개** 테스트 — Auto Dispatch, GPS 체크인, 완료 확인, 인수인계 템플릿, Tier 등급, 패널티, 지급 확인, 스타일 매칭, 백업 강사 등.
 
 ```bash
 cd backend
@@ -391,6 +435,18 @@ uv run pytest
 
 # 커버리지 포함
 uv run pytest --cov=app --cov-report=html
+
+# 디스패치 엔진 테스트
+uv run pytest tests/test_dispatch_engine.py -v
+
+# GPS 체크인 테스트
+uv run pytest tests/test_checkin.py -v
+
+# 완료 확인 테스트
+uv run pytest tests/test_completion.py -v
+
+# 인수인계 템플릿 테스트
+uv run pytest tests/test_handoff_template.py -v
 
 # 인수인계 노트 테스트
 uv run pytest tests/test_handoff_note.py -v
@@ -440,6 +496,9 @@ SMS_SENDER_NUMBER=01012345678
 # === 국세청 API (사업자 검증) ===
 NTS_SERVICE_KEY=your-service-key
 
+# === FCM (Push Notifications) ===
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/firebase-service-account.json
+
 # === Frontend ===
 NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
 NEXT_PUBLIC_KAKAO_MAP_KEY=your-kakao-key
@@ -458,12 +517,14 @@ PMF 검증을 위해 추적하는 핵심 지표.
 
 | Metric | 정의 | 목표 |
 |--------|------|------|
-| **TTFA** (Time to First Accept) | 공고 작성 → 첫 수락까지 소요 시간 | < 30분 |
+| **TTFA** (Time to First Accept) | 긴급 호출 → 첫 수락까지 소요 시간 | < 10분 |
+| **Dispatch Success Rate** | 디스패치 시도 대비 수락 완료 비율 | > 80% |
+| **GPS Check-in Rate** | 수락 건 대비 GPS 체크인 완료 비율 | > 90% |
 | **Fill Rate** | 공고 대비 수락 완료 비율 | > 60% |
 | **Repeat Rate** | 재사용률 (2주 내 재공고/재지원) | > 40% |
 | **Tier Upgrade Rate** | T2+ 등급 달성 비율 | > 30% |
 | **Handoff Note Rate** | 공고 중 인수인계 노트 첨부 비율 | > 50% |
-| **Backup Network Size** | 스튜디오당 평균 백업 강사 수 | > 3명 |
+| **Standby Pool Size** | 구별 평균 대기 강사 수 | > 5명/구 |
 
 ---
 
@@ -472,6 +533,7 @@ PMF 검증을 위해 추적하는 핵심 지표.
 - [ ] `SECRET_KEY` 변경 (강력한 랜덤 문자열)
 - [ ] `DEBUG=false`, `APP_ENV=production` 설정
 - [ ] `SMS_PROVIDER=solapi` + API 키 설정
+- [ ] FCM 서비스 계정 키 설정 (`GOOGLE_APPLICATION_CREDENTIALS`)
 - [ ] CORS 설정 검토 (허용된 origin만)
 - [ ] Rate Limiting 설정 확인 (slowapi)
 - [ ] PostgreSQL 백업 전략 수립
@@ -480,7 +542,7 @@ PMF 검증을 위해 추적하는 핵심 지표.
 
 ---
 
-## UI/UX 디자인 (v4.1)
+## UI/UX 디자인 (v5.0)
 
 ### 모바일 퍼스트 설계
 
@@ -504,15 +566,16 @@ PilaMatch는 긴급 대타 매칭 특성상 모바일 사용이 90%+ 예상되�
 
 ### 핵심 UX 패턴
 
-1. **연락처 즉시 공개**: 스튜디오가 수락하면 양측 전화번호가 즉시 표시되며, 전화/문자 버튼으로 원탭 연락 가능
-2. **인수인계 노트 넛지**: 긴급 대타 선택 시 "인수인계 노트를 남기면 강사가 바뀌어도 자연스럽게 맞춤 수업이 이어집니다" 표시
-3. **민감 정보 보호**: 회원 주의사항/기구 세팅은 자물쇠 아이콘 + "수락 후 공개" 라벨
-4. **인수인계 배지**: 공고 카드에 "인수인계" 배지 → 준비된 스튜디오라는 신뢰 시그널
-5. **시급 범위 선택**: 최소/최대 시급을 버튼으로 선택, "구체적인 금액은 연락 후 조율" 안내
-6. **긴급 공고**: 소프트 핑크 컬러로 긴급성 표현 (공격적 빨강 지양)
-7. **공고 상태 시각화**: 좌측 컬러 바 (초록=모집중, 파랑=채용완료, 회색=마감)
-8. **활성/지난 공고 분리**: 활성 공고 상단, 지난 공고 하단 (투명도 75%)
-9. **백업 강사 제안**: 수락 후 "이 강사를 백업 목록에 추가하시겠습니까?" 프롬프트
+1. **긴급 호출 30초**: 센터가 긴급 호출 버튼을 누르면 카테고리 + 시간 + 시급 + 인수인계 템플릿 선택으로 30초 안에 등록 완료
+2. **연락처 즉시 공개**: 수락 즉시 양측 전화번호가 표시되며, 전화/문자 버튼으로 원탭 연락 가능
+3. **인수인계 노트 넛지**: 긴급 대타 선택 시 "인수인계 노트를 남기면 강사가 바뀌어도 자연스럽게 맞춤 수업이 이어집니다" 표시
+4. **민감 정보 보호**: 회원 주의사항/기구 세팅은 자물쇠 아이콘 + "수락 후 공개" 라벨
+5. **인수인계 배지**: 공고 카드에 "인수인계" 배지 → 준비된 센터라는 신뢰 시그널
+6. **시급 범위 선택**: 최소/최대 시급을 버튼으로 선택, "구체적인 금액은 연락 후 조율" 안내
+7. **긴급 공고**: 소프트 핑크 컬러로 긴급성 표현 (공격적 빨강 지양)
+8. **공고 상태 시각화**: 좌측 컬러 바 (초록=모집중, 파랑=채용완료, 회색=마감)
+9. **활성/지난 공고 분리**: 활성 공고 상단, 지난 공고 하단 (투명도 75%)
+10. **백업 강사 제안**: 수락 후 "이 강사를 백업 목록에 추가하시겠습니까?" 프롬프트
 
 ---
 
@@ -527,14 +590,14 @@ BASE="http://localhost:8000/api/v1/auth"
 curl -X POST "$BASE/signup" -H "Content-Type: application/json" \
   -d '{"email":"gangsa1@test.com","password":"Test1234","role":"instructor","display_name":"김강사"}'
 
-# 스튜디오 계정
+# 센터 계정
 curl -X POST "$BASE/signup" -H "Content-Type: application/json" \
   -d '{"email":"studio1@test.com","password":"Test1234","role":"studio","business_name":"필라테스센터"}'
 ```
 
 > **비밀번호 규칙**: 8자 이상, 대문자 1개 이상 포함 필수
 
-프로필 완성 후 지원/수락 플로우를 테스트할 수 있다.
+프로필 완성 후 대기 상태 ON (`PUT /availability`) → 긴급 공고 생성 → 자동 디스패치 플로우를 테스트할 수 있다.
 
 ---
 
@@ -560,4 +623,4 @@ Private - All rights reserved
 
 ---
 
-*Last updated: 2026-03-24 (3대 핵심 기능: 인수인계 노트 + 스타일 매칭 + 백업 강사 네트워크)*
+*Last updated: 2026-03-25 (v5.0: Auto Dispatch Engine + Trust Verification + Handoff Templates)*

@@ -235,6 +235,12 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
       setRateMax(preset.values.hourly_rate);
       if (preset.values.is_urgent) {
         updateScheduleRow(0, 'date', today);
+        // Fill handoff defaults so Zod validation passes (step 3 is skipped)
+        setValue('handoff_class_topic', '긴급 대타');
+        setValue('handoff_class_sequence_info', '인수인계 생략 (긴급)');
+        setValue('handoff_atmosphere_preference', '유연하게');
+        setValue('handoff_member_notes', '없음');
+        setValue('handoff_equipment_notes', '기본 세팅');
       }
     },
     [setValue, today, updateScheduleRow],
@@ -316,6 +322,14 @@ export function JobCreationForm({ onSuccess }: JobCreationFormProps) {
   });
 
   const onSubmit: SubmitHandler<JobFormValues> = (data) => {
+    // Urgent mode skips handoff step — fill defaults so backend schema is satisfied
+    if (data.is_urgent) {
+      data.handoff_class_topic = data.handoff_class_topic || '긴급 대타';
+      data.handoff_class_sequence_info = data.handoff_class_sequence_info || '인수인계 생략 (긴급)';
+      data.handoff_atmosphere_preference = data.handoff_atmosphere_preference || '유연하게';
+      data.handoff_member_notes = data.handoff_member_notes || '없음';
+      data.handoff_equipment_notes = data.handoff_equipment_notes || '기본 세팅';
+    }
     createJob.mutate(data);
   };
 
