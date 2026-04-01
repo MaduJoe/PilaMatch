@@ -11,6 +11,7 @@ feedback.md 기반 9개 핵심 장면 + 강사/센터 구분 라벨 + 버튼 하
 import asyncio
 import httpx
 import os
+import shutil
 from datetime import date
 from PIL import Image, ImageDraw, ImageFont
 from playwright.async_api import async_playwright
@@ -53,7 +54,7 @@ SCENES = [
     ("센터", (199, 21, 133), "센터장이 앱을 엽니다", ""),
     ("센터", (199, 21, 133), "긴급 공고 등록 10초", "[공고 등록하기] 탭"),
     ("강사", (16, 185, 129), "강사는 대기 중...", ""),
-    ("강사", (16, 185, 129), "자동 디스패치! 즉시 알림 도착", "[확인하기 >] 탭"),
+    ("강사", (16, 185, 129), "자동 매칭! 즉시 알림 도착", "[확인하기 >] 탭"),
     ("강사", (16, 185, 129), "강사가 수락합니다", "[수락] 버튼 탭"),
     ("센터", (199, 21, 133), "센터에 매칭 완료 알림!", ""),
     ("강사", (16, 185, 129), "수업 내용·회원 주의사항 자동 전달", ""),
@@ -83,8 +84,7 @@ def add_label_and_subtitle(img_path: str, scene_idx: int, out_path: str):
         draw_top = ImageDraw.Draw(canvas)
         draw_top.rectangle([(0, 0), (w, top_h)], fill=color)
         font_label = ImageFont.truetype(FONT_PATH, 28)
-        icon = "🏢 " if role == "센터" else "👩‍🏫 "
-        label_text = f"{icon}{role} 화면"
+        label_text = f"{role} 화면"
         bbox = draw_top.textbbox((0, 0), label_text, font=font_label)
         tw = bbox[2] - bbox[0]
         draw_top.text(((w - tw) // 2, (top_h - 34) // 2), label_text, fill=(255, 255, 255), font=font_label)
@@ -263,16 +263,21 @@ async def main():
         labeled_paths.append(lp)
         print("  ✓ 05 강사 수락")
 
-        # API로 실제 수락 처리
+        # API로 실제 수락 + 윈도우 확정 처리
         if dr_id:
             async with httpx.AsyncClient(timeout=10) as c:
                 await c.post(f"{API}/dispatch/{dr_id}/accept",
                              headers={"Authorization": f"Bearer {inst_token}"})
-        print("     (API 수락 완료)")
+                # 윈도우 확정: 수락한 강사를 최종 매칭
+                await c.post(
+                    f"{API}/dispatch/job/{job_id}/finalize-window?wave_number=1",
+                    headers={"Authorization": f"Bearer {studio_token}"},
+                )
+        print("     (API 수락 + 윈도우 확정 완료)")
 
         # 6. 센터 매칭 완료 (지원자 탭)
         await s_page.goto(f"{FRONTEND}/steps/offers", wait_until="networkidle")
-        p = await shot(s_page, "06_studio_matched", wait=1500)
+        p = await shot(s_page, "06_studio_matched", wait=2000)
         lp = p.replace(".png", "_labeled.png")
         add_label_and_subtitle(p, 6, lp)
         labeled_paths.append(lp)
@@ -282,7 +287,17 @@ async def main():
         # 7. 인수인계 노트
         await i_page.goto(f"{FRONTEND}/steps/offers", wait_until="networkidle")
         await i_page.wait_for_timeout(1500)
-        await i_page.evaluate("window.scrollTo(0, 300)")
+        # 인수인계 노트 섹션이 뷰포트 상단에 오도록 스크롤
+        await i_page.evaluate("""
+            const el = document.querySelector('[class*="인수인계"], h3');
+            const nodes = document.querySelectorAll('h3');
+            for (const n of nodes) {
+                if (n.textContent.includes('인수인계')) {
+                    n.scrollIntoView({ block: 'start' });
+                    break;
+                }
+            }
+        """)
         await i_page.wait_for_timeout(500)
         p = await shot(i_page, "07_handoff_note")
         lp = p.replace(".png", "_labeled.png")
@@ -328,6 +343,13 @@ async def main():
         frames[0].save(gif, save_all=True, append_images=frames[1:],
                        duration=durations[:len(frames)], loop=0)
         print(f"  ✓ GIF ({len(frames)} frames)")
+
+    # ═══ 간편 이름 복사 (labeled → 00.png ~ 09.png) ═══
+    for idx, path in enumerate(labeled_paths):
+        if os.path.exists(path):
+            short = os.path.join(OUT, f"{idx:02d}.png")
+            shutil.copy2(path, short)
+    print("  ✓ 간편 이름 복사 (00.png ~ 09.png)")
 
     print(f"\n✓ 완료: {OUT}/")
 

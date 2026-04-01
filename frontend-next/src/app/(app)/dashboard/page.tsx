@@ -426,7 +426,7 @@ function InstructorDashboard() {
                     type="button"
                     onClick={() => setSelectedDispatch(d)}
                     className="w-full rounded-lg border bg-card p-3 text-left hover:bg-muted/40 transition-colors"
-                    aria-label="디스패치 요청 확인하기"
+                    aria-label="긴급 대타 요청 확인하기"
                   >
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
@@ -762,7 +762,7 @@ function StudioDashboard() {
           <div className="flex items-center gap-2 mb-3">
             <Zap className="size-4 text-urgent" aria-hidden="true" />
             <h2 className="font-display text-sm font-semibold tracking-wide">
-              진행 중인 디스패치
+              진행 중인 긴급 대타
             </h2>
           </div>
           <div className="space-y-3">

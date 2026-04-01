@@ -173,7 +173,7 @@ export function DispatchAcceptDialog({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>디스패치 요청</DialogTitle>
+            <DialogTitle>긴급 대타 요청</DialogTitle>
             <DialogDescription>요청 정보를 불러올 수 없습니다.</DialogDescription>
           </DialogHeader>
         </DialogContent>
@@ -389,9 +389,9 @@ export function DispatchAcceptDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>디스패치 요청</DialogTitle>
+          <DialogTitle>긴급 대타 요청</DialogTitle>
           <DialogDescription className="sr-only">
-            디스패치 요청 상세 정보를 확인하고 수락 또는 거절할 수 있습니다
+            긴급 대타 요청 상세 정보를 확인하고 수락 또는 거절할 수 있습니다
           </DialogDescription>
         </DialogHeader>
 
@@ -481,7 +481,7 @@ export function DispatchAcceptDialog({
             className="min-h-[56px] w-full bg-emerald-600 text-lg font-semibold text-white hover:bg-emerald-700"
             disabled={acceptMutation.isPending || declineMutation.isPending}
             onClick={() => acceptMutation.mutate(dispatch.id)}
-            aria-label="디스패치 요청 수락"
+            aria-label="긴급 대타 요청 수락"
           >
             {acceptMutation.isPending ? '수락 중...' : '수락'}
           </Button>
@@ -490,7 +490,7 @@ export function DispatchAcceptDialog({
             className="min-h-[44px] w-full text-muted-foreground"
             disabled={acceptMutation.isPending || declineMutation.isPending}
             onClick={() => declineMutation.mutate(dispatch.id)}
-            aria-label="디스패치 요청 거절"
+            aria-label="긴급 대타 요청 거절"
           >
             {declineMutation.isPending ? '거절 중...' : '거절'}
           </Button>

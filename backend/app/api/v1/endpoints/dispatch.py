@@ -250,3 +250,31 @@ async def get_dispatch_status(
         records=[_record_to_response(r) for r in records],
         matched=matched,
     )
+
+
+@router.post("/job/{job_post_id}/finalize-window")
+async def finalize_window(
+    job_post_id: UUID,
+    wave_number: int = 1,
+    current_user: User = Depends(require_role(UserRole.STUDIO)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually finalize the dispatch window for a job post.
+
+    Picks the best accepted candidate and creates an Application.
+    Intended for demo/testing — in production, the scheduler handles this.
+    """
+    engine = DispatchEngine(db)
+    result = await engine.finalize_dispatch_window(
+        job_post_id=str(job_post_id),
+        wave_number=wave_number,
+    )
+    await db.commit()
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NO_CANDIDATES", "message": "No accepted candidates to finalize"},
+        )
+
+    return result
